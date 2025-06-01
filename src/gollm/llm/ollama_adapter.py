@@ -54,19 +54,31 @@ class OllamaAdapter:
     async def generate_code(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generates code using Ollama with enhanced error handling and logging"""
         import logging
-        import json
+        import os
         import sys
+        from datetime import datetime
         
-        # Configure root logger to ensure all logs are captured
+        # Configure root logger to capture all logs
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.DEBUG)
         
-        # Create console handler with a higher log level
-        console_handler = logging.StreamHandler(sys.stderr)
-        console_handler.setLevel(logging.INFO)
+        # Create logs directory if it doesn't exist
+        log_dir = os.path.join(os.getcwd(), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
         
-        # Create file handler which logs even debug messages
-        file_handler = logging.FileHandler('ollama_debug.log', mode='w')
+        # Create a unique log file for this session
+        log_file = os.path.join(log_dir, f'ollama_debug_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+        
+        # Clear any existing handlers
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        
+        # Create console handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.DEBUG)
+        
+        # Create file handler
+        file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.DEBUG)
         
         # Create formatter and add it to the handlers
@@ -78,7 +90,9 @@ class OllamaAdapter:
         root_logger.addHandler(console_handler)
         root_logger.addHandler(file_handler)
         
-        logger = logging.getLogger(__name__)
+        # Get logger for this module
+        logger = logging.getLogger('gollm.ollama')
+        logger.info(f"Logging to file: {log_file}")
         
         if not self.session:
             error_msg = "OllamaAdapter not properly initialized. Use 'async with' context manager."
@@ -94,23 +108,23 @@ class OllamaAdapter:
             # Prepare the prompt with context
             formatted_prompt = self._format_prompt_for_ollama(prompt, context or {})
             logger.debug(f"Formatted prompt (first 200 chars): {formatted_prompt[:200]}...")
+            logger.debug(f"Full prompt: {formatted_prompt}")
             
             # Prepare the request payload with only essential options
-            # Remove any unsupported options that might cause warnings/errors
             payload = {
                 "model": self.config.model,
                 "prompt": formatted_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": min(max(0.1, float(self.config.temperature)), 1.0),  # Ensure valid range
-                    "num_predict": min(int(self.config.max_tokens), 4000),  # Limit to 4000 tokens
-                    "stop": ["```"]
+                    "temperature": min(max(0.1, float(self.config.temperature)), 1.0),
+                    "num_predict": min(int(self.config.max_tokens), 4000),
+                    "stop": ["```", "\n"]
                 }
             }
             
             # Remove any None values to avoid sending null in JSON
             payload["options"] = {k: v for k, v in payload["options"].items() if v is not None}
-            logger.debug(f"Sending request to Ollama with payload: {json.dumps(payload, indent=2)[:500]}...")
+            logger.debug(f"Sending request to Ollama with payload: {json.dumps(payload, indent=2)}")
             
             # Make the API request with a timeout
             try:
@@ -121,34 +135,33 @@ class OllamaAdapter:
                         timeout=aiohttp.ClientTimeout(total=self.config.timeout)
                     ) as response:
                         logger.debug(f"Received response status: {response.status}")
-                        
-                        # Log response headers for debugging
                         logger.debug(f"Response headers: {dict(response.headers)}")
                         
+                        # Get raw response text first for debugging
+                        raw_response_text = await response.text()
+                        logger.debug(f"Raw response text: {raw_response_text}")
+                        
                         if response.status != 200:
-                            error_text = await response.text()
-                            logger.error(f"Ollama API error response: {error_text}")
-                            error_msg = f"Ollama API error: {response.status} - {error_text}"
+                            error_msg = f"Ollama API error: {response.status} - {raw_response_text}"
                             logger.error(error_msg)
                             return {
                                 "success": False,
                                 "error": error_msg,
                                 "generated_code": "",
-                                "raw_response": error_text
+                                "raw_response": raw_response_text
                             }
-                        
-                        # Get raw response text first for debugging
-                        raw_response_text = await response.text()
-                        logger.debug(f"Raw response text: {raw_response_text[:1000]}...")
                         
                         try:
                             result = await response.json()
-                            logger.debug(f"Parsed Ollama response: {json.dumps(result, indent=2)[:1000]}...")
+                            logger.debug(f"Parsed Ollama response: {json.dumps(result, indent=2)}")
                             
-                            # Log the response structure for debugging
-                            logger.debug(f"Response keys: {list(result.keys())}")
-                            logger.debug(f"Response content type: {type(result.get('response'))}")
-                            logger.debug(f"Response content length: {len(str(result.get('response', '')))} chars")
+                            # Log the full response structure for debugging
+                            logger.debug("Response structure:")
+                            for key, value in result.items():
+                                logger.debug(f"  {key}: {type(value)} (length: {len(str(value)) if hasattr(value, '__len__') else 'N/A'})")
+                                if key == 'response':
+                                    logger.debug(f"  Response content (first 500 chars): {str(value)[:500]}")
+                            
                             logger.debug(f"Response content (first 1000 chars): {str(result.get('response', ''))[:1000]}")
                             
                             generated_text = result.get('response', '')
