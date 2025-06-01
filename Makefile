@@ -67,7 +67,7 @@ build: clean
 publish-test: build
 	python -m twine upload --repository testpypi dist/*
 
-publish: build
+publish: version build
 	python -m twine upload dist/*
 
 # Rozwój

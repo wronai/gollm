@@ -1,51 +1,34 @@
-#!/usr/bin/env python3
+import asyncio
+import logging
+from gollm.llm.ollama_adapter import OllamaLLMProvider
+from gollm.config.config import GollmConfig
 
-import sys
-import os
-import subprocess
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
 
-def main():
-    print("Testing goLLM installation...")
-    print(f"Python executable: {sys.executable}")
-    print(f"Python version: {sys.version}")
-    print(f"Current directory: {os.getcwd()}")
-    
-    print("\nTrying to import gollm...")
+async def test_ollama():
     try:
-        import gollm
-        print(f"Successfully imported gollm from: {gollm.__file__}")
+        print("Testing Ollama connection...")
+        config = {
+            "enabled": True,
+            "model": "codellama:7b",
+            "base_url": "http://localhost:11434",
+            "timeout": 300
+        }
         
-        print("\nTrying to run gollm status...")
-        try:
-            from gollm.cli import cli
-            print("Successfully imported gollm.cli")
-            
-            # Run the status command
-            print("\nRunning 'gollm status':")
-            import sys
-            sys.argv = ['gollm', 'status']
-            cli()
-            
-        except Exception as e:
-            print(f"Error running gollm status: {e}")
-            
-    except ImportError as e:
-        print(f"Error importing gollm: {e}")
+        provider = OllamaLLMProvider(config)
         
-        # Try to find the package
-        print("\nSearching for gollm in sys.path:")
-        for path in sys.path:
-            gollm_path = os.path.join(path, 'gollm')
-            if os.path.exists(gollm_path):
-                print(f"Found gollm at: {gollm_path}")
-                
-        print("\nInstalled packages:")
-        try:
-            import pkg_resources
-            installed_packages = [d.project_name for d in pkg_resources.working_set]
-            print("\n".join(installed_packages))
-        except Exception as e:
-            print(f"Error listing packages: {e}")
+        # Test simple completion
+        print("\nTesting completion...")
+        response = await provider.complete("Write a Python function that returns 'Hello, World!'")
+        print("\nResponse:", response)
+        
+        return True
+    except Exception as e:
+        print(f"\nError: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(test_ollama())

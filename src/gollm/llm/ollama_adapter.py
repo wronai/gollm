@@ -208,52 +208,71 @@ def example():
             
         logger.debug(f"Extracting code from response (first 200 chars): {response_text[:200]}...")
         
+        # Check if the entire response is a code block
+        stripped_text = response_text.strip()
+        if stripped_text.startswith('```') and stripped_text.endswith('```'):
+            # Extract content between the first and last ```
+            code_content = '\n'.join(stripped_text.split('\n')[1:-1])
+            logger.debug("Extracted code from fenced code block")
+            return code_content
+            
         # Try different patterns to extract code blocks
         patterns = [
-            # Python code block with language specifier
-            r'```(?:python\s*\n)?(.*?)```',
-            # General code block
-            r'```(.*?)```',
-            # Inline code blocks
-            r'`(.*?)`',
+            # Python code block with language specifier (```python ... ```)
+            r'```(?:python\s*\n)?(.*?)(?=```\s*$|```\s*\n|$)',
+            # General code block (``` ... ```)
+            r'```\s*\n(.*?)(?=```\s*$|```\s*\n|$)',
             # Python function/class definition without code block
             r'(def\s+\w+\s*\(.*?\n(?:\s+.*\n)*?\s+)(?=def|class|$)',
             # Python class definition
-            r'(class\s+\w+\s*(?:\(.*?\))?\s*:\s*\n(?:\s+.*\n)*?\s+)(?=def|class|$)'
+            r'(class\s+\w+\s*(?:\(.*?\))?\s*:\s*\n(?:\s+.*\n)*?\s+)(?=def|class|$)',
+            # Python code after explanation (common in Ollama responses)
+            r'(?:Here is|Here\'s).*?:\s*\n\s*```(?:python\s*\n)?(.*?)(?=```|$)'
         ]
         
-        extracted_code = ""
-        
         for pattern in patterns:
-            matches = re.findall(pattern, response_text, re.DOTALL)
-            if matches:
-                logger.debug(f"Found {len(matches)} matches with pattern: {pattern[:50]}...")
-                for match in matches:
-                    if isinstance(match, tuple):
-                        match = match[0]
-                    
-                    # Clean up the extracted code
-                    code = match.strip()
-                    if not code:
-                        continue
+            try:
+                matches = re.findall(pattern, response_text, re.DOTALL)
+                if matches:
+                    logger.debug(f"Found {len(matches)} matches with pattern: {pattern[:50]}...")
+                    for match in matches:
+                        if isinstance(match, tuple):
+                            match = match[0]
                         
-                    # If the code contains Python keywords, it's likely Python code
-                    if any(keyword in code for keyword in ['def ', 'class ', 'import ', 'from ', 'return ']):
-                        logger.debug("Found Python code in response")
-                        return code
-                    
-                    # If no Python keywords but looks like code, keep it
-                    if '\n' in code and ('(' in code or '=' in code or ':' in code):
-                        logger.debug("Found potential code block")
-                        return code
+                        # Clean up the extracted code
+                        code = match.strip()
+                        if not code:
+                            continue
+                            
+                        # If the code contains Python keywords, it's likely Python code
+                        keywords = ['def ', 'class ', 'import ', 'from ', 'return ']
+                        if any(keyword in code for keyword in keywords):
+                            logger.debug("Found Python code in response")
+                            return code
+                        
+                        # If no Python keywords but looks like code, keep it
+                        if '\n' in code and ('(' in code or '=' in code or ':' in code):
+                            logger.debug("Found potential code block")
+                            return code
+            except Exception as e:
+                logger.warning(f"Error processing pattern {pattern}: {str(e)}")
                         
         # If no code blocks found, check if the whole response looks like code
-        lines = response_text.strip().split('\n')
-        if len(lines) > 2 and any('def ' in line or 'class ' in line for line in lines[:3]):
-            logger.debug("Response appears to be raw Python code")
-            return response_text.strip()
+        lines = [line.strip() for line in response_text.strip().split('\n') if line.strip()]
+        if len(lines) > 2:
+            # Check if first few lines contain Python keywords
+            python_keywords = ['def ', 'class ', 'import ', 'from ', 'return ']
+            if any(any(kw in line for kw in python_keywords) for line in lines[:3]):
+                logger.debug("Response appears to be raw Python code")
+                return '\n'.join(lines)
+                
+            # Check for indented blocks that look like code
+            if any(line.startswith(('    ', '\t')) for line in lines[1:5]):
+                logger.debug("Found indented block that looks like code")
+                return '\n'.join(lines)
             
         logger.warning("No valid Python code found in response")
+        logger.debug(f"Full response that couldn't be parsed: {response_text}")
         return ""
 
 class OllamaLLMProvider:
@@ -273,6 +292,7 @@ class OllamaLLMProvider:
         """Generates a response compatible with the goLLM LLM interface"""
         import logging
         import json
+        import traceback
         logger = logging.getLogger(__name__)
         
         try:
@@ -280,6 +300,8 @@ class OllamaLLMProvider:
                 context = {}
                 
             logger.info(f"Generating response with prompt (truncated): {prompt[:200]}...")
+            logger.debug(f"Full prompt: {prompt}")
+            logger.debug(f"Context: {json.dumps(context, indent=2)}")
             logger.debug(f"Full prompt: {prompt}")
             logger.debug(f"Context keys: {list(context.keys())}")
             
