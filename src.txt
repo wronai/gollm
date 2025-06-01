@@ -1,0 +1,100 @@
+spyq/
+├── pyproject.toml
+├── README.md
+├── setup.py
+├── requirements.txt
+├── Makefile
+├── Makefile.windows
+├── docker-compose.yml
+├── Dockerfile
+├── .gitignore
+├── install.sh
+├── run_demo.sh
+├── run_demo.bat
+├── test_basic_functionality.py
+├── examples/
+│   ├── bad_code.py
+│   ├── good_code.py
+│   ├── spyq.json
+│   ├── TODO.md
+│   └── CHANGELOG.md
+├── tests/
+│   ├── __init__.py
+│   ├── test_validators.py
+│   ├── test_todo_manager.py
+│   ├── test_changelog_manager.py
+│   ├── test_config_aggregator.py
+│   ├── test_llm_orchestrator.py
+│   └── fixtures/
+│       ├── sample_config.json
+│       ├── sample_todo.md
+│       └── sample_changelog.md
+├── src/
+│   └── spyq/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── cli.py
+│       ├── config/
+│       │   ├── __init__.py
+│       │   ├── config.py
+│       │   ├── parsers.py
+│       │   └── aggregator.py
+│       ├── validation/
+│       │   ├── __init__.py
+│       │   ├── validators.py
+│       │   ├── rules.py
+│       │   └── execution_monitor.py
+│       ├── project_management/
+│       │   ├── __init__.py
+│       │   ├── todo_manager.py
+│       │   ├── changelog_manager.py
+│       │   └── task_prioritizer.py
+│       ├── llm/
+│       │   ├── __init__.py
+│       │   ├── orchestrator.py
+│       │   ├── context_builder.py
+│       │   ├── prompt_formatter.py
+│       │   ├── response_validator.py
+│       │   └── ollama_adapter.py
+│       ├── logging/
+│       │   ├── __init__.py
+│       │   ├── log_aggregator.py
+│       │   ├── log_parser.py
+│       │   └── execution_capture.py
+│       ├── git/
+│       │   ├── __init__.py
+│       │   ├── hooks.py
+│       │   └── analyzer.py
+│       ├── ide/
+│       │   ├── __init__.py
+│       │   ├── vscode_extension.py
+│       │   ├── language_server.py
+│       │   └── file_watcher.py
+│       └── utils/
+│           ├── __init__.py
+│           ├── file_utils.py
+│           ├── string_utils.py
+│           └── decorators.py
+├── scripts/
+│   ├── install_hooks.py
+│   ├── setup_ide.py
+│   └── migrate_config.py
+├── docs/
+│   ├── getting_started.md
+│   ├── configuration.md
+│   ├── llm_integration.md
+│   ├── ollama_setup.md
+│   └── api_reference.md
+└── .spyq/
+    ├── templates/
+    │   ├── todo_template.md
+    │   ├── changelog_template.md
+    │   └── config_template.json
+    ├── hooks/
+    │   ├── pre-commit
+    │   ├── post-commit
+    │   └── pre-push
+    └── cache/
+        ├── execution_logs/
+        ├── validation_cache/
+        └── llm_context/

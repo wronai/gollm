@@ -1,0 +1,30 @@
+
+services:
+  spyq-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spyq-development
+    volumes:
+      - .:/workspace
+      - spyq-cache:/workspace/.spyq/cache
+    working_dir: /workspace
+    environment:
+      - PYTHONPATH=/workspace/src
+      - SPYQ_CONFIG=/workspace/spyq.json
+    command: tail -f /dev/null
+    
+  spyq-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spyq-testing
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    environment:
+      - PYTHONPATH=/workspace/src
+    command: pytest tests/ -v --cov=src/spyq
+
+volumes:
+  spyq-cache:

@@ -1,0 +1,15 @@
+{
+  "llm_integration": {
+    "enabled": true,
+    "providers": {
+      "ollama": {
+        "enabled": true,
+        "base_url": "http://localhost:11434",
+        "model": "codellama:7b",
+        "timeout": 60,
+        "temperature": 0.1
+      }
+    },
+    "max_iterations": 3
+  }
+}

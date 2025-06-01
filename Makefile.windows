@@ -1,0 +1,51 @@
+
+# Makefile.windows
+# Makefile dla Windows (nmake)
+
+install:
+	pip install -e .
+
+dev:
+	pip install -e .[dev]
+
+test:
+	pytest tests\ -v
+
+test-coverage:
+	pytest tests\ --cov=src\spyq --cov-report=html --cov-report=term-missing
+
+lint:
+	flake8 src tests
+	mypy src
+
+format:
+	black src tests
+	isort src tests
+
+spyq-check:
+	python -m spyq validate-project
+	python -m spyq status
+
+clean:
+	if exist build rmdir /s /q build
+	if exist dist rmdir /s /q dist
+	if exist *.egg-info rmdir /s /q *.egg-info
+	if exist .pytest_cache rmdir /s /q .pytest_cache
+	if exist .coverage del .coverage
+	if exist htmlcov rmdir /s /q htmlcov
+	for /d /r . %%d in (__pycache__) do @if exist "%%d" rmdir /s /q "%%d"
+	for /r . %%f in (*.pyc) do @if exist "%%f" del "%%f"
+
+build: clean
+	python -m build
+
+demo:
+	@echo 🚀 SPYQ Demo
+	@echo 1. Validating bad code example...
+	python -m spyq validate examples\bad_code.py
+	@echo.
+	@echo 2. Showing good code example...
+	python -m spyq validate examples\good_code.py
+	@echo.
+	@echo 3. Project status...
+	python -m spyq status

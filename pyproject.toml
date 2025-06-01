@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spyq"
+version = "0.1.0"
+description = "Smart Python Quality Guardian - Inteligentny system kontroli jakości kodu z integracją LLM"
+authors = [
+    {name = "SPYQ Team", email = "team@spyq.dev"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+keywords = ["code-quality", "linting", "llm", "python", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+dependencies = [
+    "click>=8.0.0",
+    "pyyaml>=6.0",
+    "toml>=0.10.0",
+    "psutil>=5.0.0",
+    "aiofiles>=0.8.0",
+    "pydantic>=1.10.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "coverage>=7.0.0"
+]
+
+llm = [
+    "openai>=1.0.0",
+    "anthropic>=0.3.0"
+]
+
+[project.scripts]
+spyq = "spyq.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/spyq/spyq"
+Documentation = "https://spyq.readthedocs.io"
+Repository = "https://github.com/spyq/spyq"
+Issues = "https://github.com/spyq/spyq/issues"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+# requirements.txt
+click>=8.0.0
+pyyaml>=6.0
+toml>=0.10.0
+psutil>=5.0.0
+aiofiles>=0.8.0
+pydantic>=1.10.0
+
+# Dev dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+coverage>=7.0.0
