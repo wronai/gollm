@@ -114,24 +114,40 @@ class OllamaAdapter:
                                 "raw_response": error_text
                             }
                         
-                        result = await response.json()
-                        logger.debug(f"Raw Ollama response: {json.dumps(result, indent=2)}")
+                        # Get raw response text first for debugging
+                        raw_response_text = await response.text()
+                        logger.debug(f"Raw response text: {raw_response_text[:1000]}...")
                         
-                        # Log the response structure for debugging
-                        logger.debug(f"Response keys: {list(result.keys())}")
-                        logger.debug(f"Response content type: {type(result.get('response'))}")
-                        logger.debug(f"Response content (first 500 chars): {str(result.get('response', ''))[:500]}")
-                        
-                        generated_text = result.get('response', '')
-                        if not generated_text:
-                            error_msg = "Empty response from Ollama API"
+                        try:
+                            result = await response.json()
+                            logger.debug(f"Parsed Ollama response: {json.dumps(result, indent=2)[:1000]}...")
+                            
+                            # Log the response structure for debugging
+                            logger.debug(f"Response keys: {list(result.keys())}")
+                            logger.debug(f"Response content type: {type(result.get('response'))}")
+                            logger.debug(f"Response content length: {len(str(result.get('response', '')))} chars")
+                            logger.debug(f"Response content (first 1000 chars): {str(result.get('response', ''))[:1000]}")
+                            
+                            generated_text = result.get('response', '')
+                            if not generated_text:
+                                error_msg = "Empty 'response' field in Ollama API response"
+                                logger.error(error_msg)
+                                logger.error(f"Full response: {json.dumps(result, indent=2)}")
+                                return {
+                                    "success": False,
+                                    "error": error_msg,
+                                    "generated_code": "",
+                                    "raw_response": raw_response_text
+                                }
+                        except json.JSONDecodeError as e:
+                            error_msg = f"Failed to parse Ollama API response: {str(e)}"
                             logger.error(error_msg)
-                            logger.error(f"Full response: {result}")
+                            logger.error(f"Raw response text: {raw_response_text[:1000]}...")
                             return {
                                 "success": False,
                                 "error": error_msg,
                                 "generated_code": "",
-                                "raw_response": json.dumps(result, indent=2) if result else ""
+                                "raw_response": raw_response_text
                             }
                         
                         extracted_code = self._extract_code_from_response(generated_text)

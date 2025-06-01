@@ -62,36 +62,16 @@ pip install -e .[dev]
 
 ### Pierwsze kroki
 
-1. **Utwórz plik konfiguracyjny**
+1. **Skonfiguruj projekt**
    ```bash
+   # Przejdź do katalogu projektu
    cd twój_projekt
-   # Utwórz plik gollm.json z domyślną konfiguracją
-   echo '{
-     "version": "0.2.0",
-     "validation_rules": {
-       "max_function_lines": 50,
-       "max_file_lines": 300,
-       "max_cyclomatic_complexity": 10,
-       "max_function_params": 5,
-       "max_line_length": 88,
-       "forbid_print_statements": true,
-       "forbid_global_variables": true,
-       "require_docstrings": true,
-       "require_type_hints": false,
-       "naming_convention": "snake_case"
-     },
-     "project_management": {
-       "todo_integration": true,
-       "auto_create_tasks": true,
-       "changelog_integration": true
-     },
-     "llm_integration": {
-       "enabled": true,
-       "provider": "openai",
-       "model": "gpt-4"
-     }
-   }' > gollm.json
+   
+   # Zainicjuj konfigurację (tworzy plik gollm.json)
+   gollm init
    ```
+   
+   > ℹ️ Więcej o konfiguracji: [Dokumentacja konfiguracji](./docs/configuration/README.md)
 
 2. **Uruchom analizę kodu**
    ```bash
@@ -104,6 +84,8 @@ pip install -e .[dev]
    # Sprawdź status projektu
    gollm status
    ```
+   
+   > 📘 Pełna dokumentacja dostępna w [przewodniku wprowadzającym](./docs/guides/getting_started.md)
 
 ## 🚀 Szybki Start
 
