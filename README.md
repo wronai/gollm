@@ -723,3 +723,11 @@ gollm --help              # Wyświetl dostępne komendy
 > 📘 Pełna dokumentacja dostępna w [przewodniku użytkownika](./docs/guides/getting_started.md) i [dokumentacji API](./docs/api/README.md).
 
 
+```
+curl -X POST http://localhost:11434/api/generate -d '{"model": "codellama:7b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
+```
+
+
+```
+curl -X POST http://192.168.188.108:11434/api/generate -d '{"model": "qwen2.5:7b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
+```

@@ -1,6 +1,7 @@
 # src/gollm/llm/ollama_adapter.py
 import asyncio
 import json
+import os
 import aiohttp
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
@@ -54,45 +55,29 @@ class OllamaAdapter:
     async def generate_code(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generates code using Ollama with enhanced error handling and logging"""
         import logging
-        import os
-        import sys
+        import json
         from datetime import datetime
         
-        # Configure root logger to capture all logs
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG)
-        
-        # Create logs directory if it doesn't exist
-        log_dir = os.path.join(os.getcwd(), 'logs')
-        os.makedirs(log_dir, exist_ok=True)
-        
-        # Create a unique log file for this session
-        log_file = os.path.join(log_dir, f'ollama_debug_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
-        
-        # Clear any existing handlers
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-        
-        # Create console handler
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.DEBUG)
-        
-        # Create file handler
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.DEBUG)
-        
-        # Create formatter and add it to the handlers
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        console_handler.setFormatter(formatter)
-        file_handler.setFormatter(formatter)
-        
-        # Add the handlers to the root logger
-        root_logger.addHandler(console_handler)
-        root_logger.addHandler(file_handler)
-        
-        # Get logger for this module
+        # Configure logger with file handler
         logger = logging.getLogger('gollm.ollama')
-        logger.info(f"Logging to file: {log_file}")
+        logger.setLevel(logging.DEBUG)
+        
+        # Ensure logs directory exists
+        os.makedirs('logs', exist_ok=True)
+        
+        # Add file handler if not already added
+        if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+            log_file = f"logs/ollama_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            
+            # Also add console handler for immediate feedback
+            console = logging.StreamHandler()
+            console.setLevel(logging.INFO)
+            logger.addHandler(console)
         
         if not self.session:
             error_msg = "OllamaAdapter not properly initialized. Use 'async with' context manager."
@@ -103,17 +88,19 @@ class OllamaAdapter:
                 "generated_code": "",
                 "raw_response": ""
             }
-        
-        try:
-            # Prepare the prompt with context
-            formatted_prompt = self._format_prompt_for_ollama(prompt, context or {})
-            logger.debug(f"Formatted prompt (first 200 chars): {formatted_prompt[:200]}...")
-            logger.debug(f"Full prompt: {formatted_prompt}")
             
-            # Prepare the request payload with only essential options
+        try:
+            # Simplify the prompt to match what worked in curl test
+            # Extract just the core instruction from the prompt, removing any metadata
+            import re
+            core_instruction = re.sub(r'goLLM.*?OUTPUT FORMAT:.*?```python\s*', '', prompt, flags=re.DOTALL).strip()
+            simplified_prompt = f"Write a Python function that {core_instruction}"
+            logger.debug(f"Using simplified prompt: {simplified_prompt}")
+            
+            # Prepare the request payload - simplified to match working curl example
             payload = {
                 "model": self.config.model,
-                "prompt": formatted_prompt,
+                "prompt": simplified_prompt,
                 "stream": False,
                 "options": {
                     "temperature": min(max(0.1, float(self.config.temperature)), 1.0),
@@ -129,6 +116,9 @@ class OllamaAdapter:
             # Make the API request with a timeout
             try:
                 async with asyncio.timeout(self.config.timeout):
+                    logger.debug(f"Sending POST request to: {self.config.base_url}/api/generate")
+                    logger.debug(f"Request headers: {dict(self.session._default_headers) if hasattr(self.session, '_default_headers') else 'No default headers'}")
+                    
                     async with self.session.post(
                         f"{self.config.base_url}/api/generate",
                         json=payload,
@@ -139,7 +129,7 @@ class OllamaAdapter:
                         
                         # Get raw response text first for debugging
                         raw_response_text = await response.text()
-                        logger.debug(f"Raw response text: {raw_response_text}")
+                        logger.debug(f"Raw response text (first 500 chars): {raw_response_text[:500]}")
                         
                         if response.status != 200:
                             error_msg = f"Ollama API error: {response.status} - {raw_response_text}"
@@ -153,53 +143,72 @@ class OllamaAdapter:
                         
                         try:
                             result = await response.json()
-                            logger.debug(f"Parsed Ollama response: {json.dumps(result, indent=2)}")
+                            logger.debug(f"Parsed Ollama response type: {type(result)}")
+                            logger.debug(f"Response keys: {list(result.keys())}")
                             
-                            # Log the full response structure for debugging
+                            # Log the full response structure
                             logger.debug("Response structure:")
                             for key, value in result.items():
                                 logger.debug(f"  {key}: {type(value)} (length: {len(str(value)) if hasattr(value, '__len__') else 'N/A'})")
                                 if key == 'response':
                                     logger.debug(f"  Response content (first 500 chars): {str(value)[:500]}")
                             
-                            logger.debug(f"Response content (first 1000 chars): {str(result.get('response', ''))[:1000]}")
+                            logger.debug(f"Full response (first 1000 chars): {str(result)[:1000]}")
                             
+                            # Extract the generated text from the response
                             generated_text = result.get('response', '')
                             if not generated_text:
-                                error_msg = "Empty 'response' field in Ollama API response"
+                                error_msg = "Empty 'response' field in Ollama API response. "
+                                error_msg += f"This might be due to the model not generating any output. "
+                                error_msg += f"Model: {self.config.model}, Prompt length: {len(simplified_prompt)}"
                                 logger.error(error_msg)
-                                logger.error(f"Full response: {json.dumps(result, indent=2)}")
+                                logger.debug(f"Full response: {result}")
+                                
+                                # Try to get more detailed error information
+                                if 'error' in result:
+                                    error_msg += f"\nError details: {result['error']}"
+                                    
                                 return {
                                     "success": False,
                                     "error": error_msg,
                                     "generated_code": "",
-                                    "raw_response": raw_response_text
+                                    "raw_response": raw_response_text,
+                                    "debug_info": {
+                                        "model": self.config.model,
+                                        "prompt_length": len(simplified_prompt),
+                                        "response_keys": list(result.keys()) if isinstance(result, dict) else ""
+                                    }
                                 }
+                                
+                            # Try to extract code from the response
+                            extracted_code = self._extract_code_from_response(generated_text)
+                            if not extracted_code:
+                                logger.warning("No code could be extracted from the response")
+                                extracted_code = generated_text  # Fall back to full response
+                                
+                            return {
+                                "success": True,
+                                "generated_code": extracted_code,
+                                "raw_response": generated_text,
+                                "model_info": {
+                                    "provider": "ollama",
+                                    "model": self.config.model,
+                                    "tokens_used": result.get("eval_count", 0)
+                                }
+                            }
+                            
                         except json.JSONDecodeError as e:
-                            error_msg = f"Failed to parse Ollama API response: {str(e)}"
-                            logger.error(error_msg)
-                            logger.error(f"Raw response text: {raw_response_text[:1000]}...")
+                            error_msg = f"Failed to parse Ollama API response: {e}"
+                            logger.error(f"{error_msg}. Response: {raw_response_text}")
                             return {
                                 "success": False,
                                 "error": error_msg,
                                 "generated_code": "",
                                 "raw_response": raw_response_text
                             }
-                        
-                        extracted_code = self._extract_code_from_response(generated_text)
-                        logger.debug(f"Extracted code (first 200 chars): {extracted_code[:200]}..." if extracted_code else "No code extracted")
-                        
-                        return {
-                            "success": True,
-                            "error": None,
-                            "generated_code": extracted_code,
-                            "raw_response": generated_text,
-                            "model_used": self.config.model,
-                            "tokens_used": result.get('eval_count', 0)
-                        }
-                        
+                            
             except asyncio.TimeoutError:
-                error_msg = f"Request to Ollama API timed out after {self.config.timeout} seconds"
+                error_msg = f"Ollama API request timed out after {self.config.timeout} seconds"
                 logger.error(error_msg)
                 return {
                     "success": False,
@@ -208,19 +217,14 @@ class OllamaAdapter:
                     "raw_response": ""
                 }
                 
-        except asyncio.TimeoutError:
-            return {
-                "success": False,
-                "error": f"Timeout after {self.config.timeout} seconds",
-                "generated_code": "",
-                "raw_response": ""
-            }
         except Exception as e:
+            error_msg = f"Unexpected error in generate_code: {str(e)}"
+            logger.exception(error_msg)
             return {
                 "success": False,
-                "error": f"Unexpected error: {str(e)}",
+                "error": error_msg,
                 "generated_code": "",
-                "raw_response": ""
+                "raw_response": str(e)
             }
     
     def _format_prompt_for_ollama(self, user_prompt: str, context: Dict[str, Any]) -> str:
