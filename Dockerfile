@@ -4,7 +4,7 @@ FROM python:3.11-slim
 
 # Ustaw metadane
 LABEL maintainer="goLLM Team <team@gollm.dev>"
-LABEL description="goLLM - Smart Python Quality Guardian"
+LABEL description="goLLM - Go Learn, Lead, Master!"
 LABEL version="0.1.0"
 
 # Zainstaluj systemowe zależności

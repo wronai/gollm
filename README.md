@@ -1,7 +1,6 @@
-# README.md
-# goLLM - Smart Python Quality Guardian
+# goLLM - Go Learn, Lead, Master!
 
-🚀 **Inteligentny system kontroli jakości kodu z integracją LLM, automatycznym zarządzaniem TODO i CHANGELOG.**
+🚀 **Intelligent Python code quality guardian with LLM integration, automated TODO management and CHANGELOG generation.**
 
 ## ✨ Funkcje
 
@@ -272,7 +271,7 @@ MIT License - zobacz [LICENSE](LICENSE) po szczegóły.
 
 ## 🎯 Podsumowanie Rozwiązania
 
-**goLLM (Smart Python Quality Guardian)** to kompletny system kontroli jakości kodu z integracją LLM, który automatycznie:
+**goLLM (Go Learn, Lead, Master!)** to kompletny system kontroli jakości kodu z integracją LLM, który automatycznie:
 
 1. **Waliduje kod w czasie rzeczywistym** - blokuje zapisywanie/wykonanie kodu niespełniającego standardów
 2. **Integruje się z LLM** - automatycznie poprawia kod przez AI z kontekstem projektu

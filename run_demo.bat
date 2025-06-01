@@ -2,7 +2,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo 🚀 goLLM - Smart Python Quality Guardian Demo
+echo 🚀 goLLM - Go Learn, Lead, Master! Demo
 echo ==============================================
 echo.
 

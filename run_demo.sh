@@ -1,7 +1,7 @@
 #!/bin/bash
 # run_demo.sh - goLLM Demo Script for Linux/macOS
 
-echo "🚀 goLLM - Smart Python Quality Guardian Demo"
+echo "🚀 goLLM - Go Learn, Lead, Master! Demo"
 echo "=============================================="
 echo ""
 

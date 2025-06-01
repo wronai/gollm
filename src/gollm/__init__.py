@@ -1,9 +1,9 @@
 # src/gollm/__init__.py
 """
-goLLM - Smart Python Quality Guardian
+goLLM - Go Learn, Lead, Master!
 
-Inteligentny system kontroli jakości kodu z integracją LLM,
-automatycznym zarządzaniem TODO i CHANGELOG.
+Intelligent Python code quality guardian with LLM integration,
+automated TODO management and CHANGELOG generation.
 """
 
 __version__ = "0.1.0"

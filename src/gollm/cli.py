@@ -10,7 +10,7 @@ from .main import GollmCore
 @click.option('--config', default='gollm.json', help='Path to config file')
 @click.pass_context
 def cli(ctx, config):
-    """goLLM - Smart Python Quality Guardian"""
+    """goLLM - Go Learn, Lead, Master!"""
     ctx.ensure_object(dict)
     ctx.obj['gollm'] = GollmCore(config)
 

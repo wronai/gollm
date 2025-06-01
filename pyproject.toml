@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gollm"
-version = "0.1.0"
-description = "Smart Python Quality Guardian - Inteligentny system kontroli jakości kodu z integracją LLM"
+version = "0.1.1"
+description = "Go Learn, Lead, Master! - Inteligentny system kontroli jakości kodu z integracją LLM"
 authors = [
     {name = "goLLM Team", email = "team@gollm.dev"}
 ]
