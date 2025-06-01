@@ -27,12 +27,12 @@ class LLMResponse:
 class LLMOrchestrator:
     """Orkiestruje komunikację z LLM i zarządza kontekstem"""
     
-    def __init__(self, config):
+    def __init__(self, config, code_validator=None):
         self.config = config
         self.context_builder = ContextBuilder(config)
         self.prompt_formatter = PromptFormatter(config)
         self.response_validator = ResponseValidator(config)
-        self.code_validator = CodeValidator(config)
+        self.code_validator = code_validator or CodeValidator(config)
     
     async def handle_code_generation_request(self, user_request: str, context: Dict[str, Any] = None) -> LLMResponse:
         """Główny punkt wejścia dla generowania kodu przez LLM"""

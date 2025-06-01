@@ -18,7 +18,7 @@ class GollmCore:
         self.validator = CodeValidator(self.config)
         self.todo_manager = TodoManager(self.config)
         self.changelog_manager = ChangelogManager(self.config)
-        self.llm_orchestrator = LLMOrchestrator(self.config)
+        self.llm_orchestrator = LLMOrchestrator(self.config, code_validator=self.validator)
         self.log_aggregator = LogAggregator(self.config)
     
     def validate_file(self, file_path: str) -> dict:

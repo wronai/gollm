@@ -56,7 +56,22 @@ def generate(ctx, request):
 
     async def run_generation():
         result = await gollm.handle_code_generation(request)
-        click.echo(result['generated_code'])
+        click.echo("=== Wygenerowany kod ===")
+        click.echo(result.generated_code)
+        click.echo("\n=== Wyjaśnienie ===")
+        click.echo(result.explanation)
+        
+        if result.validation_result.get('code_quality'):
+            quality = result.validation_result['code_quality']
+            violations = len(quality.get('violations', []))
+            score = quality.get('quality_score', 0)
+            click.echo(f"\n=== Jakość kodu: {score}/100 ===")
+            if violations > 0:
+                click.echo(f"Znaleziono {violations} naruszeń:")
+                for v in quality['violations']:
+                    click.echo(f"- {v['message']}")
+                    if 'suggested_fix' in v:
+                        click.echo(f"  Sugerowana poprawka: {v['suggested_fix']}")
 
     asyncio.run(run_generation())
 
