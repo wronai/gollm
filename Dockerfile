@@ -5,7 +5,7 @@ FROM python:3.11-slim
 # Ustaw metadane
 LABEL maintainer="goLLM Team <team@gollm.dev>"
 LABEL description="goLLM - Go Learn, Lead, Master!"
-LABEL version="0.1.2"
+LABEL version="0.1.3"
 
 # Zainstaluj systemowe zależności
 RUN apt-get update && apt-get install -y \

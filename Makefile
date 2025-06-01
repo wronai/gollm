@@ -54,10 +54,10 @@ build: clean
 	if [ ! -d "venv" ]; then \
 		python -m venv venv; \
 		. venv/bin/activate; \
-		pip install -U pip setuptools wheel build; \
+		pip install -U pip setuptools wheel build twine; \
 	else \
 		. venv/bin/activate; \
-		pip install -q --upgrade pip setuptools wheel build; \
+		pip install -q --upgrade pip setuptools wheel build twine; \
 	fi
 	pip install -e .
 	python -m build
