@@ -1,4 +1,0 @@
-"""
-execution_monitor.py
-"""
-

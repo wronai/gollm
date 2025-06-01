@@ -1,4 +1,0 @@
-"""
-execution_capture.py
-"""
-

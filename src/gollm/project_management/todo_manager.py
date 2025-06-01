@@ -214,13 +214,34 @@ class TodoManager:
         with open(self.todo_file, 'w', encoding='utf-8') as f:
             f.write(content)
     
+    def _format_description(self, description: str, context: Dict[str, Any]) -> str:
+        """Formatuje opis zadania w czytelny sposób"""
+        lines = [f"{description}"]
+        
+        # Dodaj kontekst w formie punktowanej listy
+        if context:
+            lines.append("\n**Context:**")
+            
+            # Obsłuż różne typy kontekstu
+            if 'request' in context:
+                lines.append(f"- Task: {context['request']}")
+                
+            if 'context' in context and isinstance(context['context'], dict):
+                ctx = context['context']
+                if 'is_critical' in ctx:
+                    lines.append(f"- Priority: {'🔴 HIGH' if ctx['is_critical'] else '🟡 MEDIUM'}")
+                if 'related_files' in ctx and ctx['related_files']:
+                    files = ", ".join(f'`{f}`' for f in ctx['related_files'] if f)
+                    lines.append(f"- Related files: {files}")
+        
+        return "\n".join(lines)
+
     def add_code_generation_task(self, description: str, context: Dict[str, Any]) -> Task:
         """Dodaje zadanie generowania kodu"""
         task = Task(
             id=f"gen-{datetime.now().strftime('%Y%m%d%H%M%S')}",
             title=f"[CodeGen] {description[:50]}",
-            description=f"**Description:** {description}\n"
-                      f"**Context:** {json.dumps(context, indent=2) if context else 'No context'}",
+            description=self._format_description(description, context),
             priority="HIGH" if context.get('is_critical') else "MEDIUM",
             created_at=datetime.now().isoformat(),
             estimated_effort=self._estimate_effort("code_generation"),
@@ -230,18 +251,34 @@ class TodoManager:
         self._save_tasks()
         return task
 
+    def _format_result_details(self, result: Dict[str, Any]) -> str:
+        """Formatuje szczegóły wyniku w czytelny sposób"""
+        lines = []
+        
+        if 'output_file' in result and result['output_file'] != 'unknown.py':
+            lines.append(f"- 📄 **Output file:** `{result['output_file']}`")
+            
+        if 'quality_score' in result:
+            score = result['quality_score']
+            emoji = "🟢" if score >= 90 else "🟡" if score >= 70 else "🔴"
+            lines.append(f"- {emoji} **Code quality:** {score}/100")
+        
+        if 'violations' in result and result['violations']:
+            lines.append("\n**Fixed issues:**")
+            for violation in result['violations']:
+                v_type = violation.get('type', 'Issue')
+                v_msg = violation.get('message', 'No details')
+                lines.append(f"  - {v_type}: {v_msg}")
+        
+        return "\n".join(lines)
+
     def update_code_generation_task(self, task_id: str, result: Dict[str, Any]):
         """Aktualizuje zadanie po wygenerowaniu kodu"""
         for task in self.tasks:
             if task.id == task_id:
-                if 'generated_code' in result:
-                    task.description += f"\n**Generated File:** {result.get('output_file', 'Unknown')}"
-                    task.description += f"\n**Quality Score:** {result.get('quality_score', 'N/A')}"
-                    
-                    if 'violations' in result:
-                        task.description += "\n**Fixed Violations:**"
-                        for violation in result['violations']:
-                            task.description += f"\n- {violation.get('type', 'Unknown')}: {violation.get('message', 'No details')}"
+                result_details = self._format_result_details(result)
+                if result_details:
+                    task.description += "\n\n" + result_details
                 
                 task.status = "completed"
                 self._save_tasks()

@@ -1,4 +1,0 @@
-"""
-aggregator.py
-"""
-

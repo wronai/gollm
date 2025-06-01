@@ -1,4 +1,0 @@
-"""
-response_validator.py
-"""
-

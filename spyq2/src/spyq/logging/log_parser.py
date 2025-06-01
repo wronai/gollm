@@ -1,4 +1,0 @@
-"""
-log_parser.py
-"""
-

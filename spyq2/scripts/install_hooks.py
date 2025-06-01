@@ -1,4 +1,0 @@
-"""
-install_hooks.py
-"""
-

@@ -1,4 +1,0 @@
-"""
-vscode_extension.py
-"""
-

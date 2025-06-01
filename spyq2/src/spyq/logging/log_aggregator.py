@@ -1,4 +1,0 @@
-"""
-log_aggregator.py
-"""
-

@@ -1,4 +1,0 @@
-"""
-prompt_formatter.py
-"""
-
