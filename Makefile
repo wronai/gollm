@@ -1,5 +1,5 @@
 
-.PHONY: install dev test lint format clean build publish
+.PHONY: install dev test lint format clean build publish demo-interactive demo-script
 
 # Instalacja
 install:
@@ -13,7 +13,7 @@ test:
 	pytest tests/ -v
 	
 test-coverage:
-	pytest tests/ --cov=src/spyq --cov-report=html --cov-report=term-missing
+	pytest tests/ --cov=src/gollm --cov-report=html --cov-report=term-missing
 
 # Jakość kodu
 lint:
@@ -24,10 +24,10 @@ format:
 	black src tests
 	isort src tests
 
-# SPYQ self-validation
-spyq-check:
-	python -m spyq validate-project
-	python -m spyq status
+# goLLM self-validation
+gollm-check:
+	python -m gollm validate-project
+	python -m gollm status
 
 # Czyszczenie
 clean:
@@ -59,76 +59,54 @@ dev-setup: dev
 
 # Demo
 demo:
-	@echo "🚀 SPYQ Demo"
+	@echo "🚀 goLLM Demo"
 	@echo "1. Validating bad code example..."
-	python -m spyq validate examples/bad_code.py
+	python -m gollm validate examples/bad_code.py
 	@echo "\n2. Showing good code example..."
-	python -m spyq validate examples/good_code.py
+	python -m gollm validate examples/good_code.py
 	@echo "\n3. Project status..."
-	python -m spyq status
+	python -m gollm status
 
 # Test quick installation
 test-install:
-	pip uninstall spyq -y || true
+	pip uninstall gollm -y || true
 	pip install -e .
-	spyq --help
+	gollm --help
 	echo "✅ Installation test passed"
 
-# run_demo.sh
-#!/bin/bash
+# Demo script target
+demo-script:
+	@echo "Run scripts/run_demo.sh instead"
 
-echo "🚀 SPYQ - Smart Python Quality Guardian Demo"
-echo "=============================================="
+demo-interactive:
+	@echo ""
+	@echo "🎯 goLLM Demo - Code Quality in Action"
+	@echo "======================================"
+	@echo ""
+	@echo "1️⃣  Validating BAD code example..."
+	@echo "-----------------------------------"
+	python -m gollm validate examples/bad_code.py
 
-# Sprawdź czy Python jest zainstalowany
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 is required but not installed"
-    exit 1
-fi
+	@echo ""
+	@echo "2️⃣  Validating GOOD code example..."
+	@echo "------------------------------------"
+	python -m gollm validate examples/good_code.py
 
-# Utwórz wirtualne środowisko jeśli nie istnieje
-if [ ! -d "venv" ]; then
-    echo "📦 Creating virtual environment..."
-    python3 -m venv venv
-fi
+	@echo ""
+	@echo "3️⃣  Project status overview..."
+	@echo "------------------------------"
+	python -m gollm status
 
-# Aktywuj wirtualne środowisko
-echo "🔧 Activating virtual environment..."
-source venv/bin/activate
+	@echo ""
+	@echo "4️⃣  Next TODO task..."
+	@echo "--------------------"
+	python -m gollm next-task
 
-# Zainstaluj SPYQ
-echo "⬇️  Installing SPYQ..."
-pip install -e .
-
-echo ""
-echo "🎯 SPYQ Demo - Code Quality in Action"
-echo "======================================"
-
-echo ""
-echo "1️⃣  Validating BAD code example..."
-echo "-----------------------------------"
-python -m spyq validate examples/bad_code.py
-
-echo ""
-echo "2️⃣  Validating GOOD code example..."
-echo "------------------------------------"
-python -m spyq validate examples/good_code.py
-
-echo ""
-echo "3️⃣  Project status overview..."
-echo "------------------------------"
-python -m spyq status
-
-echo ""
-echo "4️⃣  Next TODO task..."
-echo "--------------------"
-python -m spyq next-task
-
-echo ""
-echo "🎉 Demo completed!"
-echo ""
-echo "💡 Try these commands:"
-echo "   spyq validate-project    # Validate entire project"
-echo "   spyq generate 'create user class'  # Generate code with LLM"
-echo "   spyq fix --auto         # Auto-fix violations"
-echo "   spyq --help             # Show all commands"
+	@echo ""
+	@echo "🎉 Demo completed!"
+	@echo ""
+	@echo "💡 Try these commands:"
+	@echo "   gollm validate-project    # Validate entire project"
+	@echo "   gollm generate 'create user class'  # Generate code with LLM"
+	@echo "   gollm fix --auto         # Auto-fix violations"
+	@echo "   gollm --help             # Show all commands"

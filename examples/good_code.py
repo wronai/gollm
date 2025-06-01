@@ -1,6 +1,6 @@
 # examples/good_code.py
 """
-Przykład dobrego kodu zgodnego ze standardami SPYQ.
+Przykład dobrego kodu zgodnego ze standardami goLLM.
 
 Ten moduł demonstruje właściwe praktyki kodowania w Python.
 """

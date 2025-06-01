@@ -1,7 +1,7 @@
 #!/bin/bash
-# run_demo.sh - SPYQ Demo Script for Linux/macOS
+# run_demo.sh - goLLM Demo Script for Linux/macOS
 
-echo "🚀 SPYQ - Smart Python Quality Guardian Demo"
+echo "🚀 goLLM - Smart Python Quality Guardian Demo"
 echo "=============================================="
 echo ""
 
@@ -65,23 +65,23 @@ setup_venv() {
     print_success "Virtual environment ready"
 }
 
-# Install SPYQ
-install_spyq() {
-    print_step "⬇️  Installing SPYQ..."
+# Install goLLM
+install_gollm() {
+    print_step "⬇️  Installing goLLM..."
     
     pip install -e . > /dev/null 2>&1
     
     if [ $? -eq 0 ]; then
-        print_success "SPYQ installed successfully"
+        print_success "goLLM installed successfully"
     else
-        print_error "SPYQ installation failed"
+        print_error "goLLM installation failed"
         exit 1
     fi
 }
 
 # Run demo validation
 run_validation_demo() {
-    print_step "🔍 SPYQ Validation Demo"
+    print_step "🔍 goLLM Validation Demo"
     echo "========================================"
     echo ""
     
@@ -89,14 +89,14 @@ run_validation_demo() {
     echo ""
     
     # Run validation on bad code
-    python -m spyq validate examples/bad_code.py
+    python -m gollm validate examples/bad_code.py
     
     echo ""
     print_info "Validating GOOD code example (examples/good_code.py)..."
     echo ""
     
     # Run validation on good code  
-    python -m spyq validate examples/good_code.py
+    python -m gollm validate examples/good_code.py
     
     echo ""
     print_success "Validation demo completed"
@@ -108,7 +108,7 @@ show_project_status() {
     echo "========================================"
     echo ""
     
-    python -m spyq status
+    python -m gollm status
     
     echo ""
     print_success "Status overview completed"
@@ -120,7 +120,7 @@ show_next_task() {
     echo "========================================"
     echo ""
     
-    python -m spyq next-task
+    python -m gollm next-task
     
     echo ""
     print_success "TODO task display completed"
@@ -134,9 +134,9 @@ demo_llm_integration() {
     
     # Check if any LLM provider is configured
     LLM_ENABLED=$(python -c "
-from spyq.config.config import SpyqConfig
+from gollm.config.config import GollmConfig
 try:
-    config = SpyqConfig.load('examples/spyq.json')
+    config = GollmConfig.load('examples/gollm.json')
     print('true' if config.llm_integration.enabled else 'false')
 except:
     print('false')
@@ -147,7 +147,7 @@ except:
         echo ""
         
         # Try to generate simple code
-        python -m spyq generate "Create a simple hello world function" 2>/dev/null
+        python -m gollm generate "Create a simple hello world function" 2>/dev/null
         
         if [ $? -eq 0 ]; then
             print_success "LLM code generation demo completed"
@@ -161,12 +161,12 @@ except:
         echo "  For Ollama (local, free):"
         echo "    1. Install Ollama: curl -fsSL https://ollama.ai/install.sh | sh"
         echo "    2. Pull model: ollama pull codellama:7b"
-        echo "    3. Enable: spyq config set llm_integration.enabled true"
+        echo "    3. Enable: gollm config set llm_integration.enabled true"
         echo ""
         echo "  For OpenAI:"
         echo "    1. Get API key from platform.openai.com"
         echo "    2. Set key: export OPENAI_API_KEY='sk-...'"
-        echo "    3. Enable: spyq config set llm_integration.providers.openai.enabled true"
+        echo "    3. Enable: gollm config set llm_integration.providers.openai.enabled true"
     fi
     
     echo ""
@@ -174,15 +174,15 @@ except:
 
 # Show configuration
 show_configuration() {
-    print_step "⚙️  SPYQ Configuration"
+    print_step "⚙️  goLLM Configuration"
     echo "========================================"
     echo ""
     
-    print_info "Current configuration (examples/spyq.json):"
+    print_info "Current configuration (examples/gollm.json):"
     echo ""
     
-    if [ -f "examples/spyq.json" ]; then
-        cat examples/spyq.json | python -m json.tool 2>/dev/null || cat examples/spyq.json
+    if [ -f "examples/gollm.json" ]; then
+        cat examples/gollm.json | python -m json.tool 2>/dev/null || cat examples/gollm.json
     else
         print_warning "Configuration file not found"
     fi
@@ -197,7 +197,7 @@ demo_file_watching() {
     echo "========================================"
     echo ""
     
-    print_info "SPYQ can monitor files in real-time and validate changes automatically"
+    print_info "goLLM can monitor files in real-time and validate changes automatically"
     print_info "This would normally run in the background integrated with your IDE"
     echo ""
     
@@ -214,7 +214,7 @@ EOF
     echo ""
     
     print_info "Validating the temporary file..."
-    python -m spyq validate $TEMP_FILE
+    python -m gollm validate $TEMP_FILE
     
     echo ""
     print_info "Cleaning up temporary file..."
@@ -232,26 +232,26 @@ show_next_steps() {
     print_info "Essential Commands:"
     echo ""
     echo "  📊 Project Management:"
-    echo "    spyq status              # Show project quality status"
-    echo "    spyq validate-project    # Validate entire project"
-    echo "    spyq next-task          # Get next TODO task"
+    echo "    gollm status              # Show project quality status"
+    echo "    gollm validate-project    # Validate entire project"
+    echo "    gollm next-task          # Get next TODO task"
     echo ""
     echo "  🔧 Code Quality:"
-    echo "    spyq validate <file>     # Validate specific file"
-    echo "    spyq fix --auto         # Auto-fix violations"
+    echo "    gollm validate <file>     # Validate specific file"
+    echo "    gollm fix --auto         # Auto-fix violations"
     echo ""
     echo "  🤖 LLM Integration:"
-    echo "    spyq generate \"prompt\"   # Generate code with AI"
-    echo "    spyq fix --llm <file>   # Fix code with AI assistance"
+    echo "    gollm generate \"prompt\"   # Generate code with AI"
+    echo "    gollm fix --llm <file>   # Fix code with AI assistance"
     echo ""
     echo "  ⚙️  Configuration:"
-    echo "    spyq config show        # Show current config"
-    echo "    spyq config set key val # Set configuration value"
-    echo "    spyq init              # Initialize SPYQ in project"
+    echo "    gollm config show        # Show current config"
+    echo "    gollm config set key val # Set configuration value"
+    echo "    gollm init              # Initialize goLLM in project"
     echo ""
     echo "  🔗 Integration:"
-    echo "    spyq install-hooks      # Install Git hooks"
-    echo "    spyq setup-ide --editor=vscode  # Setup IDE integration"
+    echo "    gollm install-hooks      # Install Git hooks"
+    echo "    gollm setup-ide --editor=vscode  # Setup IDE integration"
     echo ""
     
     print_info "Documentation:"
@@ -265,21 +265,21 @@ show_next_steps() {
     print_info "Example Workflows:"
     echo ""
     echo "  🚀 Daily Development:"
-    echo "    1. spyq status           # Check what needs attention"
-    echo "    2. spyq next-task        # Work on priority items"
-    echo "    3. spyq validate <file>  # Validate as you code"
-    echo "    4. spyq fix --auto       # Fix simple issues"
+    echo "    1. gollm status           # Check what needs attention"
+    echo "    2. gollm next-task        # Work on priority items"
+    echo "    3. gollm validate <file>  # Validate as you code"
+    echo "    4. gollm fix --auto       # Fix simple issues"
     echo ""
     echo "  🤖 With LLM (after setup):"
-    echo "    1. spyq generate \"create user auth class\""
-    echo "    2. # SPYQ automatically validates and improves code"
+    echo "    1. gollm generate \"create user auth class\""
+    echo "    2. # goLLM automatically validates and improves code"
     echo "    3. # TODO and CHANGELOG updated automatically"
     echo ""
     echo "  📝 Project Setup:"
     echo "    1. cd your_project"
-    echo "    2. spyq init             # Create spyq.json config"
-    echo "    3. spyq install-hooks    # Install Git validation"
-    echo "    4. spyq setup-ide        # Configure your editor"
+    echo "    2. gollm init             # Create gollm.json config"
+    echo "    3. gollm install-hooks    # Install Git validation"
+    echo "    4. gollm setup-ide        # Configure your editor"
     echo ""
 }
 
@@ -287,7 +287,7 @@ show_next_steps() {
 main() {
     clear
     
-    print_step "🧪 SPYQ Demo Starting..."
+    print_step "🧪 goLLM Demo Starting..."
     echo ""
     
     # Pre-flight checks
@@ -295,10 +295,10 @@ main() {
     
     # Setup environment
     setup_venv
-    install_spyq
+    install_gollm
     
     echo ""
-    print_step "🎯 Running SPYQ Demos..."
+    print_step "🎯 Running goLLM Demos..."
     echo ""
     
     # Run all demo sections
@@ -323,10 +323,10 @@ main() {
     show_next_steps
     
     echo ""
-    print_step "🎉 SPYQ Demo Completed Successfully!"
+    print_step "🎉 goLLM Demo Completed Successfully!"
     echo ""
-    print_success "SPYQ is now ready to improve your code quality!"
-    print_info "To start using SPYQ in your projects, run: spyq init"
+    print_success "goLLM is now ready to improve your code quality!"
+    print_info "To start using goLLM in your projects, run: gollm init"
     echo ""
 }
 

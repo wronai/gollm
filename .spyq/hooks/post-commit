@@ -1,8 +1,8 @@
 #!/bin/sh
-# SPYQ Post-commit Hook
+# goLLM Post-commit Hook
 # Updates project documentation after successful commit
 
-echo "📝 SPYQ: Updating project documentation..."
+echo "📝 goLLM: Updating project documentation..."
 
 # Get commit information
 COMMIT_HASH=$(git rev-parse HEAD)
@@ -10,7 +10,7 @@ COMMIT_MSG=$(git log -1 --pretty=%B)
 AUTHOR=$(git log -1 --pretty=%an)
 
 # Update CHANGELOG with commit info
-python -m spyq changelog add-commit-entry \
+python -m gollm changelog add-commit-entry \
     --hash "$COMMIT_HASH" \
     --message "$COMMIT_MSG" \
     --author "$AUTHOR"
@@ -22,11 +22,11 @@ else
 fi
 
 # Update TODO completion status
-python -m spyq todo update-from-commit "$COMMIT_MSG"
+python -m gollm todo update-from-commit "$COMMIT_MSG"
 
 # Generate quality report
-python -m spyq report --format brief --output .spyq/cache/last_commit_quality.json
+python -m gollm report --format brief --output .gollm/cache/last_commit_quality.json
 
-echo "✅ SPYQ documentation updated"
+echo "✅ goLLM documentation updated"
 
 

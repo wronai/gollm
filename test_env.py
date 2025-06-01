@@ -17,15 +17,15 @@ def main():
     for pkg in sorted([p.key for p in pkg_resources.working_set]):
         print(f"  - {pkg}")
     
-    print("\nTrying to import spyq...")
+    print("\nTrying to import gollm...")
     try:
-        import spyq
-        print("Successfully imported spyq!")
-        print(f"spyq module path: {spyq.__file__}")
+        import gollm
+        print("Successfully imported gollm!")
+        print(f"gollm module path: {gollm.__file__}")
     except ImportError as e:
-        print(f"Failed to import spyq: {e}")
+        print(f"Failed to import gollm: {e}")
     except Exception as e:
-        print(f"Error importing spyq: {e}")
+        print(f"Error importing gollm: {e}")
 
 if __name__ == "__main__":
     main()

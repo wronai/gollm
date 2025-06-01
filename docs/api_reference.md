@@ -1,38 +1,38 @@
 
 # docs/api_reference.md
-# SPYQ API Reference
+# goLLM API Reference
 
 ## Core Classes
 
-### SpyqCore
-Main orchestrator class for SPYQ functionality.
+### GollmCore
+Main orchestrator class for goLLM functionality.
 
 ```python
-from spyq import SpyqCore
+from gollm import GollmCore
 
 # Initialize
-spyq = SpyqCore(config_path="spyq.json")
+gollm = GollmCore(config_path="gollm.json")
 
 # Validate files
-result = spyq.validate_file("src/myfile.py")
-project_result = spyq.validate_project()
+result = gollm.validate_file("src/myfile.py")
+project_result = gollm.validate_project()
 
 # LLM integration
-response = await spyq.handle_code_generation("Create a user class")
+response = await gollm.handle_code_generation("Create a user class")
 
 # Project management
-task = spyq.get_next_task()
-spyq.record_change("bug_fix", {"description": "Fixed login issue"})
+task = gollm.get_next_task()
+gollm.record_change("bug_fix", {"description": "Fixed login issue"})
 ```
 
 ### CodeValidator
 Validates Python code against quality rules.
 
 ```python
-from spyq.validation.validators import CodeValidator
-from spyq.config.config import SpyqConfig
+from gollm.validation.validators import CodeValidator
+from gollm.config.config import GollmConfig
 
-config = SpyqConfig.load("spyq.json")
+config = GollmConfig.load("gollm.json")
 validator = CodeValidator(config)
 
 # Validate single file
@@ -47,7 +47,7 @@ project_result = validator.validate_project()
 Manages LLM interactions with context.
 
 ```python
-from spyq.llm.orchestrator import LLMOrchestrator
+from gollm.llm.orchestrator import LLMOrchestrator
 
 orchestrator = LLMOrchestrator(config)
 
@@ -59,29 +59,29 @@ response = await orchestrator.handle_code_generation_request(
 
 ## Configuration System
 
-### SpyqConfig
+### GollmConfig
 Configuration management class.
 
 ```python
-from spyq.config.config import SpyqConfig
+from gollm.config.config import GollmConfig
 
 # Load configuration
-config = SpyqConfig.load("spyq.json")
+config = GollmConfig.load("gollm.json")
 
 # Access settings
 max_lines = config.validation_rules.max_function_lines
 llm_enabled = config.llm_integration.enabled
 
 # Create default config
-default_config = SpyqConfig.default()
-default_config.save("new_spyq.json")
+default_config = GollmConfig.default()
+default_config.save("new_gollm.json")
 ```
 
 ### ValidationRules
 Quality rules configuration.
 
 ```python
-from spyq.config.config import ValidationRules
+from gollm.config.config import ValidationRules
 
 rules = ValidationRules(
     max_function_lines=50,
@@ -97,7 +97,7 @@ rules = ValidationRules(
 Represents a code quality violation.
 
 ```python
-from spyq.validation.validators import Violation
+from gollm.validation.validators import Violation
 
 violation = Violation(
     type="function_too_long",
@@ -113,7 +113,7 @@ violation = Violation(
 AST-based code analysis.
 
 ```python
-from spyq.validation.validators import ASTValidator
+from gollm.validation.validators import ASTValidator
 
 validator = ASTValidator(config, "myfile.py")
 violations = validator.violations  # After visiting AST
@@ -125,7 +125,7 @@ violations = validator.violations  # After visiting AST
 Manages TODO lists and task creation.
 
 ```python
-from spyq.project_management.todo_manager import TodoManager
+from gollm.project_management.todo_manager import TodoManager
 
 todo_manager = TodoManager(config)
 
@@ -154,7 +154,7 @@ stats = todo_manager.get_stats()
 Manages CHANGELOG.md updates.
 
 ```python
-from spyq.project_management.changelog_manager import ChangelogManager
+from gollm.project_management.changelog_manager import ChangelogManager
 
 changelog = ChangelogManager(config)
 
@@ -176,7 +176,7 @@ entry = changelog.record_change(
 Local LLM integration via Ollama.
 
 ```python
-from spyq.llm.ollama_adapter import OllamaAdapter, OllamaConfig
+from gollm.llm.ollama_adapter import OllamaAdapter, OllamaConfig
 
 config = OllamaConfig(
     base_url="http://localhost:11434",
@@ -202,7 +202,7 @@ async with OllamaAdapter(config) as adapter:
 Builds comprehensive context for LLM.
 
 ```python
-from spyq.llm.context_builder import ContextBuilder
+from gollm.llm.context_builder import ContextBuilder
 
 builder = ContextBuilder(config)
 
@@ -224,7 +224,7 @@ context = await builder.build_context({
 File operation utilities.
 
 ```python
-from spyq.utils.file_utils import FileUtils
+from gollm.utils.file_utils import FileUtils
 
 # Find Python files
 py_files = FileUtils.find_python_files("src/")
@@ -241,7 +241,7 @@ file_hash = FileUtils.get_file_hash("myfile.py")
 String manipulation utilities.
 
 ```python
-from spyq.utils.string_utils import StringUtils
+from gollm.utils.string_utils import StringUtils
 
 # Case conversion
 snake = StringUtils.to_snake_case("CamelCaseFunction")  # "camel_case_function"
@@ -253,10 +253,10 @@ class_name = StringUtils.extract_class_name("class MyClass:")        # "MyClass"
 ```
 
 ### Decorators
-Useful decorators for SPYQ development.
+Useful decorators for goLLM development.
 
 ```python
-from spyq.utils.decorators import timer, retry, cache_result
+from gollm.utils.decorators import timer, retry, cache_result
 
 @timer
 def slow_function():
@@ -280,7 +280,7 @@ def expensive_computation():
 Git repository analysis.
 
 ```python
-from spyq.git.analyzer import GitAnalyzer
+from gollm.git.analyzer import GitAnalyzer
 
 git = GitAnalyzer(".")
 
@@ -307,25 +307,25 @@ All functionality available via CLI.
 
 ```bash
 # Validation
-spyq validate <file>                    # Validate single file
-spyq validate-project                   # Validate entire project
+gollm validate <file>                    # Validate single file
+gollm validate-project                   # Validate entire project
 
 # Project management  
-spyq status                            # Show project status
-spyq next-task                         # Get next TODO task
-spyq fix --auto                        # Auto-fix violations
+gollm status                            # Show project status
+gollm next-task                         # Get next TODO task
+gollm fix --auto                        # Auto-fix violations
 
 # LLM integration
-spyq generate "prompt"                 # Generate code with LLM
+gollm generate "prompt"                 # Generate code with LLM
 
 # Configuration
-spyq config show                       # Show current config
-spyq config set key value              # Set config value
+gollm config show                       # Show current config
+gollm config set key value              # Set config value
 
 # Setup
-spyq init                              # Initialize SPYQ
-spyq install-hooks                     # Install Git hooks
-spyq setup-ide --editor=vscode         # Setup IDE integration
+gollm init                              # Initialize goLLM
+gollm install-hooks                     # Install Git hooks
+gollm setup-ide --editor=vscode         # Setup IDE integration
 ```
 
 ## Error Handling
@@ -333,13 +333,13 @@ spyq setup-ide --editor=vscode         # Setup IDE integration
 ### Common Exceptions
 
 ```python
-from spyq.exceptions import SpyqValidationError, SpyqConfigError
+from gollm.exceptions import GollmValidationError, GollmConfigError
 
 try:
-    result = spyq.validate_file("badfile.py")
-except SpyqValidationError as e:
+    result = gollm.validate_file("badfile.py")
+except GollmValidationError as e:
     print(f"Validation failed: {e}")
-except SpyqConfigError as e:
+except GollmConfigError as e:
     print(f"Configuration error: {e}")
 ```
 
@@ -349,7 +349,7 @@ except SpyqConfigError as e:
 Create custom validation rules.
 
 ```python
-from spyq.validation.validators import CodeValidator
+from gollm.validation.validators import CodeValidator
 
 class CustomValidator(CodeValidator):
     def validate_custom_rule(self, content, file_path):
@@ -362,7 +362,7 @@ class CustomValidator(CodeValidator):
 Integrate with other LLM services.
 
 ```python
-from spyq.llm.base import BaseLLMProvider
+from gollm.llm.base import BaseLLMProvider
 
 class CustomLLMProvider(BaseLLMProvider):
     async def generate_response(self, prompt, context):

@@ -1,8 +1,8 @@
 #!/bin/sh
-# SPYQ Pre-commit Hook
+# goLLM Pre-commit Hook
 # Validates staged files before commit
 
-echo "🔍 SPYQ: Validating staged files..."
+echo "🔍 goLLM: Validating staged files..."
 
 # Get staged Python files
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$')
@@ -12,14 +12,14 @@ if [ -z "$STAGED_FILES" ]; then
     exit 0
 fi
 
-# Run SPYQ validation on staged files
+# Run goLLM validation on staged files
 VALIDATION_FAILED=0
 
 for file in $STAGED_FILES; do
     echo "Validating: $file"
     
-    # Run SPYQ validation
-    python -m spyq validate "$file" --quiet
+    # Run goLLM validation
+    python -m gollm validate "$file" --quiet
     
     if [ $? -ne 0 ]; then
         VALIDATION_FAILED=1
@@ -29,12 +29,12 @@ done
 
 if [ $VALIDATION_FAILED -eq 1 ]; then
     echo ""
-    echo "❌ SPYQ validation failed for some files"
-    echo "💡 Fix issues with: spyq fix --auto"
-    echo "📊 Check status with: spyq status"
+    echo "❌ goLLM validation failed for some files"
+    echo "💡 Fix issues with: gollm fix --auto"
+    echo "📊 Check status with: gollm status"
     echo "🔧 Manual fixes may be required for complex violations"
     exit 1
 fi
 
-echo "✅ All staged files passed SPYQ validation"
+echo "✅ All staged files passed goLLM validation"
 exit 0

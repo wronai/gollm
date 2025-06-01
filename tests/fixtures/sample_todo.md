@@ -25,5 +25,5 @@
   - **Functions:** 5 functions need documentation
 
 ---
-*This file is automatically managed by SPYQ*
+*This file is automatically managed by goLLM*
 

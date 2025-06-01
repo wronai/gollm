@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spyq"
+name = "gollm"
 version = "0.1.0"
 description = "Smart Python Quality Guardian - Inteligentny system kontroli jakości kodu z integracją LLM"
 authors = [
-    {name = "SPYQ Team", email = "team@spyq.dev"}
+    {name = "goLLM Team", email = "team@gollm.dev"}
 ]
 readme = "README.md"
 license = {text = "MIT"}
@@ -51,7 +51,7 @@ llm = [
 ]
 
 [project.scripts]
-spyq = "spyq.cli:cli"
+gollm = "gollm.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

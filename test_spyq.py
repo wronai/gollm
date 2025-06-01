@@ -5,7 +5,7 @@ import os
 import subprocess
 
 def main():
-    print("Testing SPYQ installation...")
+    print("Testing goLLM installation...")
     print(f"Python executable: {sys.executable}")
     print(f"Python version: {sys.version}")
     print(f"Current directory: {os.getcwd()}")

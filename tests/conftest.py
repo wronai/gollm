@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures for SPYQ tests
+Pytest configuration and shared fixtures for goLLM tests
 """
 
 import pytest

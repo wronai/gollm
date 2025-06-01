@@ -1,23 +1,23 @@
 #!/bin/sh
-# SPYQ Pre-push Hook  
+# goLLM Pre-push Hook
 # Final validation before pushing to remote
 
-echo "🚀 SPYQ: Final validation before push..."
+echo "🚀 goLLM: Final validation before push..."
 
 # Run full project validation
-python -m spyq validate-project --strict
+python -m gollm validate-project --strict
 
 if [ $? -ne 0 ]; then
     echo "❌ Project validation failed"
     echo "🔧 Fix all issues before pushing:"
-    echo "   spyq status           # Show current issues"
-    echo "   spyq fix --auto       # Auto-fix what's possible"
-    echo "   spyq validate-project # Re-validate"
+    echo "   gollm status           # Show current issues"
+    echo "   gollm fix --auto       # Auto-fix what's possible"
+    echo "   gollm validate-project # Re-validate"
     exit 1
 fi
 
 # Check quality score threshold
-QUALITY_SCORE=$(python -m spyq status --format json | jq -r '.quality_score')
+QUALITY_SCORE=$(python -m gollm status --format json | jq -r '.quality_score')
 
 if [ "$QUALITY_SCORE" -lt 80 ]; then
     echo "⚠️ Quality score below threshold (${QUALITY_SCORE}/100)"

@@ -1,7 +1,7 @@
 
 #!/usr/bin/env python3
 """
-Podstawowy test funkcjonalności SPYQ
+Podstawowy test funkcjonalności goLLM
 """
 
 import subprocess
@@ -26,23 +26,23 @@ def run_command(cmd):
         return 1, "", str(e)
 
 def test_installation():
-    """Test instalacji SPYQ"""
-    print("🔧 Testing SPYQ installation...")
+    """Test instalacji goLLM"""
+    print("🔧 Testing goLLM installation...")
     
     # Test importu
     try:
-        import spyq
-        print("✅ SPYQ module imports successfully")
+        import gollm
+        print("✅ goLLM module imports successfully")
     except ImportError as e:
-        print(f"❌ Failed to import SPYQ: {e}")
+        print(f"❌ Failed to import goLLM: {e}")
         return False
     
     # Test CLI
-    returncode, stdout, stderr = run_command("python -m spyq --help")
+    returncode, stdout, stderr = run_command("python -m gollm --help")
     if returncode == 0:
-        print("✅ SPYQ CLI works")
+        print("✅ goLLM CLI works")
     else:
-        print(f"❌ SPYQ CLI failed: {stderr}")
+        print(f"❌ goLLM CLI failed: {stderr}")
         return False
     
     return True
@@ -67,7 +67,7 @@ def bad_function(a, b, c, d, e, f):  # Zbyt wiele parametrów
     
     try:
         # Test walidacji
-        returncode, stdout, stderr = run_command(f"python -m spyq validate {test_file}")
+        returncode, stdout, stderr = run_command(f"python -m gollm validate {test_file}")
         
         if "violations" in stdout.lower() or returncode != 0:
             print("✅ Validation detects code issues correctly")
@@ -98,8 +98,8 @@ def test_config_loading():
     
     try:
         # Test ładowania konfiguracji
-        from spyq.config.config import SpyqConfig
-        config = SpyqConfig.load(config_file)
+        from gollm.config.config import GollmConfig
+        config = GollmConfig.load(config_file)
         
         if config.validation_rules.max_function_lines == 25:
             print("✅ Configuration loads correctly")
@@ -120,11 +120,11 @@ def test_todo_management():
     print("\n📋 Testing TODO management...")
     
     try:
-        from spyq.project_management.todo_manager import TodoManager
-        from spyq.config.config import SpyqConfig
+        from gollm.project_management.todo_manager import TodoManager
+        from gollm.config.config import GollmConfig
         
         # Użyj domyślnej konfiguracji
-        config = SpyqConfig.default()
+        config = GollmConfig.default()
         config.project_management.todo_file = "test_todo.md"
         
         todo_manager = TodoManager(config)
@@ -153,7 +153,7 @@ def test_todo_management():
 
 def main():
     """Główna funkcja testowa"""
-    print("🧪 SPYQ Basic Functionality Test")
+    print("🧪 goLLM Basic Functionality Test")
     print("=================================")
     
     tests = [
@@ -182,7 +182,7 @@ def main():
     print(f"📈 Success Rate: {passed/(passed+failed)*100:.1f}%")
     
     if failed == 0:
-        print("\n🎉 All tests passed! SPYQ is ready to use.")
+        print("\n🎉 All tests passed! goLLM is ready to use.")
         return True
     else:
         print(f"\n⚠️  {failed} test(s) failed. Check the issues above.")

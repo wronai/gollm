@@ -2,15 +2,15 @@ import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock
 
-from spyq.llm.orchestrator import LLMOrchestrator, LLMRequest, LLMResponse
-from spyq.config.config import SpyqConfig
+from gollm.llm.orchestrator import LLMOrchestrator, LLMRequest, LLMResponse
+from gollm.config.config import GollmConfig
 
 class TestLLMOrchestrator:
     
     @pytest.fixture
     def config(self):
         """Test configuration"""
-        return SpyqConfig.default()
+        return GollmConfig.default()
     
     @pytest.fixture
     def orchestrator(self, config):

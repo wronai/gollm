@@ -1,7 +1,7 @@
 # scripts/setup_ide.py
 #!/usr/bin/env python3
 """
-Konfiguruje integrację SPYQ z IDE
+Konfiguruje integrację goLLM z IDE
 """
 
 import json
@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 def setup_vscode():
-    """Konfiguruje VS Code dla SPYQ"""
+    """Konfiguruje VS Code dla goLLM"""
     
     vscode_dir = Path.cwd() / ".vscode"
     vscode_dir.mkdir(exist_ok=True)
@@ -17,18 +17,18 @@ def setup_vscode():
     # settings.json
     settings = {
         "python.linting.enabled": True,
-        "python.linting.spyqEnabled": True,
-        "python.linting.spyqPath": "spyq",
-        "python.linting.spyqArgs": ["validate"],
-        "files.saveFormat": "spyq-format",
+        "python.linting.gollmEnabled": True,
+        "python.linting.gollmPath": "gollm",
+        "python.linting.gollmArgs": ["validate"],
+        "files.saveFormat": "gollm-format",
         "editor.formatOnSave": True,
         "editor.codeActionsOnSave": {
             "source.organizeImports": True,
-            "source.fixAll.spyq": True
+            "source.fixAll.gollm": True
         },
-        "spyq.realTimeValidation": True,
-        "spyq.blockSaveOnViolations": True,
-        "spyq.autoFixOnSave": True
+        "gollm.realTimeValidation": True,
+        "gollm.blockSaveOnViolations": True,
+        "gollm.autoFixOnSave": True
     }
     
     settings_file = vscode_dir / "settings.json"
@@ -40,9 +40,9 @@ def setup_vscode():
         "version": "2.0.0",
         "tasks": [
             {
-                "label": "SPYQ: Validate Project",
+                "label": "goLLM: Validate Project",
                 "type": "shell",
-                "command": "spyq",
+                "command": "gollm",
                 "args": ["validate-project"],
                 "group": "build",
                 "presentation": {
@@ -53,16 +53,16 @@ def setup_vscode():
                 }
             },
             {
-                "label": "SPYQ: Fix All Issues",
+                "label": "goLLM: Fix All Issues",
                 "type": "shell", 
-                "command": "spyq",
+                "command": "gollm",
                 "args": ["fix", "--auto"],
                 "group": "build"
             },
             {
-                "label": "SPYQ: Show Status",
+                "label": "goLLM: Show Status",
                 "type": "shell",
-                "command": "spyq", 
+                "command": "gollm", 
                 "args": ["status"],
                 "group": "build"
             }
@@ -78,10 +78,10 @@ def setup_vscode():
         "version": "0.2.0",
         "configurations": [
             {
-                "name": "SPYQ: Debug Validation",
+                "name": "goLLM: Debug Validation",
                 "type": "python",
                 "request": "launch",
-                "module": "spyq.cli",
+                "module": "gollm.cli",
                 "args": ["validate-project", "--debug"],
                 "console": "integratedTerminal"
             }
@@ -94,7 +94,7 @@ def setup_vscode():
     
     print("✅ VS Code configuration created")
     print(f"📁 Config location: {vscode_dir}")
-    print("💡 Install the SPYQ VS Code extension for full integration")
+    print("💡 Install the goLLM VS Code extension for full integration")
 
 def setup_ide(editor="vscode"):
     """Główna funkcja konfiguracji IDE"""

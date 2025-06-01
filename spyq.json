@@ -1,15 +1,36 @@
 {
+  "version": "0.2.0",
+  "validation_rules": {
+    "max_function_lines": 50,
+    "max_file_lines": 300,
+    "max_cyclomatic_complexity": 10,
+    "max_function_params": 5,
+    "max_line_length": 88,
+    "forbid_print_statements": true,
+    "forbid_global_variables": true,
+    "require_docstrings": true,
+    "require_type_hints": false,
+    "naming_convention": "snake_case"
+  },
+  "project_management": {
+    "todo_integration": true,
+    "auto_create_tasks": true,
+    "todo_file": "TODO.md",
+    "changelog_integration": true,
+    "auto_update_changelog": true,
+    "changelog_file": "CHANGELOG.md"
+  },
   "llm_integration": {
-    "enabled": true,
+    "enabled": false,
     "providers": {
+      "openai": {
+        "enabled": false,
+        "model": "gpt-4"
+      },
       "ollama": {
-        "enabled": true,
-        "base_url": "http://localhost:11434",
-        "model": "codellama:7b",
-        "timeout": 60,
-        "temperature": 0.1
+        "enabled": false,
+        "model": "codellama:7b"
       }
-    },
-    "max_iterations": 3
+    }
   }
 }

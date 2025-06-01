@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from spyq.config.aggregator import ProjectConfigAggregator
+from gollm.config.aggregator import ProjectConfigAggregator
 
 class TestProjectConfigAggregator:
     
@@ -13,16 +13,16 @@ class TestProjectConfigAggregator:
         """Create temporary project directory with config files"""
         temp_dir = tempfile.mkdtemp()
         
-        # Create sample spyq.json
-        spyq_config = {
+        # Create sample gollm.json
+        gollm_config = {
             "validation_rules": {
                 "max_function_lines": 50,
                 "forbid_print_statements": True
             }
         }
         
-        with open(Path(temp_dir) / "spyq.json", 'w') as f:
-            json.dump(spyq_config, f)
+        with open(Path(temp_dir) / "gollm.json", 'w') as f:
+            json.dump(gollm_config, f)
         
         # Create sample .flake8
         flake8_config = """[flake8]
@@ -43,7 +43,7 @@ max-complexity = 10
         """Test configuration file discovery"""
         aggregator = ProjectConfigAggregator(temp_project_dir)
         
-        assert "spyq.json" in aggregator.config_files
+        assert "gollm.json" in aggregator.config_files
         assert ".flake8" in aggregator.config_files
     
     def test_config_aggregation(self, temp_project_dir):
@@ -51,9 +51,9 @@ max-complexity = 10
         aggregator = ProjectConfigAggregator(temp_project_dir)
         config = aggregator.get_aggregated_config()
         
-        assert "spyq_rules" in config
+        assert "gollm_rules" in config
         assert "linting_rules" in config
-        assert config["spyq_rules"]["validation_rules"]["max_function_lines"] == 50
+        assert config["gollm_rules"]["validation_rules"]["max_function_lines"] == 50
     
     def test_llm_config_summary(self, temp_project_dir):
         """Test LLM configuration summary generation"""

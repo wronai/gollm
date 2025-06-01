@@ -4,10 +4,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="spyq",
+    name="gollm",
     version="0.1.0",
-    author="SPYQ Team",
-    author_email="team@spyq.dev",
+    author="goLLM Team",
+    author_email="team@gollm.dev",
     description="Smart Python Quality Guardian - Inteligentny system kontroli jakości kodu z integracją LLM",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -40,7 +40,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'spyq=spyq.cli:cli',
+            'gollm=gollm.cli:cli',
         ],
     },
     classifiers=[

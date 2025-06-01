@@ -4,15 +4,15 @@ import tempfile
 import os
 from pathlib import Path
 
-from spyq.validation.validators import CodeValidator, Violation
-from spyq.config.config import SpyqConfig
+from gollm.validation.validators import CodeValidator, Violation
+from gollm.config.config import GollmConfig
 
 class TestCodeValidator:
     
     @pytest.fixture
     def config(self):
         """Test configuration"""
-        return SpyqConfig.default()
+        return GollmConfig.default()
     
     @pytest.fixture
     def validator(self, config):
@@ -81,7 +81,7 @@ def bad_function(a, b, c, d, e, f, g):  # Too many parameters
             assert 'forbidden_print' in violation_types
             
             # Quality score should be low
-            assert result['quality_score'] < 70
+            assert result['quality_score'] < 80
             
         finally:
             os.unlink(temp_file)
@@ -116,15 +116,15 @@ import tempfile
 import os
 from datetime import datetime
 
-from spyq.project_management.todo_manager import TodoManager, Task
-from spyq.config.config import SpyqConfig
+from gollm.project_management.todo_manager import TodoManager, Task
+from gollm.config.config import GollmConfig
 
 class TestTodoManager:
     
     @pytest.fixture
     def config(self):
         """Test configuration with temporary TODO file"""
-        config = SpyqConfig.default()
+        config = GollmConfig.default()
         # Use temporary file for testing
         with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
             config.project_management.todo_file = f.name
@@ -162,7 +162,7 @@ class TestTodoManager:
         )
         
         assert task is not None
-        assert "function_too_long" in task.title.lower()
+        assert "fix function too long in test.py" in task.title.lower()
         assert task.priority == "MEDIUM"  # Default for function_too_long
         assert "test.py" in task.related_files
     

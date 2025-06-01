@@ -1,4 +1,4 @@
-spyq/
+gollm/
 ├── pyproject.toml
 ├── README.md
 ├── setup.py
@@ -15,7 +15,7 @@ spyq/
 ├── examples/
 │   ├── bad_code.py
 │   ├── good_code.py
-│   ├── spyq.json
+│   ├── gollm.json
 │   ├── TODO.md
 │   └── CHANGELOG.md
 ├── tests/
@@ -30,7 +30,7 @@ spyq/
 │       ├── sample_todo.md
 │       └── sample_changelog.md
 ├── src/
-│   └── spyq/
+│   └── gollm/
 │       ├── __init__.py
 │       ├── main.py
 │       ├── cli.py
@@ -85,7 +85,7 @@ spyq/
 │   ├── llm_integration.md
 │   ├── ollama_setup.md
 │   └── api_reference.md
-└── .spyq/
+└── .gollm/
     ├── templates/
     │   ├── todo_template.md
     │   ├── changelog_template.md

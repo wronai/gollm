@@ -3,8 +3,8 @@
 FROM python:3.11-slim
 
 # Ustaw metadane
-LABEL maintainer="SPYQ Team <team@spyq.dev>"
-LABEL description="SPYQ - Smart Python Quality Guardian"
+LABEL maintainer="goLLM Team <team@gollm.dev>"
+LABEL description="goLLM - Smart Python Quality Guardian"
 LABEL version="0.1.0"
 
 # Zainstaluj systemowe zależności
@@ -15,31 +15,31 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Utwórz użytkownika roboczego
-RUN useradd -m -s /bin/bash spyq
-USER spyq
-WORKDIR /home/spyq
+RUN useradd -m -s /bin/bash gollm
+USER gollm
+WORKDIR /home/gollm
 
 # Skopiuj pliki projektu
-COPY --chown=spyq:spyq . /home/spyq/spyq/
+COPY --chown=gollm:gollm . /home/wronai/gollm/
 
 # Przejdź do katalogu projektu
-WORKDIR /home/spyq/spyq
+WORKDIR /home/wronai/gollm
 
-# Zainstaluj SPYQ w trybie deweloperskim
+# Zainstaluj goLLM w trybie deweloperskim
 RUN pip install --user -e .[dev]
 
 # Dodaj ścieżkę do PATH
-ENV PATH="/home/spyq/.local/bin:${PATH}"
+ENV PATH="/home/gollm/.local/bin:${PATH}"
 
-# Utwórz strukturę katalogów SPYQ
-RUN mkdir -p .spyq/{cache,templates,hooks}
+# Utwórz strukturę katalogów goLLM
+RUN mkdir -p .gollm/{cache,templates,hooks}
 
 # Ustaw zmienne środowiskowe
-ENV PYTHONPATH="/home/spyq/spyq/src"
-ENV SPYQ_CONFIG="/home/spyq/spyq/spyq.json"
+ENV PYTHONPATH="/home/wronai/gollm/src"
+ENV goLLM_CONFIG="/home/wronai/gollm/gollm.json"
 
 # Sprawdź instalację
-RUN python -c "import spyq; print('SPYQ imported successfully')"
+RUN python -c "import gollm; print('goLLM imported successfully')"
 
 # Domyślna komenda
-CMD ["spyq", "--help"]
+CMD ["gollm", "--help"]

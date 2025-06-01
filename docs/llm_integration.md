@@ -1,4 +1,4 @@
-# SPYQ + Ollama Integration Guide
+# goLLM + Ollama Integration Guide
 
 ## 🎯 Overview
 
@@ -68,24 +68,24 @@ ollama pull starcoder:7b
 ollama list
 ```
 
-## ⚙️ SPYQ Configuration
+## ⚙️ goLLM Configuration
 
-### 1. Enable Ollama in SPYQ
+### 1. Enable Ollama in goLLM
 ```bash
 # Enable LLM integration
-spyq config set llm_integration.enabled true
+gollm config set llm_integration.enabled true
 
 # Enable Ollama provider
-spyq config set llm_integration.providers.ollama.enabled true
+gollm config set llm_integration.providers.ollama.enabled true
 
 # Set model
-spyq config set llm_integration.providers.ollama.model codellama:7b
+gollm config set llm_integration.providers.ollama.model codellama:7b
 
 # Optional: Custom Ollama URL (if not localhost)
-spyq config set llm_integration.providers.ollama.base_url http://localhost:11434
+gollm config set llm_integration.providers.ollama.base_url http://localhost:11434
 ```
 
-### 2. Full Configuration (spyq.json)
+### 2. Full Configuration (gollm.json)
 ```json
 {
   "llm_integration": {
@@ -114,38 +114,38 @@ spyq config set llm_integration.providers.ollama.base_url http://localhost:11434
 ### 1. Basic Code Generation
 ```bash
 # Generate a simple function
-spyq generate "Create a function to validate email addresses"
+gollm generate "Create a function to validate email addresses"
 
 # Generate a class
-spyq generate "Create a User class with authentication methods"
+gollm generate "Create a User class with authentication methods"
 
 # Generate with specific requirements
-spyq generate "Create a payment processor class that follows our project standards"
+gollm generate "Create a payment processor class that follows our project standards"
 ```
 
 ### 2. Context-Aware Generation
-SPYQ automatically provides context to Ollama:
+goLLM automatically provides context to Ollama:
 - Current project quality rules
 - Recent errors and issues
 - TODO tasks
 - Code style standards
 
 ```bash
-# SPYQ will tell Ollama about your specific rules:
+# goLLM will tell Ollama about your specific rules:
 # - Max function length: 50 lines
 # - No print statements (use logging)
 # - Require docstrings
 # - Snake case naming
-spyq generate "Create a data processor for user analytics"
+gollm generate "Create a data processor for user analytics"
 ```
 
 ### 3. Fix Existing Code
 ```bash
 # Auto-fix with LLM assistance
-spyq fix --llm src/problematic_file.py
+gollm fix --llm src/problematic_file.py
 
 # Generate better version of function
-spyq generate "Improve this function: $(cat src/myfile.py | grep -A 20 'def problematic_function')"
+gollm generate "Improve this function: $(cat src/myfile.py | grep -A 20 'def problematic_function')"
 ```
 
 ## 🔧 Performance Tuning
@@ -169,7 +169,7 @@ export OLLAMA_MODELS=/custom/path/to/models
 ollama serve
 ```
 
-### SPYQ Performance Settings
+### goLLM Performance Settings
 ```json
 {
   "llm_integration": {
@@ -209,18 +209,18 @@ ollama list
 # Pull the model if missing
 ollama pull codellama:7b
 
-# Check SPYQ config
-spyq config show | grep ollama
+# Check goLLM config
+gollm config show | grep ollama
 ```
 
 #### 3. "Request timeout"
 ```bash
-# Increase timeout in SPYQ
-spyq config set llm_integration.providers.ollama.timeout 180
+# Increase timeout in goLLM
+gollm config set llm_integration.providers.ollama.timeout 180
 
 # Or use smaller model
 ollama pull codellama:7b
-spyq config set llm_integration.providers.ollama.model codellama:7b
+gollm config set llm_integration.providers.ollama.model codellama:7b
 ```
 
 #### 4. High memory usage
@@ -241,8 +241,8 @@ ollama serve
 # Test Ollama connection
 curl http://localhost:11434/api/tags
 
-# SPYQ debug mode
-spyq generate "test function" --debug
+# goLLM debug mode
+gollm generate "test function" --debug
 
 # Ollama logs
 ollama logs
@@ -275,11 +275,11 @@ Test: "Create a user authentication function with proper error handling"
 # Download new model
 ollama pull wizardcoder:python
 
-# Update SPYQ config
-spyq config set llm_integration.providers.ollama.model wizardcoder:python
+# Update goLLM config
+gollm config set llm_integration.providers.ollama.model wizardcoder:python
 
 # Test the change
-spyq generate "test function"
+gollm generate "test function"
 ```
 
 ### Model Updates
@@ -318,8 +318,8 @@ EOF
 # Build custom model
 ollama create teamcoder -f Modelfile
 
-# Use in SPYQ
-spyq config set llm_integration.providers.ollama.model teamcoder
+# Use in goLLM
+gollm config set llm_integration.providers.ollama.model teamcoder
 ```
 
 ### Batch Processing
@@ -327,21 +327,21 @@ spyq config set llm_integration.providers.ollama.model teamcoder
 # Process multiple files
 for file in src/*.py; do
     echo "Processing $file"
-    spyq generate "Improve this code file: $file" --output "${file}.improved"
+    gollm generate "Improve this code file: $file" --output "${file}.improved"
 done
 ```
 
 ### Integration with IDE
-Most IDEs can be configured to call SPYQ+Ollama:
+Most IDEs can be configured to call goLLM+Ollama:
 
 **VS Code Settings:**
 ```json
 {
-  "spyq.llm.provider": "ollama",
-  "spyq.llm.model": "codellama:7b",
-  "spyq.autoGenerate": true,
+  "gollm.llm.provider": "ollama",
+  "gollm.llm.model": "codellama:7b",
+  "gollm.autoGenerate": true,
   "editor.codeActionsOnSave": {
-    "source.fixAll.spyq": true
+    "source.fixAll.gollm": true
   }
 }
 ```
@@ -351,8 +351,8 @@ Most IDEs can be configured to call SPYQ+Ollama:
 # Monitor Ollama performance
 ollama ps
 
-# SPYQ performance stats
-spyq stats --llm
+# goLLM performance stats
+gollm stats --llm
 
 # System resources
 htop  # or top on macOS
@@ -426,18 +426,18 @@ Activity Monitor > GPU tab  # macOS
 #!/bin/sh
 # .git/hooks/pre-commit
 
-echo "🔍 SPYQ + Ollama: Analyzing code before commit..."
+echo "🔍 goLLM + Ollama: Analyzing code before commit..."
 
 # Get staged Python files
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py)
 
 for file in $STAGED_FILES; do
-    # Validate with SPYQ
-    spyq validate "$file"
+    # Validate with goLLM
+    gollm validate "$file"
     
     if [ $? -ne 0 ]; then
         echo "🤖 Attempting auto-fix with Ollama..."
-        spyq fix --llm "$file"
+        gollm fix --llm "$file"
         
         # Re-stage if fixed
         git add "$file"
@@ -452,20 +452,20 @@ echo "✅ Code analysis complete"
 #!/bin/bash
 # improve_codebase.sh
 
-echo "🚀 Daily codebase improvement with SPYQ + Ollama"
+echo "🚀 Daily codebase improvement with goLLM + Ollama"
 
 # Find files with quality issues
-LOW_QUALITY_FILES=$(spyq validate-project --format json | jq -r '.files[] | select(.quality_score < 80) | .file_path')
+LOW_QUALITY_FILES=$(gollm validate-project --format json | jq -r '.files[] | select(.quality_score < 80) | .file_path')
 
 for file in $LOW_QUALITY_FILES; do
     echo "📈 Improving: $file"
     
     # Create improvement task
-    spyq generate "Refactor this file to improve quality: $file" --output "$file.improved"
+    gollm generate "Refactor this file to improve quality: $file" --output "$file.improved"
     
     # Validate improvement
-    OLD_SCORE=$(spyq validate "$file" --format json | jq '.quality_score')
-    NEW_SCORE=$(spyq validate "$file.improved" --format json | jq '.quality_score')
+    OLD_SCORE=$(gollm validate "$file" --format json | jq '.quality_score')
+    NEW_SCORE=$(gollm validate "$file.improved" --format json | jq '.quality_score')
     
     if [ "$NEW_SCORE" -gt "$OLD_SCORE" ]; then
         echo "✅ Improved $file: $OLD_SCORE → $NEW_SCORE"
@@ -489,10 +489,10 @@ for file in $CHANGED_FILES; do
     echo "🔍 Reviewing: $file"
     
     # Generate review comments
-    spyq generate "Review this code for best practices and suggest improvements: $(cat $file)" > "review_$file.md"
+    gollm generate "Review this code for best practices and suggest improvements: $(cat $file)" > "review_$file.md"
     
     # Check for potential issues
-    spyq validate "$file" --detailed >> "review_$file.md"
+    gollm validate "$file" --detailed >> "review_$file.md"
 done
 
 echo "📋 Review complete. Check review_*.md files"
@@ -510,24 +510,24 @@ echo "📋 Review complete. Check review_*.md files"
 - [Phind CodeLlama](https://www.phind.com/blog/code-llama-beats-gpt4)
 - [WizardCoder](https://github.com/nlpxucan/WizardLM/tree/main/WizardCoder)
 
-### SPYQ + Ollama Examples
-- [GitHub Examples](https://github.com/spyq/spyq/tree/main/examples/ollama)
-- [Community Configurations](https://github.com/spyq/spyq/discussions)
+### goLLM + Ollama Examples
+- [GitHub Examples](https://github.com/wronai/gollm/tree/main/examples/ollama)
+- [Community Configurations](https://github.com/wronai/gollm/discussions)
 - [Best Practices Guide](docs/best_practices.md)
 
 ## 🆘 Support & Community
 
 ### Getting Help
 ```bash
-# SPYQ help
-spyq --help
-spyq generate --help
+# goLLM help
+gollm --help
+gollm generate --help
 
 # Test Ollama connection
-spyq config test-llm
+gollm config test-llm
 
 # Debug information
-spyq debug --include-llm
+gollm debug --include-llm
 ```
 
 ### Community Resources
@@ -543,12 +543,12 @@ spyq debug --include-llm
 - [ ] Install Ollama (`curl -fsSL https://ollama.ai/install.sh | sh`)
 - [ ] Pull a code model (`ollama pull codellama:7b`)
 - [ ] Start Ollama service (`ollama serve`)
-- [ ] Enable in SPYQ (`spyq config set llm_integration.providers.ollama.enabled true`)
-- [ ] Set model (`spyq config set llm_integration.providers.ollama.model codellama:7b`)
-- [ ] Test integration (`spyq generate "test function"`)
-- [ ] Configure IDE integration (`spyq setup-ide --editor=vscode`)
-- [ ] Install Git hooks (`spyq install-hooks`)
+- [ ] Enable in goLLM (`gollm config set llm_integration.providers.ollama.enabled true`)
+- [ ] Set model (`gollm config set llm_integration.providers.ollama.model codellama:7b`)
+- [ ] Test integration (`gollm generate "test function"`)
+- [ ] Configure IDE integration (`gollm setup-ide --editor=vscode`)
+- [ ] Install Git hooks (`gollm install-hooks`)
 
-**You're now ready to use SPYQ with local Ollama LLM! 🎉**
+**You're now ready to use goLLM with local Ollama LLM! 🎉**
 
 For more advanced setups and enterprise features, see the [Enterprise Guide](docs/enterprise.md).

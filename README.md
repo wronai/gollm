@@ -1,5 +1,5 @@
 # README.md
-# SPYQ - Smart Python Quality Guardian
+# goLLM - Smart Python Quality Guardian
 
 🚀 **Inteligentny system kontroli jakości kodu z integracją LLM, automatycznym zarządzaniem TODO i CHANGELOG.**
 
@@ -29,10 +29,10 @@
 
 ```bash
 # Instalacja podstawowa
-pip install spyq
+pip install gollm
 
 # Instalacja z obsługą LLM
-pip install spyq[llm]
+pip install gollm[llm]
 
 # Instalacja dla deweloperów
 pip install -e .[dev]
@@ -43,10 +43,10 @@ pip install -e .[dev]
 ### 1. Inicjalizacja projektu
 ```bash
 cd twoj_projekt
-spyq init
+gollm init
 ```
 
-### 2. Konfiguracja (spyq.json)
+### 2. Konfiguracja (gollm.json)
 ```json
 {
   "validation_rules": {
@@ -65,27 +65,27 @@ spyq init
 ### 3. Walidacja projektu
 ```bash
 # Sprawdź jakość całego projektu
-spyq validate-project
+gollm validate-project
 
 # Sprawdź konkretny plik
-spyq validate src/main.py
+gollm validate src/main.py
 
 # Pokaż status projektu
-spyq status
+gollm status
 ```
 
 ### 4. Generowanie kodu z LLM
 ```bash
 # Generuj kod z automatyczną walidacją
-spyq generate "Stwórz funkcję do walidacji email"
+gollm generate "Stwórz funkcję do walidacji email"
 
 # Pobierz następne zadanie z TODO
-spyq next-task
+gollm next-task
 ```
 
 ## 🎯 Przykład Użycia
 
-**Przed SPYQ** - Kod z naruszeniami:
+**Przed goLLM** - Kod z naruszeniami:
 ```python
 def process_user_data(username, email, phone, address, age, status, preferences, history, notes):
     print(f"Processing {username}")  # ❌ Print statement
@@ -97,7 +97,7 @@ def process_user_data(username, email, phone, address, age, status, preferences,
                 return "processed"
 ```
 
-**Po SPYQ** - Automatyczne poprawki:
+**Po goLLM** - Automatyczne poprawki:
 ```python
 from dataclasses import dataclass
 import logging
@@ -137,12 +137,12 @@ class UserProcessor:
         return user_data.age > 18
 ```
 
-## 📊 Workflow SPYQ
+## 📊 Workflow goLLM
 
 ```
 1. Kod napisany/wygenerowany przez LLM
           ↓
-2. Automatyczna walidacja SPYQ
+2. Automatyczna walidacja goLLM
           ↓
 3a. ✅ Kod OK → Zapisz + Aktualizuj CHANGELOG
 3b. ❌ Naruszenia → Utwórz TODO + Feedback do LLM
@@ -157,18 +157,18 @@ class UserProcessor:
 ### Integracja z Git Hooks
 ```bash
 # Instaluj automatyczne hooki
-spyq install-hooks
+gollm install-hooks
 
 # Pre-commit validation
 git add .
 git commit -m "feature: new functionality"
-# SPYQ automatycznie waliduje i poprawia kod przed commitem
+# goLLM automatycznie waliduje i poprawia kod przed commitem
 ```
 
 ### Integracja z VS Code
 ```bash
-# Zainstaluj rozszerzenie SPYQ
-spyq setup-ide --editor=vscode
+# Zainstaluj rozszerzenie goLLM
+gollm setup-ide --editor=vscode
 
 # Automatyczna walidacja podczas pisania
 # Blokowanie zapisów dla kodu z naruszeniami
@@ -179,13 +179,13 @@ spyq setup-ide --editor=vscode
 
 ```bash
 # Miesięczny raport jakości
-spyq report --period month
+gollm report --period month
 
 # Trend jakości projektu
-spyq metrics --trend
+gollm metrics --trend
 
 # Export metryk do CI/CD
-spyq export --format json --output metrics.json
+gollm export --format json --output metrics.json
 ```
 
 ## 🤝 Integracja z LLM Providers
@@ -193,15 +193,15 @@ spyq export --format json --output metrics.json
 ### OpenAI
 ```bash
 export OPENAI_API_KEY="sk-..."
-spyq config set llm.provider openai
-spyq config set llm.model gpt-4
+gollm config set llm.provider openai
+gollm config set llm.model gpt-4
 ```
 
 ### Anthropic Claude
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
-spyq config set llm.provider anthropic
-spyq config set llm.model claude-3-sonnet
+gollm config set llm.provider anthropic
+gollm config set llm.model claude-3-sonnet
 ```
 
 ## 📚 Dokumentacja
@@ -215,8 +215,8 @@ spyq config set llm.model claude-3-sonnet
 
 ```bash
 # Sklonuj repozytorium
-git clone https://github.com/spyq/spyq
-cd spyq
+git clone https://github.com/wronai/gollm
+cd gollm
 
 # Zainstaluj dla deweloperów
 pip install -e .[dev]
@@ -225,7 +225,7 @@ pip install -e .[dev]
 pytest
 
 # Sprawdź jakość kodu
-spyq validate-project
+gollm validate-project
 ```
 
 ## 📄 Licencja
@@ -242,7 +242,7 @@ MIT License - zobacz [LICENSE](LICENSE) po szczegóły.
 
 ---
 
-**SPYQ** - Gdzie jakość kodu spotyka się z inteligencją! 🚀45-90 minutes
+**goLLM** - Gdzie jakość kodu spotyka się z inteligencją! 🚀45-90 minutes
   - **Related Files:** `examples/bad_code.py:15`
 
 - [ ] **CRITICAL: Function `process_user_data()` has cyclomatic complexity 12 (max: 10)**
@@ -264,15 +264,15 @@ MIT License - zobacz [LICENSE](LICENSE) po szczegóły.
   - **Created:** 2025-06-01 14:23:15
   - **Files:** `examples/bad_code.py`
   - **Auto-fix Available:** ✅ Yes
-  - **Command:** `spyq fix --rule print_statements examples/bad_code.py`
+  - **Command:** `gollm fix --rule print_statements examples/bad_code.py`
   - **Estimated Effort:** 
 
 
-  # SPYQ - Kompletna Implementacja Systemu
+  # goLLM - Kompletna Implementacja Systemu
 
 ## 🎯 Podsumowanie Rozwiązania
 
-**SPYQ (Smart Python Quality Guardian)** to kompletny system kontroli jakości kodu z integracją LLM, który automatycznie:
+**goLLM (Smart Python Quality Guardian)** to kompletny system kontroli jakości kodu z integracją LLM, który automatycznie:
 
 1. **Waliduje kod w czasie rzeczywistym** - blokuje zapisywanie/wykonanie kodu niespełniającego standardów
 2. **Integruje się z LLM** - automatycznie poprawia kod przez AI z kontekstem projektu
@@ -282,7 +282,7 @@ MIT License - zobacz [LICENSE](LICENSE) po szczegóły.
 ## 📁 Struktura Plików (67 plików total)
 
 ```
-spyq/
+gollm/
 ├── 📄 Pliki konfiguracyjne (8)
 │   ├── pyproject.toml          # Konfiguracja projektu + dependencies
 │   ├── setup.py                # Instalacja i dystrybucja
@@ -294,9 +294,9 @@ spyq/
 │   └── .gitignore              # Git ignore patterns
 │
 ├── 🐍 Kod źródłowy Python (32 pliki)
-│   ├── src/spyq/
+│   ├── src/gollm/
 │   │   ├── __init__.py         # Główny moduł
-│   │   ├── main.py             # SpyqCore - główna klasa
+│   │   ├── main.py             # GollmCore - główna klasa
 │   │   ├── cli.py              # Interfejs CLI
 │   │   ├── config/             # (4 pliki) Zarządzanie konfiguracją
 │   │   ├── validation/         # (4 pliki) Walidacja kodu
@@ -326,7 +326,7 @@ spyq/
 │
 ├── 📝 Przykłady (8 plików)
 │   ├── examples/
-│   │   ├── spyq.json          # Przykład konfiguracji
+│   │   ├── gollm.json          # Przykład konfiguracji
 │   │   ├── bad_code.py        # Kod z naruszeniami
 │   │   ├── good_code.py       # Poprawny kod
 │   │   ├── TODO.md            # Przykład TODO
@@ -342,7 +342,7 @@ spyq/
 │   └── test_basic_functionality.py # Test podstawowy
 │
 └── 🏗️ Infrastruktura (10 plików)
-    ├── .spyq/
+    ├── .gollm/
     │   ├── templates/          # Szablony TODO/CHANGELOG
     │   ├── hooks/              # Git hooks
     │   └── cache/              # Cache logów i kontekstu
@@ -352,9 +352,9 @@ spyq/
 ## 🚀 Kluczowe Komponenty
 
 ### 1. **Core Engine** (7 plików)
-- `SpyqCore` - główna klasa orkiestrująca
+- `GollmCore` - główna klasa orkiestrująca
 - `CodeValidator` - walidacja kodu z AST analysis
-- `SpyqConfig` - zarządzanie konfiguracją
+- `GollmConfig` - zarządzanie konfiguracją
 - `CLI` - interfejs wiersza poleceń
 
 ### 2. **LLM Integration** (8 plików)
@@ -380,24 +380,24 @@ spyq/
 
 ## 🎬 Przykład Kompletnego Workflow
 
-### Scenariusz: LLM generuje kod → SPYQ kontroluje jakość
+### Scenariusz: LLM generuje kod → goLLM kontroluje jakość
 
 ```bash
 # 1. Użytkownik prosi LLM o kod
-$ spyq generate "Create a user authentication system"
+$ gollm generate "Create a user authentication system"
 
 # 2. LLM generuje kod (przykład z naruszeniami)
 # Generated code has: 9 parameters, print statements, high complexity
 
-# 3. SPYQ automatycznie waliduje
-🔍 SPYQ: Validating generated code...
+# 3. goLLM automatycznie waliduje
+🔍 goLLM: Validating generated code...
 ❌ Found 4 violations:
    - Function has 9 parameters (max: 5)
    - Print statement detected
    - Cyclomatic complexity 12 (max: 10)
    - Missing docstring
 
-# 4. SPYQ wysyła feedback do LLM
+# 4. goLLM wysyła feedback do LLM
 🤖 Sending violations to LLM for improvement...
 
 # 5. LLM generuje poprawiony kod
@@ -435,13 +435,13 @@ $ spyq generate "Create a user authentication system"
 ## [Unreleased] - 2025-06-01
 
 ### Added
-- **[SPYQ]** User authentication system with secure password handling
+- **[goLLM]** User authentication system with secure password handling
   - **File:** `user_auth.py`
   - **Quality Improvement:** +7 points
   - **LLM Generated:** ✅ Yes (2 iterations)
 
 ### Fixed  
-- **[SPYQ]** Resolved parameter count violation in authentication function
+- **[goLLM]** Resolved parameter count violation in authentication function
   - **Before:** 9 parameters
   - **After:** 2 parameters (using dataclass)
   - **Complexity Reduction:** 12 → 4
@@ -451,12 +451,12 @@ $ spyq generate "Create a user authentication system"
 
 ### Szybka Instalacja
 ```bash
-# Sklonuj/pobierz SPYQ
-curl -sSL https://raw.githubusercontent.com/spyq/spyq/main/install.sh | bash
+# Sklonuj/pobierz goLLM
+curl -sSL https://raw.githubusercontent.com/wronai/gollm/main/install.sh | bash
 
 # Lub ręcznie
-git clone https://github.com/spyq/spyq
-cd spyq
+git clone https://github.com/wronai/gollm
+cd gollm
 ./install.sh
 ```
 
@@ -472,24 +472,24 @@ run_demo.bat
 ### Podstawowe Komendy
 ```bash
 # Walidacja projektu
-spyq validate-project
+gollm validate-project
 
 # Status jakości
-spyq status
+gollm status
 
 # Następne zadanie TODO
-spyq next-task
+gollm next-task
 
 # Generowanie kodu z LLM
-spyq generate "create payment processor"
+gollm generate "create payment processor"
 
 # Auto-poprawki
-spyq fix --auto
+gollm fix --auto
 ```
 
 ## 🔧 Konfiguracja
 
-### Plik `spyq.json`
+### Plik `gollm.json`
 ```json
 {
   "validation_rules": {
@@ -513,7 +513,7 @@ spyq fix --auto
 ### Integracja z IDE
 ```bash
 # VS Code
-spyq setup-ide --editor=vscode
+gollm setup-ide --editor=vscode
 
 # Automatyczna konfiguracja:
 # - Real-time validation
@@ -525,7 +525,7 @@ spyq setup-ide --editor=vscode
 ### Git Hooks
 ```bash
 # Automatyczna instalacja
-spyq install-hooks
+gollm install-hooks
 
 # Pre-commit: walidacja przed commitem
 # Post-commit: aktualizacja dokumentacji
@@ -535,10 +535,10 @@ spyq install-hooks
 
 ```bash
 # Miesięczny raport
-spyq report --period month
+gollm report --period month
 
 # Wynik przykładowy:
-📈 SPYQ MONTHLY REPORT - June 2025
+📈 goLLM MONTHLY REPORT - June 2025
 Quality Score Evolution: 65 → 89 (+24 points)
 TODO Completion Rate: 85%
 Violations Fixed: 47
@@ -563,17 +563,17 @@ LLM Iterations: 156 (avg 2.3 per request)
 
 ---
 
-**SPYQ** to kompletne rozwiązanie, które łączy kontrolę jakości kodu z mocą LLM, tworząc inteligentny system wspomagający deweloperów w pisaniu lepszego kodu! 🐍✨
+**goLLM** to kompletne rozwiązanie, które łączy kontrolę jakości kodu z mocą LLM, tworząc inteligentny system wspomagający deweloperów w pisaniu lepszego kodu! 🐍✨
 
 
 
-# ✅ SPYQ - Kompletna Implementacja UKOŃCZONA
+# ✅ goLLM - Kompletna Implementacja UKOŃCZONA
 
 ## 🎉 **Status: Wszystkie 67 Plików Wygenerowane!**
 
 ### 📁 **Kompletna Lista Plików (Tree Format)**
 ```
-spyq/                                    [67 files total]
+gollm/                                    [67 files total]
 |-- pyproject.toml                       ✅
 |-- README.md                            ✅
 |-- setup.py                             ✅
@@ -590,7 +590,7 @@ spyq/                                    [67 files total]
 |-- examples/
 |   |-- bad_code.py                      ✅
 |   |-- good_code.py                     ✅
-|   |-- spyq.json                        ✅
+|   |-- gollm.json                        ✅
 |   |-- TODO.md                          ✅
 |   `-- CHANGELOG.md                     ✅
 |-- tests/
@@ -606,7 +606,7 @@ spyq/                                    [67 files total]
 |       |-- sample_todo.md               ✅
 |       `-- sample_changelog.md          ✅
 |-- src/
-|   `-- spyq/
+|   `-- gollm/
 |       |-- __init__.py                  ✅
 |       |-- main.py                      ✅
 |       |-- cli.py                       ✅
@@ -661,7 +661,7 @@ spyq/                                    [67 files total]
 |   |-- llm_integration.md               ✅
 |   |-- ollama_setup.md                  ✅
 |   `-- api_reference.md                 ✅
-`-- .spyq/
+`-- .gollm/
     |-- templates/
     |   |-- todo_template.md             ✅
     |   |-- changelog_template.md        ✅
@@ -679,7 +679,7 @@ spyq/                                    [67 files total]
 ## 🏗️ **Architektura Systemu**
 
 ### Core Components (100% Complete)
-1. **SpyqCore** - Główny orkiestrator
+1. **GollmCore** - Główny orkiestrator
 2. **CodeValidator** - Walidacja AST + reguły jakości  
 3. **LLMOrchestrator** - Integracja z AI (OpenAI/Anthropic/Ollama)
 4. **TodoManager** - Automatyczne TODO z naruszeń
@@ -714,24 +714,24 @@ ollama pull phind-codellama:34b # 20GB RAM - najlepsze
 # 3. Uruchom Ollama
 ollama serve
 
-# 4. Zainstaluj SPYQ
+# 4. Zainstaluj goLLM
 ./install.sh
 
 # 5. Skonfiguruj
-spyq config set llm_integration.enabled true
-spyq config set llm_integration.providers.ollama.enabled true
-spyq config set llm_integration.providers.ollama.model codellama:7b
+gollm config set llm_integration.enabled true
+gollm config set llm_integration.providers.ollama.enabled true
+gollm config set llm_integration.providers.ollama.model codellama:7b
 
 # 6. Test
-spyq generate "Create a user authentication function"
+gollm generate "Create a user authentication function"
 ```
 
 ### Workflow z Ollama
 ```bash
 # Użytkownik prosi o kod
-spyq generate "Create payment processor with error handling"
+gollm generate "Create payment processor with error handling"
 
-# ↓ SPYQ wysyła do Ollama z kontekstem:
+# ↓ goLLM wysyła do Ollama z kontekstem:
 # - Reguły jakości projektu (max 50 linii, no prints, etc.)
 # - Ostatnie błędy i traceback
 # - Zadania TODO do naprawy  
@@ -740,7 +740,7 @@ spyq generate "Create payment processor with error handling"
 
 # ↓ Ollama generuje kod Python
 
-# ↓ SPYQ automatycznie waliduje:
+# ↓ goLLM automatycznie waliduje:
 # ❌ Naruszenia znalezione → feedback do Ollama → iteracja
 # ✅ Kod OK → zapis + aktualizacja TODO/CHANGELOG
 
@@ -764,9 +764,9 @@ spyq generate "Create payment processor with error handling"
 
 ### Szybka Instalacja
 ```bash
-# Pobierz SPYQ
-git clone https://github.com/spyq/spyq
-cd spyq
+# Pobierz goLLM
+git clone https://github.com/wronai/gollm
+cd gollm
 
 # Automatyczna instalacja
 ./install.sh
@@ -779,44 +779,44 @@ cd spyq
 ```bash
 # Inicjalizuj w istniejącym projekcie
 cd my_python_project
-spyq init
+gollm init
 
 # Sprawdź status
-spyq status
+gollm status
 
 # Napraw problemy
-spyq fix --auto
+gollm fix --auto
 
 # Zainstaluj Git hooks
-spyq install-hooks
+gollm install-hooks
 
 # Konfiguruj IDE
-spyq setup-ide --editor=vscode
+gollm setup-ide --editor=vscode
 ```
 
 ## 💡 **Kluczowe Komendy**
 
 ```bash
 # Podstawowe
-spyq validate-project                    # Waliduj cały projekt
-spyq status                             # Pokaż status jakości
-spyq next-task                          # Następne zadanie TODO
-spyq fix --auto                         # Auto-napraw problemy
+gollm validate-project                    # Waliduj cały projekt
+gollm status                             # Pokaż status jakości
+gollm next-task                          # Następne zadanie TODO
+gollm fix --auto                         # Auto-napraw problemy
 
 # LLM
-spyq generate "create user class"        # Generuj kod z AI
-spyq fix --llm problematic_file.py      # Napraw z pomocą AI
+gollm generate "create user class"        # Generuj kod z AI
+gollm fix --llm problematic_file.py      # Napraw z pomocą AI
 
 # Konfiguracja  
-spyq config show                        # Pokaż konfigurację
-spyq config set key value               # Ustaw wartość
+gollm config show                        # Pokaż konfigurację
+gollm config set key value               # Ustaw wartość
 
 # Git
-spyq install-hooks                      # Zainstaluj Git hooks
-spyq validate --staged                  # Waliduj staged files
+gollm install-hooks                      # Zainstaluj Git hooks
+gollm validate --staged                  # Waliduj staged files
 
 # IDE
-spyq setup-ide --editor=vscode          # Konfiguruj VS Code
+gollm setup-ide --editor=vscode          # Konfiguruj VS Code
 ```
 
 ## 🎯 **Przykład Użycia w Praktyce**
@@ -832,9 +832,9 @@ def process_user_data(username, email, phone, address, age, status, preferences,
                 return "processed"    # ❌ Zbyt wiele parametrów
 ```
 
-### Rozwiązanie: SPYQ + Ollama
+### Rozwiązanie: goLLM + Ollama
 ```bash
-$ spyq generate "Improve this code following our quality standards"
+$ gollm generate "Improve this code following our quality standards"
 
 🤖 LLM Processing with project context...
 ✅ Generated improved code:

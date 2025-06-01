@@ -3,15 +3,15 @@ import tempfile
 import os
 from datetime import datetime
 
-from spyq.project_management.changelog_manager import ChangelogManager
-from spyq.config.config import SpyqConfig
+from gollm.project_management.changelog_manager import ChangelogManager
+from gollm.config.config import GollmConfig
 
 class TestChangelogManager:
     
     @pytest.fixture
     def config(self):
         """Test configuration with temporary CHANGELOG file"""
-        config = SpyqConfig.default()
+        config = GollmConfig.default()
         with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
             config.project_management.changelog_file = f.name
         return config

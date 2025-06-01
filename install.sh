@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🚀 SPYQ Installation Script"
+echo "🚀 goLLM Installation Script"
 echo "==========================="
 
 # Sprawdź wymagania systemowe
@@ -43,7 +43,7 @@ else
 fi
 
 echo ""
-echo "📦 Installing SPYQ..."
+echo "📦 Installing goLLM..."
 
 # Utwórz wirtualne środowisko jeśli nie istnieje
 if [ ! -d "venv" ]; then
@@ -59,27 +59,27 @@ source venv/bin/activate
 echo "⬆️  Upgrading pip..."
 pip install --upgrade pip
 
-# Zainstaluj SPYQ
-echo "📥 Installing SPYQ package..."
+# Zainstaluj goLLM
+echo "📥 Installing goLLM package..."
 pip install -e .
 
 # Sprawdź instalację
 echo "🧪 Testing installation..."
-if python -c "import spyq; print('SPYQ imported successfully')" 2>/dev/null; then
-    echo "✅ SPYQ installed successfully"
+if python -c "import gollm; print('goLLM imported successfully')" 2>/dev/null; then
+    echo "✅ goLLM installed successfully"
 else
-    echo "❌ SPYQ installation failed"
+    echo "❌ goLLM installation failed"
     exit 1
 fi
 
 # Inicjalizuj projekt
 echo ""
-echo "🔧 Initializing SPYQ for this project..."
+echo "🔧 Initializing goLLM for this project..."
 
 # Utwórz domyślną konfigurację jeśli nie istnieje
-if [ ! -f "spyq.json" ]; then
+if [ ! -f "gollm.json" ]; then
     echo "📝 Creating default configuration..."
-    cat > spyq.json << 'EOF'
+    cat > gollm.json << 'EOF'
 {
   "validation_rules": {
     "max_function_lines": 50,
@@ -112,18 +112,18 @@ if [ ! -f "spyq.json" ]; then
   }
 }
 EOF
-    echo "✅ Created spyq.json"
+    echo "✅ Created gollm.json"
 else
-    echo "✅ spyq.json already exists"
+    echo "✅ gollm.json already exists"
 fi
 
-# Utwórz strukturę katalogów SPYQ
-echo "📁 Creating SPYQ directory structure..."
-mkdir -p .spyq/{cache,templates,hooks}
-mkdir -p .spyq/cache/{execution_logs,validation_cache,llm_context}
+# Utwórz strukturę katalogów goLLM
+echo "📁 Creating goLLM directory structure..."
+mkdir -p .gollm/{cache,templates,hooks}
+mkdir -p .gollm/cache/{execution_logs,validation_cache,llm_context}
 
 # Utwórz szablony
-cat > .spyq/templates/todo_template.md << 'EOF'
+cat > .gollm/templates/todo_template.md << 'EOF'
 # TODO List - Updated: {timestamp}
 
 ## 🔴 HIGH Priority
@@ -133,10 +133,10 @@ cat > .spyq/templates/todo_template.md << 'EOF'
 ## 🟢 LOW Priority
 
 ---
-*This file is automatically managed by SPYQ*
+*This file is automatically managed by goLLM*
 EOF
 
-cat > .spyq/templates/changelog_template.md << 'EOF'
+cat > .gollm/templates/changelog_template.md << 'EOF'
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -149,10 +149,10 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 ---
-*This changelog is automatically maintained by SPYQ*
+*This changelog is automatically maintained by goLLM*
 EOF
 
-echo "✅ SPYQ structure created"
+echo "✅ goLLM structure created"
 
 # Zainstaluj Git hooks jeśli Git jest dostępne
 if [ "$GIT_AVAILABLE" = true ] && [ -d ".git" ]; then
@@ -183,27 +183,27 @@ python test_basic_functionality.py
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "🎉 SPYQ Installation Complete!"
+    echo "🎉 goLLM Installation Complete!"
     echo "=============================="
     echo ""
-    echo "✅ SPYQ is now installed and configured"
-    echo "📁 Configuration: spyq.json"
-    echo "📂 SPYQ data: .spyq/"
+    echo "✅ goLLM is now installed and configured"
+    echo "📁 Configuration: gollm.json"
+    echo "📂 goLLM data: .gollm/"
     echo ""
     echo "🚀 Quick Start Commands:"
-    echo "  spyq validate-project    # Validate entire project"
-    echo "  spyq status             # Show project status" 
-    echo "  spyq next-task          # Get next TODO task"
-    echo "  spyq --help             # Show all commands"
+    echo "  gollm validate-project    # Validate entire project"
+    echo "  gollm status             # Show project status"
+    echo "  gollm next-task          # Get next TODO task"
+    echo "  gollm --help             # Show all commands"
     echo ""
     echo "📚 Documentation: README.md"
     echo "⚙️  Configuration: docs/configuration.md"
     echo ""
     echo "💡 To enable LLM integration:"
     echo "   1. Set API key: export OPENAI_API_KEY='sk-...'"
-    echo "   2. Enable in config: spyq config set llm_integration.enabled true"
+    echo "   2. Enable in config: gollm config set llm_integration.enabled true"
     echo ""
-    echo "Happy coding with SPYQ! 🐍✨"
+    echo "Happy coding with goLLM! 🐍✨"
 else
     echo ""
     echo "⚠️  Installation completed with some issues"

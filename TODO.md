@@ -7,4 +7,4 @@
 ## 🟢 LOW Priority
 
 ---
-*This file is automatically managed by SPYQ*
+*This file is automatically managed by goLLM*

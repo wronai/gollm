@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Skrypt do migracji konfiguracji SPYQ między wersjami
+Skrypt do migracji konfiguracji goLLM między wersjami
 """
 
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 class ConfigMigrator:
-    """Migrator konfiguracji SPYQ"""
+    """Migrator konfiguracji goLLM"""
     
     def __init__(self):
         self.version_migrations = {
@@ -17,7 +17,7 @@ class ConfigMigrator:
             "0.2.0": self._migrate_to_0_2_0
         }
     
-    def migrate_config(self, config_path: str = "spyq.json", target_version: str = "0.2.0") -> bool:
+    def migrate_config(self, config_path: str = "gollm.json", target_version: str = "0.2.0") -> bool:
         """Migruje konfigurację do docelowej wersji"""
         
         config_file = Path(config_path)
@@ -127,8 +127,8 @@ def main():
     """Główna funkcja skryptu"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Migrate SPYQ configuration")
-    parser.add_argument('--config', default='spyq.json', help='Configuration file path')
+    parser = argparse.ArgumentParser(description="Migrate goLLM configuration")
+    parser.add_argument('--config', default='gollm.json', help='Configuration file path')
     parser.add_argument('--version', default='0.2.0', help='Target version')
     
     args = parser.parse_args()

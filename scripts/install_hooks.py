@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Instaluje Git hooks dla SPYQ
+Instaluje Git hooks dla goLLM
 """
 
 import os
@@ -12,42 +12,42 @@ def install_git_hooks():
     
     project_root = Path.cwd()
     git_hooks_dir = project_root / ".git" / "hooks"
-    spyq_hooks_dir = project_root / ".spyq" / "hooks"
+    gollm_hooks_dir = project_root / ".gollm" / "hooks"
     
     if not git_hooks_dir.exists():
         print("❌ Git repository not found. Initialize git first with 'git init'")
         return False
     
-    # Utwórz katalog dla hooków SPYQ jeśli nie istnieje
-    spyq_hooks_dir.mkdir(parents=True, exist_ok=True)
+    # Utwórz katalog dla hooków goLLM jeśli nie istnieje
+    gollm_hooks_dir.mkdir(parents=True, exist_ok=True)
     
     # Pre-commit hook
     pre_commit_content = '''#!/bin/sh
-# SPYQ Pre-commit Hook
-echo "🔍 SPYQ: Validating staged files..."
+# goLLM Pre-commit Hook
+echo "🔍 goLLM: Validating staged files..."
 
-# Uruchom walidację SPYQ
-python -m spyq validate-project --staged-only
+# Uruchom walidację goLLM
+python -m gollm validate-project --staged-only
 
 if [ $? -ne 0 ]; then
-    echo "❌ SPYQ validation failed. Fix issues before committing."
-    echo "💡 Run 'spyq status' for details or 'spyq fix --auto' for auto-fixes"
+    echo "❌ goLLM validation failed. Fix issues before committing."
+    echo "💡 Run 'gollm status' for details or 'gollm fix --auto' for auto-fixes"
     exit 1
 fi
 
-echo "✅ SPYQ validation passed"
+echo "✅ goLLM validation passed"
 exit 0
 '''
     
     # Post-commit hook
     post_commit_content = '''#!/bin/sh
-# SPYQ Post-commit Hook
-echo "📝 SPYQ: Updating project documentation..."
+# goLLM Post-commit Hook
+echo "📝 goLLM: Updating project documentation..."
 
 # Aktualizuj CHANGELOG z commit info
-python -m spyq changelog update-from-commit
+python -m gollm changelog update-from-commit
 
-echo "✅ SPYQ documentation updated"
+echo "✅ goLLM documentation updated"
 '''
     
     # Zapisz hooki
@@ -74,7 +74,7 @@ echo "✅ SPYQ documentation updated"
         
         print(f"✅ Installed {hook_name} hook")
     
-    print(f"🎉 SPYQ Git hooks installed successfully!")
+    print(f"🎉 goLLM Git hooks installed successfully!")
     print(f"📁 Hooks location: {git_hooks_dir}")
     return True
 

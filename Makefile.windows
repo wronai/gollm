@@ -12,7 +12,7 @@ test:
 	pytest tests\ -v
 
 test-coverage:
-	pytest tests\ --cov=src\spyq --cov-report=html --cov-report=term-missing
+	pytest tests\ --cov=src\gollm --cov-report=html --cov-report=term-missing
 
 lint:
 	flake8 src tests
@@ -22,9 +22,9 @@ format:
 	black src tests
 	isort src tests
 
-spyq-check:
-	python -m spyq validate-project
-	python -m spyq status
+gollm-check:
+	python -m gollm validate-project
+	python -m gollm status
 
 clean:
 	if exist build rmdir /s /q build
@@ -40,12 +40,12 @@ build: clean
 	python -m build
 
 demo:
-	@echo 🚀 SPYQ Demo
+	@echo 🚀 goLLM Demo
 	@echo 1. Validating bad code example...
-	python -m spyq validate examples\bad_code.py
+	python -m gollm validate examples\bad_code.py
 	@echo.
 	@echo 2. Showing good code example...
-	python -m spyq validate examples\good_code.py
+	python -m gollm validate examples\good_code.py
 	@echo.
 	@echo 3. Project status...
-	python -m spyq status
+	python -m gollm status

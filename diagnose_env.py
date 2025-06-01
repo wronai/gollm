@@ -41,14 +41,14 @@ def main():
         print(f"  {i}. {path}")
     print()
     
-    # Check for spyq package
-    print("Checking for spyq package:")
+    # Check for gollm package
+    print("Checking for gollm package:")
     try:
-        import spyq
-        print(f"  Found spyq at: {spyq.__file__}")
-        print(f"  Version: {getattr(spyq, '__version__', 'Not specified')}")
+        import gollm
+        print(f"  Found gollm at: {gollm.__file__}")
+        print(f"  Version: {getattr(gollm, '__version__', 'Not specified')}")
     except ImportError as e:
-        print(f"  Could not import spyq: {e}")
+        print(f"  Could not import gollm: {e}")
     print()
     
     # Check which python
