@@ -2,7 +2,7 @@
 
 # goLLM - Go Learn, Lead, Master!
 
-[![PyPI Version](https://img.shields.io/pypi/v/gollm?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/gollm/)
+[![PyPI Version](https://img.shields.io/pypi/v/gollm?style=for-the-badge&logo=pypi&logoColor=white&label=version)](https://pypi.org/project/gollm/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](https://opensource.org/licenses/Apache-2.0)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg?style=for-the-badge)](https://github.com/psf/black)
