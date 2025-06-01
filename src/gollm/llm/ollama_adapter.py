@@ -55,6 +55,29 @@ class OllamaAdapter:
         """Generates code using Ollama with enhanced error handling and logging"""
         import logging
         import json
+        import sys
+        
+        # Configure root logger to ensure all logs are captured
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+        
+        # Create console handler with a higher log level
+        console_handler = logging.StreamHandler(sys.stderr)
+        console_handler.setLevel(logging.INFO)
+        
+        # Create file handler which logs even debug messages
+        file_handler = logging.FileHandler('ollama_debug.log', mode='w')
+        file_handler.setLevel(logging.DEBUG)
+        
+        # Create formatter and add it to the handlers
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        file_handler.setFormatter(formatter)
+        
+        # Add the handlers to the root logger
+        root_logger.addHandler(console_handler)
+        root_logger.addHandler(file_handler)
+        
         logger = logging.getLogger(__name__)
         
         if not self.session:

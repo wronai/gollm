@@ -87,103 +87,34 @@ pip install -e .[dev]
    
    > 📘 Pełna dokumentacja dostępna w [przewodniku wprowadzającym](./docs/guides/getting_started.md)
 
-## 🚀 Szybki Start
-
-1. **Zainstaluj**
-   ```bash
-   pip install gollm[llm]
-   ```
-
-2. **Użyj w projekcie**
-   ```bash
-   # Przejdź do katalogu projektu
-   cd twoj_projekt
-   
-   # Sprawdź status projektu
-   gollm status
-   
-   # Walidacja pojedynczego pliku
-   gollm validate plik.py
-   
-   # Walidacja całego projektu
-   gollm validate-project
-   
-   # Pobierz następne zadanie z TODO
-   gollm next-task
-   ```
-
-   > **Uwaga**: Funkcja generowania kodu (generate) jest obecnie w trakcie rozwoju i może nie działać poprawnie.
-
 ## 🎯 Przykład w działaniu
 
-### Przed użyciem goLLM
+Poniżej przedstawiamy prosty przykład, jak goLLM może pomóc w ulepszeniu jakości kodu. Więcej przykładów i szczegółów znajdziesz w [dokumentacji API](./docs/api/core.md).
+
 ```python
-def process_user_data(username, email, phone, address, age, status, preferences, history, notes):
-    print(f"Processing {username}")
+# Przed użyciem goLLM
+def process_data(x):
+    # ... złożona logika bez dokumentacji ...
+    pass
+
+# Po użyciu goLLM
+def process_data(data: List[Dict]) -> Dict[str, Any]:
+    """Przetwarza dane wejściowe zgodnie z wymaganiami biznesowymi.
     
-    if age > 18:
-        if status == "active":
-            if len(preferences) > 0:
-                return "processed"
+    Args:
+        data: Lista słowników zawierających dane do przetworzenia
+        
+    Returns:
+        Słownik zawierający wyniki przetwarzania
+        
+    Raises:
+        ValueError: Gdy dane wejściowe są nieprawidłowe
+    """
+    # ... czytelna i udokumentowana implementacja ...
+    pass
 ```
 
-### Po użyciu goLLM
-```python
-from dataclasses import dataclass
-import logging
-from typing import List, Dict, Optional
-
-logger = logging.getLogger(__name__)
-
-@dataclass
-class UserData:
-    """Reprezentuje dane użytkownika."""
-    username: str
-    email: str
-    phone: str
-    address: str
-    age: int
-    status: str = "inactive"
-    preferences: List[str] = None
-    history: List[Dict] = None
-    notes: Optional[str] = None
-
-class UserProcessor:
-    """
-    Klasa odpowiedzialna za przetwarzanie danych użytkowników.
-    Zapewnia walidację i przetwarzanie zgodne z zasadami biznesowymi.
-    """
-    
-    def process_user(self, user_data: UserData) -> str:
-        """
-        Przetwarza dane użytkownika z zachowaniem zasad biznesowych.
-        
-        Args:
-            user_data: Obiekt zawierający dane użytkownika
-            
-        Returns:
-            str: Status przetwarzania ("processed" lub "skipped")
-            
-        Raises:
-            ValueError: W przypadku nieprawidłowych danych wejściowych
-        """
-        if not user_data:
-            raise ValueError("Brak danych użytkownika")
-            
-        logger.info("Przetwarzanie użytkownika: %s", user_data.username)
-        
-        if self._is_eligible_for_processing(user_data):
-            self._process_user_data(user_data)
-            return "processed"
-            
-        logger.debug("Użytkownik %s nie spełnia warunków przetwarzania", user_data.username)
-        return "skipped"
-    
-    def _is_eligible_for_processing(self, user_data: UserData) -> bool:
-        """Sprawdza czy użytkownik spełnia warunki przetwarzania."""
-        return (
-            user_data.age > 18 and
-            user_data.status == "active" and
+> 📘 Zobacz więcej przykładów w [przewodniku wprowadzającym](./docs/guides/getting_started.md#przykłady) i [dokumentacji API](./docs/api/README.md).
             bool(user_data.preferences)
         )
     
@@ -769,87 +700,26 @@ gollm generate "Create payment processor with error handling"
 | **Anthropic** | Claude-3 | ❌ 0% | ❌ $0.01-0.08/1k | ✅ Bardzo dobra | 🟡 Średnia | ❌ Nie |
 
 **Rekomendacja**: 
-- **Ollama CodeLlama 13B** dla większości projektów (privacy + quality)
-- **OpenAI GPT-4** dla maksymalnej jakości (enterprise)
-
-## 🚀 **Instalacja i Uruchomienie**
-
-### Szybka Instalacja
-```bash
-# Pobierz goLLM
-git clone https://github.com/wronai/gollm
-cd gollm
-
-# Automatyczna instalacja
-./install.sh
-
-# Demo
-./run_demo.sh
-```
-
-### Pierwszy Projekt
-```bash
-# Inicjalizuj w istniejącym projekcie
-cd my_python_project
-gollm init
-
-# Sprawdź status
-gollm status
-
-# Napraw problemy
-gollm fix --auto
-
-# Zainstaluj Git hooks
-gollm install-hooks
-
-# Konfiguruj IDE
-gollm setup-ide --editor=vscode
-```
+- **Ollama CodeLlama 13B** dla większości projektów (prywatność + jakość)
+- **OpenAI GPT-4** dla maksymalnej jakości (rozwiązania enterprise)
 
 ## 💡 **Kluczowe Komendy**
 
 ```bash
 # Podstawowe
-gollm validate-project                    # Waliduj cały projekt
-gollm status                             # Pokaż status jakości
-gollm next-task                          # Następne zadanie TODO
-gollm fix --auto                         # Auto-napraw problemy
+gollm validate-project     # Waliduj cały projekt
+gollm status              # Pokaż status jakości
+gollm next-task           # Pokaż następne zadanie TODO
+gollm fix --auto          # Automatyczna naprawa problemów
 
-# LLM
-gollm generate "create user class"        # Generuj kod z AI
-gollm fix --llm problematic_file.py      # Napraw z pomocą AI
+# Integracja z LLM
+gollm generate "zadanie"  # Generuj kod z pomocą AI
+gollm fix --llm plik.py  # Napraw kod z pomocą AI
 
-# Konfiguracja  
-gollm config show                        # Pokaż konfigurację
-gollm config set key value               # Ustaw wartość
-
-# Git
-gollm install-hooks                      # Zainstaluj Git hooks
-gollm validate --staged                  # Waliduj staged files
-
-# IDE
-gollm setup-ide --editor=vscode          # Konfiguruj VS Code
+# Więcej informacji
+gollm --help              # Wyświetl dostępne komendy
 ```
 
-## 🎯 **Przykład Użycia w Praktyce**
-
-### Problem: Zły kod z naruszeniami
-```python
-def process_user_data(username, email, phone, address, age, status, preferences, history, notes):
-    print(f"Processing {username}")  # ❌ Print statement
-    
-    if age > 18:
-        if status == "active":
-            if len(preferences) > 0:  # ❌ Wysoka złożoność
-                return "processed"    # ❌ Zbyt wiele parametrów
-```
-
-### Rozwiązanie: goLLM + Ollama
-```bash
-$ gollm generate "Improve this code following our quality standards"
-
-🤖 LLM Processing with project context...
-✅ Generated improved code:
-```
+> 📘 Pełna dokumentacja dostępna w [przewodniku użytkownika](./docs/guides/getting_started.md) i [dokumentacji API](./docs/api/README.md).
 
 
