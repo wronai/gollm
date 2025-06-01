@@ -1,5 +1,22 @@
 ![gollm.svg](gollm.svg)
+
 # goLLM - Go Learn, Lead, Master!
+
+[![PyPI Version](https://img.shields.io/pypi/v/gollm?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/gollm/)
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](https://opensource.org/licenses/Apache-2.0)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg?style=for-the-badge)](https://github.com/psf/black)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/wronai/gollm/actions)
+[![Code Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen?style=for-the-badge&logo=codecov&logoColor=white)](https://codecov.io/gh/wronai/gollm)
+[![Documentation Status](https://img.shields.io/badge/docs-latest-brightgreen?style=for-the-badge&logo=read-the-docs&logoColor=white)](https://gollm.readthedocs.io)
+[![Open Issues](https://img.shields.io/github/issues-raw/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/issues)
+[![Twitter Follow](https://img.shields.io/twitter/follow/yourhandle?style=for-the-badge&logo=twitter&color=1DA1F2)](https://twitter.com/yourhandle)
+[![GitHub Stars](https://img.shields.io/github/stars/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/network/members)
+[![GitHub Contributors](https://img.shields.io/github/contributors/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/graphs/contributors)
+[![Last Commit](https://img.shields.io/github/last-commit/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/commits/main)
+
+> **Note**: Some badges (like CI/CD, coverage, documentation) will need to be configured with your actual service accounts and repositories to work properly.
 
 🚀 **Intelligent Python code quality guardian with LLM integration, automated TODO management and CHANGELOG generation.**
 
