@@ -212,28 +212,59 @@ class OllamaAdapter:
     
     def _format_prompt_for_ollama(self, user_prompt: str, context: Dict[str, Any]) -> str:
         """Formatuje prompt dla Ollama z kontekstem goLLM"""
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Keep it simple and concise
-        return f"""You are a Python coding assistant. 
+        # Build context string if available
+        context_str = ""
+        if context:
+            context_str = "\nAdditional context for this task:\n"
+            for key, value in context.items():
+                context_str += f"- {key}: {value}\n"
+        
+        # Format the prompt with explicit instructions using a raw string
+        example_code = (
+            '# Example function with type hints and docstring\n'
+            'def example_function(param1: str, param2: int) -> bool:\n'
+            '    \"\"\"Example function with proper documentation.\n\n'
+            '    Args:\n'
+            '        param1: Description of param1\n'
+            '        param2: Description of param2\n\n'
+            '    Returns:\n'
+            '        bool: Description of return value\n'
+            '    \"\"\"\n'
+            '    try:\n'
+            '        # Function implementation\n'
+            '        return True\n'
+            '    except Exception as e:\n'
+            '        import logging\n'
+            '        logging.error(f\"An error occurred: {e}\")\n'
+            '        return False'
+        )
 
-Task: {user_prompt}
-
-Guidelines:
-- Write clean, well-documented Python code
-- Follow PEP 8 style guidelines
-- Include docstrings and type hints
-- Handle errors appropriately
-- Keep functions focused and under 50 lines
-- Use proper logging instead of print statements
-
-Return only the Python code in a code block with no additional explanation.
-
-Example response format:
-```python
-def example():
-    'Example function.'
-    pass
-```"""
+        prompt = (
+            f"You are an expert Python developer. Your task is to generate "
+            f"high-quality, production-ready Python code based on the following request.\n\n"
+            f"TASK:\n{user_prompt}\n\n{context_str}\n"
+            f"INSTRUCTIONS:\n"
+            f"1. Generate complete, working Python code that solves the task.\n"
+            f"2. Include all necessary imports, functions, and classes.\n"
+            f"3. Follow these coding standards:\n"
+            f"   - PEP 8 style guidelines\n"
+            f"   - Type hints for all function parameters and return values\n"
+            f"   - Comprehensive docstrings for all functions and classes\n"
+            f"   - Proper error handling\n"
+            f"   - Logging instead of print statements\n"
+            f"   - Keep functions focused and under 50 lines\n\n"
+            f"IMPORTANT: Your response MUST be a markdown code block starting with ```python and "
+            f"ending with ```. Do not include any explanations or text outside the code block.\n\n"
+            f"Here's an example of the expected format:\n\n"
+            f"```python\n{example_code}\n```\n\n"
+            f"Now, please provide the Python code for: {user_prompt}"
+        )
+        
+        logger.debug(f"Formatted prompt (first 200 chars): {prompt[:200]}...")
+        return prompt
     
     def _extract_code_from_response(self, response_text: str) -> str:
         """Extracts Python code from Ollama's response, handling various formats."""
@@ -242,61 +273,49 @@ def example():
         logger = logging.getLogger(__name__)
         
         if not response_text or not isinstance(response_text, str):
-            logger.warning("Empty or invalid response text provided")
+            logger.warning("Received empty or invalid response text")
             return ""
             
-        logger.debug(f"Extracting code from response (first 200 chars): {response_text[:200]}...")
+        logger.debug(f"Extracting code from response. Response length: {len(response_text)} characters")
+        logger.debug(f"Response content (first 500 chars): {response_text[:500]}...")
         
-        # Check if the entire response is a code block
-        stripped_text = response_text.strip()
-        if stripped_text.startswith('```') and stripped_text.endswith('```'):
-            # Extract content between the first and last ```
-            code_content = '\n'.join(stripped_text.split('\n')[1:-1])
-            logger.debug("Extracted code from fenced code block")
-            return code_content
+        # First, try to find markdown code blocks with optional language specifier
+        code_blocks = re.findall(r'```(?:python\n)?(.*?)```', response_text, re.DOTALL)
+        if code_blocks:
+            logger.debug(f"Found {len(code_blocks)} code blocks in response")
+            code = code_blocks[0].strip()
+            logger.debug(f"Extracted code block (first 200 chars): {code[:200]}...")
+            return code
             
-        # Try different patterns to extract code blocks
+        # Try to find code blocks without backticks (sometimes Ollama returns just the code)
+        logger.debug("No fenced code blocks found, looking for indented code...")
+        
+        # Try to find function or class definitions
         patterns = [
-            # Python code block with language specifier (```python ... ```)
-            r'```(?:python\s*\n)?(.*?)(?=```\s*$|```\s*\n|$)',
-            # General code block (``` ... ```)
-            r'```\s*\n(.*?)(?=```\s*$|```\s*\n|$)',
-            # Python function/class definition without code block
-            r'(def\s+\w+\s*\(.*?\n(?:\s+.*\n)*?\s+)(?=def|class|$)',
-            # Python class definition
-            r'(class\s+\w+\s*(?:\(.*?\))?\s*:\s*\n(?:\s+.*\n)*?\s+)(?=def|class|$)',
-            # Python code after explanation (common in Ollama responses)
-            r'(?:Here is|Here\'s).*?:\s*\n\s*```(?:python\s*\n)?(.*?)(?=```|$)'
+            # Function with docstring
+            r'(def\s+\w+\s*\([^)]*\)\s*:[^\n]*\n(?:\s*"""(?:.|\n)*?"""\n)?(?:\s*#.*\n)*\s+(?:[^\n]*(?:\n|$))+)',
+            # Class with docstring
+            r'(class\s+\w+\s*(?:\([^)]*\))?\s*:[^\n]*\n(?:\s*"""(?:.|\n)*?"""\n)?(?:\s*#.*\n)*\s+(?:[^\n]*(?:\n|$))+)',
+            # Import statements
+            r'(^import\s+\w+(?:\s*,\s*\w+)*\s*$|^from\s+\w+\s+import\s+\w+(?:\s*,\s*\w+)*\s*$)',
+            # Any line that looks like code (has indentation and ends with a colon)
+            r'(^\s+\w+.*:\s*$\n(?:\s+.+\n)*)'
         ]
         
         for pattern in patterns:
             try:
-                matches = re.findall(pattern, response_text, re.DOTALL)
+                matches = re.findall(pattern, response_text, re.MULTILINE)
                 if matches:
                     logger.debug(f"Found {len(matches)} matches with pattern: {pattern[:50]}...")
-                    for match in matches:
-                        if isinstance(match, tuple):
-                            match = match[0]
-                        
-                        # Clean up the extracted code
-                        code = match.strip()
-                        if not code:
-                            continue
-                            
-                        # If the code contains Python keywords, it's likely Python code
-                        keywords = ['def ', 'class ', 'import ', 'from ', 'return ']
-                        if any(keyword in code for keyword in keywords):
-                            logger.debug("Found Python code in response")
-                            return code
-                        
-                        # If no Python keywords but looks like code, keep it
-                        if '\n' in code and ('(' in code or '=' in code or ':' in code):
-                            logger.debug("Found potential code block")
-                            return code
+                    code = '\n'.join(match.strip() for match in matches if match.strip())
+                    if code:
+                        logger.debug(f"Extracted code (first 200 chars): {code[:200]}...")
+                        return code
             except Exception as e:
                 logger.warning(f"Error processing pattern {pattern}: {str(e)}")
-                        
-        # If no code blocks found, check if the whole response looks like code
+        
+        # If we still don't have code, check if the whole response looks like code
+        logger.debug("No clear code blocks found, checking if entire response is code...")
         lines = [line.strip() for line in response_text.strip().split('\n') if line.strip()]
         if len(lines) > 2:
             # Check if first few lines contain Python keywords
