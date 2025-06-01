@@ -20,27 +20,24 @@ goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modela
 - **Przywództwo w jakości** - Ustanawiamy najwyższe standardy w projektach
 - **Mistrzostwo w automatyzacji** - Inteligentne narzędzia, które pracują dla Ciebie
 
-## ✨ Dlaczego warto wybrać goLLM?
+## 📚 Dokumentacja
 
-### 🔍 Kompleksowa analiza kodu
-- Natychmiastowa walidacja w czasie rzeczywistym
-- Integracja z VS Code, PyCharm i innymi popularnymi edytorami
-- Wykrywanie setek typowych problemów w kodzie
+### 📖 Przewodniki
+- [Wprowadzenie](./docs/guides/getting_started.md) - Pierwsze kroki z goLLM
+- [Konfiguracja projektu](./docs/configuration/README.md) - Szczegóły konfiguracji
+- [Integracja z Ollama](./docs/guides/ollama_setup.md) - Jak używać lokalnych modeli LLM
+- [Generowanie wielu plików](./docs/guides/multi_file_generation.md) - Zarządzanie złożonymi projektami
 
-### 🤖 Inteligentne wsparcie AI
-- Automatyczne generowanie i poprawki kodu
-- Kontekstowe sugestie oparte na najlepszych praktykach
-- Integracja z wiodącymi modelami językowymi (GPT, Claude, Ollama)
+### 🛠️ API
+- [Podstawowe funkcje](./docs/api/core.md) - Główne komponenty goLLM
+- [Rozszerzenia](./docs/api/extensions.md) - Jak rozszerzać funkcjonalność
+- [Interfejs wiersza poleceń](./docs/api/cli.md) - Pełna dokumentacja CLI
 
-### 📊 Zarządzanie jakością
-- Automatyczne generowanie raportów jakości
-- Śledzenie postępu w czasie
-- Priorytetyzacja zadań technicznych
-
-### ⚡ Szybka integracja
-- Gotowość do użycia w 2 minuty
-- Prosta konfiguracja przez plik JSON lub interfejs wiersza poleceń
-- Automatyczna integracja z istniejącymi workflow'ami
+### ⚙️ Konfiguracja
+- [Zaawansowane opcje](./docs/configuration/advanced.md) - Szczegółowa konfiguracja
+- [Reguły walidacji](./docs/configuration/validation_rules.md) - Dostosowywanie zasad jakości kodu
+- [Integracja z LLM](./docs/configuration/llm_integration.md) - Konfiguracja modeli językowych
+- [Zarządzanie projektem](./docs/configuration/project_management.md) - Automatyzacja zadań
 
 ## 🚀 Szybki start
 
@@ -622,6 +619,7 @@ gollm next-task
 
 # Generowanie kodu z LLM
 gollm generate "create payment processor"
+gollm generate "create website simple with frontend, api and backend"
 
 # Auto-poprawki
 gollm fix --auto
@@ -871,3 +869,5 @@ $ gollm generate "Improve this code following our quality standards"
 🤖 LLM Processing with project context...
 ✅ Generated improved code:
 ```
+
+
