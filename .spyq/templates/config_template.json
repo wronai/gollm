@@ -1,0 +1,79 @@
+{
+    "version": "0.2.0",
+    "validation_rules": {
+      "max_function_lines": 50,
+      "max_file_lines": 300,
+      "max_cyclomatic_complexity": 10,
+      "max_function_params": 5,
+      "max_line_length": 88,
+      "forbid_print_statements": true,
+      "forbid_global_variables": true,
+      "require_docstrings": true,
+      "require_type_hints": false,
+      "naming_convention": "snake_case"
+    },
+    "project_management": {
+      "todo_integration": true,
+      "auto_create_tasks": true,
+      "todo_file": "TODO.md",
+      "changelog_integration": true,
+      "auto_update_changelog": true,
+      "changelog_file": "CHANGELOG.md",
+      "priority_mapping": {
+        "critical": "🔴 HIGH",
+        "major": "🟡 MEDIUM",
+        "minor": "🟢 LOW"
+      }
+    },
+    "llm_integration": {
+      "enabled": false,
+      "providers": {
+        "openai": {
+          "enabled": false,
+          "model": "gpt-4",
+          "api_key_env": "OPENAI_API_KEY"
+        },
+        "anthropic": {
+          "enabled": false,
+          "model": "claude-3-sonnet-20240229",
+          "api_key_env": "ANTHROPIC_API_KEY"
+        },
+        "ollama": {
+          "enabled": false,
+          "base_url": "http://localhost:11434",
+          "model": "codellama:7b",
+          "timeout": 60
+        }
+      },
+      "max_iterations": 3,
+      "token_limit": 4000,
+      "auto_fix_attempts": 2
+    },
+    "enforcement": {
+      "block_save": false,
+      "block_execution": false,
+      "auto_fix_enabled": true,
+      "real_time_validation": true
+    },
+    "notifications": {
+      "show_violations": true,
+      "suggest_refactoring": true,
+      "desktop_notifications": false,
+      "email_reports": false
+    },
+    "git_integration": {
+      "pre_commit_validation": true,
+      "post_commit_updates": true,
+      "auto_commit_fixes": false
+    },
+    "project_root": ".",
+    "_comments": {
+      "validation_rules": "Core code quality rules",
+      "llm_integration": "AI-powered code generation and fixes",
+      "enforcement": "How strictly rules are enforced",
+      "project_management": "TODO and CHANGELOG automation"
+    }
+  }
+  
+  
+  

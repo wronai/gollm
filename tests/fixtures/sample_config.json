@@ -1,0 +1,32 @@
+{
+    "validation_rules": {
+      "max_function_lines": 25,
+      "max_file_lines": 200,
+      "max_cyclomatic_complexity": 8,
+      "forbid_print_statements": true,
+      "forbid_global_variables": true,
+      "require_docstrings": true,
+      "max_function_params": 4,
+      "naming_convention": "snake_case"
+    },
+    "project_management": {
+      "todo_integration": true,
+      "auto_create_tasks": true,
+      "todo_file": "test_todo.md",
+      "changelog_integration": true,
+      "auto_update_changelog": true,
+      "changelog_file": "test_changelog.md"
+    },
+    "llm_integration": {
+      "enabled": false,
+      "model_name": "test-model",
+      "max_iterations": 2,
+      "token_limit": 2000
+    },
+    "enforcement": {
+      "block_save": false,
+      "block_execution": false,
+      "auto_fix_enabled": false
+    }
+  }
+  

@@ -1,0 +1,32 @@
+#!/bin/sh
+# SPYQ Post-commit Hook
+# Updates project documentation after successful commit
+
+echo "📝 SPYQ: Updating project documentation..."
+
+# Get commit information
+COMMIT_HASH=$(git rev-parse HEAD)
+COMMIT_MSG=$(git log -1 --pretty=%B)
+AUTHOR=$(git log -1 --pretty=%an)
+
+# Update CHANGELOG with commit info
+python -m spyq changelog add-commit-entry \
+    --hash "$COMMIT_HASH" \
+    --message "$COMMIT_MSG" \
+    --author "$AUTHOR"
+
+if [ $? -eq 0 ]; then
+    echo "✅ CHANGELOG updated successfully"
+else
+    echo "⚠️ Could not update CHANGELOG automatically"
+fi
+
+# Update TODO completion status
+python -m spyq todo update-from-commit "$COMMIT_MSG"
+
+# Generate quality report
+python -m spyq report --format brief --output .spyq/cache/last_commit_quality.json
+
+echo "✅ SPYQ documentation updated"
+
+

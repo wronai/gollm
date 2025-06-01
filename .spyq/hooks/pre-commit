@@ -1,0 +1,40 @@
+#!/bin/sh
+# SPYQ Pre-commit Hook
+# Validates staged files before commit
+
+echo "🔍 SPYQ: Validating staged files..."
+
+# Get staged Python files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$')
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "✅ No Python files to validate"
+    exit 0
+fi
+
+# Run SPYQ validation on staged files
+VALIDATION_FAILED=0
+
+for file in $STAGED_FILES; do
+    echo "Validating: $file"
+    
+    # Run SPYQ validation
+    python -m spyq validate "$file" --quiet
+    
+    if [ $? -ne 0 ]; then
+        VALIDATION_FAILED=1
+        echo "❌ Validation failed for: $file"
+    fi
+done
+
+if [ $VALIDATION_FAILED -eq 1 ]; then
+    echo ""
+    echo "❌ SPYQ validation failed for some files"
+    echo "💡 Fix issues with: spyq fix --auto"
+    echo "📊 Check status with: spyq status"
+    echo "🔧 Manual fixes may be required for complex violations"
+    exit 1
+fi
+
+echo "✅ All staged files passed SPYQ validation"
+exit 0
