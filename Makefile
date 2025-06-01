@@ -37,8 +37,8 @@ clean:
 	rm -rf .pytest_cache/
 	rm -rf .coverage
 	rm -rf htmlcov/
-	find . -type d -name __pycache__ -delete
-	find . -name "*.pyc" -delete
+	find . -name "*.pyc" -delete || true
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 version:
 	@echo "Updating version in pyproject.toml"
@@ -51,9 +51,14 @@ version:
 
 # Budowanie
 build: clean
-	python -m venv venv
-	source venv/bin/activate
-	rm -rf dist/
+	if [ ! -d "venv" ]; then \
+		python -m venv venv; \
+		. venv/bin/activate; \
+		pip install -U pip setuptools wheel build; \
+	else \
+		. venv/bin/activate; \
+		pip install -q --upgrade pip setuptools wheel build; \
+	fi
 	pip install -e .
 	python -m build
 
