@@ -1,6 +1,7 @@
 # src/gollm/project_management/todo_manager.py
 import re
 import os
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -154,7 +155,9 @@ class TodoManager:
             "forbidden_print": "5-10 minutes",
             "missing_docstring": "15-30 minutes",
             "high_complexity": "1-3 hours",
-            "too_many_parameters": "45-90 minutes"
+            "too_many_parameters": "45-90 minutes",
+            "code_generation": "15-60 minutes",
+            "code_review": "10-30 minutes"
         }
         return effort_map.get(violation_type, "30 minutes")
     
@@ -191,16 +194,18 @@ class TodoManager:
     
     def get_stats(self) -> Dict[str, int]:
         """Zwraca statystyki zadań"""
-        pending = len([t for t in self.tasks if t.status == "pending"])
-        completed = len([t for t in self.tasks if t.status == "completed"])
-        high_priority = len([t for t in self.tasks 
-                           if t.status == "pending" and t.priority == "HIGH"])
+        pending = [t for t in self.tasks if t.status == "pending"]
+        completed = [t for t in self.tasks if t.status == "completed"]
+        high_priority = [t for t in self.tasks 
+                       if t.status == "pending" and t.priority == "HIGH"]
+        code_gen_tasks = [t for t in self.tasks if t.id.startswith("gen-")]
         
         return {
             "total": len(self.tasks),
-            "pending": pending,
-            "completed": completed,
-            "high_priority": high_priority
+            "pending": len(pending),
+            "completed": len(completed),
+            "high_priority": len(high_priority),
+            "code_generation_tasks": len(code_gen_tasks)
         }
     
     def _save_tasks(self):
@@ -209,20 +214,64 @@ class TodoManager:
         with open(self.todo_file, 'w', encoding='utf-8') as f:
             f.write(content)
     
+    def add_code_generation_task(self, description: str, context: Dict[str, Any]) -> Task:
+        """Dodaje zadanie generowania kodu"""
+        task = Task(
+            id=f"gen-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            title=f"[CodeGen] {description[:50]}",
+            description=f"**Description:** {description}\n"
+                      f"**Context:** {json.dumps(context, indent=2) if context else 'No context'}",
+            priority="HIGH" if context.get('is_critical') else "MEDIUM",
+            created_at=datetime.now().isoformat(),
+            estimated_effort=self._estimate_effort("code_generation"),
+            related_files=context.get('related_files', [])
+        )
+        self.tasks.append(task)
+        self._save_tasks()
+        return task
+
+    def update_code_generation_task(self, task_id: str, result: Dict[str, Any]):
+        """Aktualizuje zadanie po wygenerowaniu kodu"""
+        for task in self.tasks:
+            if task.id == task_id:
+                if 'generated_code' in result:
+                    task.description += f"\n**Generated File:** {result.get('output_file', 'Unknown')}"
+                    task.description += f"\n**Quality Score:** {result.get('quality_score', 'N/A')}"
+                    
+                    if 'violations' in result:
+                        task.description += "\n**Fixed Violations:**"
+                        for violation in result['violations']:
+                            task.description += f"\n- {violation.get('type', 'Unknown')}: {violation.get('message', 'No details')}"
+                
+                task.status = "completed"
+                self._save_tasks()
+                return True
+        return False
+
     def _generate_todo_content(self) -> str:
         """Generuje zawartość pliku TODO.md"""
-        content = f"# TODO List - Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        stats = self.get_stats()
+        
+        content = f"# 📋 TODO List - Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        content += f"**Status:** {stats['completed']}✓ {stats['pending']}⏳ • "
+        content += f"**Priority:** {stats['high_priority']}🔴 • "
+        content += f"**Code Gen:** {stats['code_generation_tasks']}🔄\n\n"
         
         # Grupuj zadania według priorytetu
         for priority, emoji in [("HIGH", "🔴"), ("MEDIUM", "🟡"), ("LOW", "🟢")]:
             priority_tasks = [t for t in self.tasks if t.priority == priority]
             
             if priority_tasks:
-                content += f"## {emoji} {priority} Priority\n\n"
+                content += f"## {emoji} {priority} Priority ({len(priority_tasks)} tasks)\n\n"
                 
                 for task in priority_tasks:
-                    status_mark = "x" if task.status == "completed" else " "
-                    content += f"- [{status_mark}] **{task.title}**\n"
+                    status_emoji = "✅" if task.status == "completed" else "⏳"
+                    content += f"- [{'x' if task.status == 'completed' else ' '}] **{status_emoji} {task.title}**"
+                    
+                    if task.id.startswith("gen-") and task.status == "pending":
+                        content += " 🆕"
+                    
+                    content += "\n"
                     
                     if task.description:
                         for line in task.description.split('\n'):
@@ -230,12 +279,21 @@ class TodoManager:
                                 content += f"  - {line.strip()}\n"
                     
                     if task.estimated_effort:
-                        content += f"  - **Estimated Effort:** {task.estimated_effort}\n"
+                        content += f"  - ⏱️ **Effort:** {task.estimated_effort}\n"
                     
                     if task.approach_suggestions:
-                        content += f"  - **Suggested Approach:** {', '.join(task.approach_suggestions)}\n"
+                        content += f"  - 💡 **Suggestions:** {', '.join(task.approach_suggestions)}\n"
+                    
+                    if task.related_files:
+                        files = ", ".join(f"`{f}`" for f in task.related_files if f)
+                        if files:
+                            content += f"  - 📂 **Files:** {files}\n"
                     
                     content += "\n"
         
-        content += "\n---\n*This file is automatically managed by goLLM*\n"
+        # Dodaj statystyki na dole
+        content += "---\n"
+        content += "*This file is automatically managed by goLLM* • "
+        content += f"*{stats['completed']} of {stats['total']} tasks completed*"
+        
         return content

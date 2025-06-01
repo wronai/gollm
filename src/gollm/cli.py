@@ -49,30 +49,77 @@ def validate_project(ctx):
 
 @cli.command()
 @click.argument('request')
+@click.option('--output', '-o', help='Output file path')
+@click.option('--critical', is_flag=True, help='Mark as high priority task')
+@click.option('--no-todo', is_flag=True, help='Skip creating a TODO item')
 @click.pass_context
-def generate(ctx, request):
-    """Generate code using LLM"""
+def generate(ctx, request, output, critical, no_todo):
+    """Generate code using LLM with quality validation"""
     gollm = ctx.obj['gollm']
-
+    
+    context = {
+        'is_critical': critical,
+        'related_files': [output] if output else []
+    }
+    
+    if no_todo:
+        context['skip_todo'] = True
+    
     async def run_generation():
-        result = await gollm.handle_code_generation(request)
-        click.echo("=== Wygenerowany kod ===")
-        click.echo(result.generated_code)
-        click.echo("\n=== Wyjaśnienie ===")
-        click.echo(result.explanation)
+        click.echo("🚀 Starting code generation...")
+        click.echo(f"📝 Request: {request}")
         
-        if result.validation_result.get('code_quality'):
-            quality = result.validation_result['code_quality']
-            violations = len(quality.get('violations', []))
-            score = quality.get('quality_score', 0)
-            click.echo(f"\n=== Jakość kodu: {score}/100 ===")
-            if violations > 0:
-                click.echo(f"Znaleziono {violations} naruszeń:")
-                for v in quality['violations']:
-                    click.echo(f"- {v['message']}")
-                    if 'suggested_fix' in v:
-                        click.echo(f"  Sugerowana poprawka: {v['suggested_fix']}")
-
+        if output:
+            click.echo(f"💾 Will save to: {output}")
+        
+        try:
+            result = await gollm.handle_code_generation(request, context=context)
+            
+            # Save the generated code if output file is specified
+            if output:
+                output_path = Path(output)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(result.generated_code)
+                click.echo(f"✅ Code saved to: {output_path.absolute()}")
+            
+            # Show generation results
+            click.echo("\n✨ Generation complete!")
+            
+            if result.quality_score > 0:
+                score_emoji = "🌟" if result.quality_score >= 90 else "👍"
+                click.echo(f"{score_emoji} Quality Score: {result.quality_score}/100")
+            
+            # Show validation results if available
+            if result.validation_result.get('code_quality'):
+                quality = result.validation_result['code_quality']
+                violations = quality.get('violations', [])
+                
+                if violations:
+                    click.echo("\n🔍 Found the following issues:")
+                    for v in violations:
+                        severity = v.get('severity', 'info').upper()
+                        click.echo(f"  - [{severity}] {v.get('message', 'Unknown issue')}")
+                        if 'suggested_fix' in v:
+                            click.echo(f"    💡 Suggestion: {v['suggested_fix']}")
+                else:
+                    click.echo("✅ No code quality issues found!")
+            
+            # Show next steps
+            if not no_todo:
+                next_task = gollm.todo_manager.get_next_task()
+                if next_task:
+                    click.echo(f"\n📋 Next Task: {next_task['title']}")
+                    click.echo(f"   Priority: {next_task['priority']}")
+                    if next_task.get('estimated_effort'):
+                        click.echo(f"   Estimated Effort: {next_task['estimated_effort']}")
+            
+            return result
+            
+        except Exception as e:
+            click.echo(f"❌ Error during code generation: {str(e)}", err=True)
+            raise
+    
     asyncio.run(run_generation())
 
 

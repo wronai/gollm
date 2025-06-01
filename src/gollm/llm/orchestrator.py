@@ -27,18 +27,30 @@ class LLMResponse:
 class LLMOrchestrator:
     """Orkiestruje komunikację z LLM i zarządza kontekstem"""
     
-    def __init__(self, config, code_validator=None):
+    def __init__(self, config, code_validator=None, todo_manager=None):
         self.config = config
         self.context_builder = ContextBuilder(config)
         self.prompt_formatter = PromptFormatter(config)
         self.response_validator = ResponseValidator(config)
         self.code_validator = code_validator or CodeValidator(config)
+        self.todo_manager = todo_manager
+        self.current_task_id = None
     
     async def handle_code_generation_request(self, user_request: str, context: Dict[str, Any] = None) -> LLMResponse:
         """Główny punkt wejścia dla generowania kodu przez LLM"""
-        
         if context is None:
             context = {}
+        
+        # Create a task in the todo manager
+        if self.todo_manager:
+            task_context = {
+                'request': user_request,
+                'context': context,
+                'is_critical': context.get('is_critical', False),
+                'related_files': context.get('related_files', [])
+            }
+            task = self.todo_manager.add_code_generation_task(user_request, task_context)
+            self.current_task_id = task.id
         
         session_id = context.get('session_id', f"session-{asyncio.get_event_loop().time()}")
         
@@ -49,7 +61,31 @@ class LLMOrchestrator:
             max_iterations=self.config.llm_integration.max_iterations
         )
         
-        return await self._process_llm_request(request)
+        try:
+            response = await self._process_llm_request(request)
+            
+            # Update task with results if successful
+            if self.todo_manager and self.current_task_id:
+                self.todo_manager.update_code_generation_task(
+                    self.current_task_id,
+                    {
+                        'generated_code': response.generated_code,
+                        'quality_score': response.quality_score,
+                        'violations': response.validation_result.get('violations', []),
+                        'output_file': context.get('output_file', 'unknown.py')
+                    }
+                )
+            
+            return response
+            
+        except Exception as e:
+            # Update task with error if something went wrong
+            if self.todo_manager and self.current_task_id:
+                self.todo_manager.update_code_generation_task(
+                    self.current_task_id,
+                    {'error': str(e)}
+                )
+            raise
     
     async def _process_llm_request(self, request: LLMRequest) -> LLMResponse:
         """Przetwarza żądanie LLM z iteracjami i walidacją"""
