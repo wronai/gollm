@@ -1,17 +1,18 @@
-
-# src/spyq/utils/__init__.py
 """
-Utility functions and helpers for SPYQ
+Git integration for SPYQ
+
+This module provides Git repository integration including:
+- Commit analysis and tracking
+- Branch information and history
+- File change monitoring
+- Git hooks management
 """
 
-from .file_utils import FileUtils
-from .string_utils import StringUtils
-from .decorators import timer, retry, cache_result
+from .analyzer import GitAnalyzer, CommitInfo
+from .hooks import GitHooks
 
 __all__ = [
-    "FileUtils",
-    "StringUtils", 
-    "timer",
-    "retry",
-    "cache_result"
+    "GitAnalyzer",
+    "CommitInfo",
+    "GitHooks"
 ]
