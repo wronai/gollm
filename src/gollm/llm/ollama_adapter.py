@@ -53,7 +53,16 @@ class OllamaAdapter:
         return []
     
     async def generate_code(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Generates code using Ollama with enhanced error handling and logging"""
+        """
+        Generate code using Ollama with enhanced error handling and logging
+        
+        Args:
+            prompt: The prompt to generate code from
+            context: Additional context for the prompt
+            
+        Returns:
+            Dict containing the generated code and metadata
+        """
         import logging
         import json
         from datetime import datetime
@@ -79,8 +88,112 @@ class OllamaAdapter:
             console.setLevel(logging.INFO)
             logger.addHandler(console)
         
-        if not self.session:
-            error_msg = "OllamaAdapter not properly initialized. Use 'async with' context manager."
+        logger.debug(f"Generating code with Ollama model: {self.config.model}")
+        
+        # Format the prompt for the model
+        formatted_prompt = self._format_prompt_for_ollama(prompt, context or {})
+        
+        # Prepare the request payload - enable streaming for better performance
+        payload = {
+            "model": self.config.model,
+            "prompt": formatted_prompt,
+            "stream": True,  # Enable streaming for better performance
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": self.config.max_tokens,
+                "stop": ["```", "\n"]  # Stop on code block end or newline
+            },
+            "system": (
+                "You are a helpful coding assistant. Generate clean, well-documented Python code "
+                "that follows best practices. Include type hints, docstrings, and error handling "
+                "where appropriate. Only respond with the code, no explanations or additional text."
+            )
+        }
+        
+        # Log the request payload (without the full prompt to avoid cluttering logs)
+        log_payload = payload.copy()
+        log_payload["prompt"] = f"[PROMPT LENGTH: {len(formatted_prompt)} chars]"
+        logger.debug(f"Sending request to Ollama API: {json.dumps(log_payload, indent=2)}")
+        
+        try:
+            # Make the API request
+            url = f"{self.config.base_url}/api/generate"
+            headers = {"Content-Type": "application/json"}
+            
+            # Log the full URL and headers for debugging
+            logger.debug(f"Sending POST request to: {url}")
+            logger.debug(f"Request headers: {headers}")
+            
+            full_response = ""
+            raw_response_text = ""
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=self.config.timeout)
+                ) as response:
+                    # Log response status and headers
+                    logger.debug(f"Received response status: {response.status}")
+                    logger.debug(f"Response headers: {dict(response.headers)}")
+                    
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Ollama API error: {response.status} - {error_text}")
+                        return {
+                            "success": False,
+                            "error": f"Ollama API error: {response.status} - {error_text}",
+                            "generated_code": "",
+                            "raw_response": error_text
+                        }
+                    
+                    # Process streaming response
+                    async for line in response.content:
+                        if line:
+                            try:
+                                chunk = json.loads(line)
+                                if 'response' in chunk:
+                                    full_response += chunk['response']
+                                    
+                                # Check if this is the final chunk
+                                if chunk.get('done', False):
+                                    logger.debug("Received final chunk from streaming response")
+                                    break
+                                    
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"Failed to parse chunk: {line}")
+                    
+            # Log the full response for debugging
+            logger.debug(f"Full response from Ollama API: {full_response}")
+            
+            if not full_response.strip():
+                error_msg = f"Empty response from Ollama API. Model: {self.config.model}, Prompt length: {len(formatted_prompt)}"
+                logger.warning(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "generated_code": "",
+                    "raw_response": full_response
+                }
+            
+            # Extract code from the response
+            extracted_code = self._extract_code_from_response(full_response)
+            
+            # If no code was extracted, try to clean up the response
+            if not extracted_code and full_response.strip():
+                logger.warning("No code blocks found in response, using full response as code")
+                extracted_code = full_response.strip()
+            
+            return {
+                "success": True,
+                "generated_code": extracted_code,
+                "raw_response": full_response,
+                "model": self.config.model
+            }
+            
+        except asyncio.TimeoutError:
+            error_msg = f"Ollama API request timed out after {self.config.timeout} seconds"
             logger.error(error_msg)
             return {
                 "success": False,
@@ -89,134 +202,6 @@ class OllamaAdapter:
                 "raw_response": ""
             }
             
-        try:
-            # Simplify the prompt to match what worked in curl test
-            # Extract just the core instruction from the prompt, removing any metadata
-            import re
-            core_instruction = re.sub(r'goLLM.*?OUTPUT FORMAT:.*?```python\s*', '', prompt, flags=re.DOTALL).strip()
-            simplified_prompt = f"Write a Python function that {core_instruction}"
-            logger.debug(f"Using simplified prompt: {simplified_prompt}")
-            
-            # Prepare the request payload - simplified to match working curl example
-            payload = {
-                "model": self.config.model,
-                "prompt": simplified_prompt,
-                "stream": False,
-                "options": {
-                    "temperature": min(max(0.1, float(self.config.temperature)), 1.0),
-                    "num_predict": min(int(self.config.max_tokens), 4000),
-                    "stop": ["```", "\n"]
-                }
-            }
-            
-            # Remove any None values to avoid sending null in JSON
-            payload["options"] = {k: v for k, v in payload["options"].items() if v is not None}
-            logger.debug(f"Sending request to Ollama with payload: {json.dumps(payload, indent=2)}")
-            
-            # Make the API request with a timeout
-            try:
-                async with asyncio.timeout(self.config.timeout):
-                    logger.debug(f"Sending POST request to: {self.config.base_url}/api/generate")
-                    logger.debug(f"Request headers: {dict(self.session._default_headers) if hasattr(self.session, '_default_headers') else 'No default headers'}")
-                    
-                    async with self.session.post(
-                        f"{self.config.base_url}/api/generate",
-                        json=payload,
-                        timeout=aiohttp.ClientTimeout(total=self.config.timeout)
-                    ) as response:
-                        logger.debug(f"Received response status: {response.status}")
-                        logger.debug(f"Response headers: {dict(response.headers)}")
-                        
-                        # Get raw response text first for debugging
-                        raw_response_text = await response.text()
-                        logger.debug(f"Raw response text (first 500 chars): {raw_response_text[:500]}")
-                        
-                        if response.status != 200:
-                            error_msg = f"Ollama API error: {response.status} - {raw_response_text}"
-                            logger.error(error_msg)
-                            return {
-                                "success": False,
-                                "error": error_msg,
-                                "generated_code": "",
-                                "raw_response": raw_response_text
-                            }
-                        
-                        try:
-                            result = await response.json()
-                            logger.debug(f"Parsed Ollama response type: {type(result)}")
-                            logger.debug(f"Response keys: {list(result.keys())}")
-                            
-                            # Log the full response structure
-                            logger.debug("Response structure:")
-                            for key, value in result.items():
-                                logger.debug(f"  {key}: {type(value)} (length: {len(str(value)) if hasattr(value, '__len__') else 'N/A'})")
-                                if key == 'response':
-                                    logger.debug(f"  Response content (first 500 chars): {str(value)[:500]}")
-                            
-                            logger.debug(f"Full response (first 1000 chars): {str(result)[:1000]}")
-                            
-                            # Extract the generated text from the response
-                            generated_text = result.get('response', '')
-                            if not generated_text:
-                                error_msg = "Empty 'response' field in Ollama API response. "
-                                error_msg += f"This might be due to the model not generating any output. "
-                                error_msg += f"Model: {self.config.model}, Prompt length: {len(simplified_prompt)}"
-                                logger.error(error_msg)
-                                logger.debug(f"Full response: {result}")
-                                
-                                # Try to get more detailed error information
-                                if 'error' in result:
-                                    error_msg += f"\nError details: {result['error']}"
-                                    
-                                return {
-                                    "success": False,
-                                    "error": error_msg,
-                                    "generated_code": "",
-                                    "raw_response": raw_response_text,
-                                    "debug_info": {
-                                        "model": self.config.model,
-                                        "prompt_length": len(simplified_prompt),
-                                        "response_keys": list(result.keys()) if isinstance(result, dict) else ""
-                                    }
-                                }
-                                
-                            # Try to extract code from the response
-                            extracted_code = self._extract_code_from_response(generated_text)
-                            if not extracted_code:
-                                logger.warning("No code could be extracted from the response")
-                                extracted_code = generated_text  # Fall back to full response
-                                
-                            return {
-                                "success": True,
-                                "generated_code": extracted_code,
-                                "raw_response": generated_text,
-                                "model_info": {
-                                    "provider": "ollama",
-                                    "model": self.config.model,
-                                    "tokens_used": result.get("eval_count", 0)
-                                }
-                            }
-                            
-                        except json.JSONDecodeError as e:
-                            error_msg = f"Failed to parse Ollama API response: {e}"
-                            logger.error(f"{error_msg}. Response: {raw_response_text}")
-                            return {
-                                "success": False,
-                                "error": error_msg,
-                                "generated_code": "",
-                                "raw_response": raw_response_text
-                            }
-                            
-            except asyncio.TimeoutError:
-                error_msg = f"Ollama API request timed out after {self.config.timeout} seconds"
-                logger.error(error_msg)
-                return {
-                    "success": False,
-                    "error": error_msg,
-                    "generated_code": "",
-                    "raw_response": ""
-                }
-                
         except Exception as e:
             error_msg = f"Unexpected error in generate_code: {str(e)}"
             logger.exception(error_msg)
@@ -228,63 +213,59 @@ class OllamaAdapter:
             }
     
     def _format_prompt_for_ollama(self, user_prompt: str, context: Dict[str, Any]) -> str:
-        """Formatuje prompt dla Ollama z kontekstem goLLM"""
+        """Formats the prompt for Ollama with goLLM context and explicit instructions.
+        
+        Args:
+            user_prompt: The user's original prompt
+            context: Additional context for the task
+            
+        Returns:
+            Formatted prompt string with clear instructions
+        """
         import logging
         logger = logging.getLogger(__name__)
         
         # Build context string if available
         context_str = ""
         if context:
-            context_str = "\nAdditional context for this task:\n"
+            context_str = "\n## Additional Context\n"
             for key, value in context.items():
                 context_str += f"- {key}: {value}\n"
         
-        # Format the prompt with explicit instructions using a raw string
-        example_code = (
-            '# Example function with type hints and docstring\n'
-            'def example_function(param1: str, param2: int) -> bool:\n'
-            '    \"\"\"Example function with proper documentation.\n\n'
-            '    Args:\n'
-            '        param1: Description of param1\n'
-            '        param2: Description of param2\n\n'
-            '    Returns:\n'
-            '        bool: Description of return value\n'
-            '    \"\"\"\n'
-            '    try:\n'
-            '        # Function implementation\n'
-            '        return True\n'
-            '    except Exception as e:\n'
-            '        import logging\n'
-            '        logging.error(f\"An error occurred: {e}\")\n'
-            '        return False'
-        )
-
-        prompt = (
-            f"You are an expert Python developer. Your task is to generate "
-            f"high-quality, production-ready Python code based on the following request.\n\n"
-            f"TASK:\n{user_prompt}\n\n{context_str}\n"
-            f"INSTRUCTIONS:\n"
-            f"1. Generate complete, working Python code that solves the task.\n"
-            f"2. Include all necessary imports, functions, and classes.\n"
-            f"3. Follow these coding standards:\n"
-            f"   - PEP 8 style guidelines\n"
-            f"   - Type hints for all function parameters and return values\n"
-            f"   - Comprehensive docstrings for all functions and classes\n"
-            f"   - Proper error handling\n"
-            f"   - Logging instead of print statements\n"
-            f"   - Keep functions focused and under 50 lines\n\n"
-            f"IMPORTANT: Your response MUST be a markdown code block starting with ```python and "
-            f"ending with ```. Do not include any explanations or text outside the code block.\n\n"
-            f"Here's an example of the expected format:\n\n"
-            f"```python\n{example_code}\n```\n\n"
-            f"Now, please provide the Python code for: {user_prompt}"
-        )
+        # Format the prompt with explicit instructions
+        # Using a list of lines to avoid string formatting issues
+        prompt_lines = [
+            "# PYTHON CODE ONLY - NO EXPLANATIONS, NO MARKDOWN, NO COMMENTS\n",
+            "# Your response will be directly executed as Python code.\n",
+            "# Only include valid Python code, nothing else.\n\n",
+            "# TASK:",
+            str(user_prompt),
+            str(context_str) if context_str else "",
+            "",
+            "# INSTRUCTIONS:",
+            "# 1. Write complete, working Python 3 code that solves the task",
+            "# 2. Include all necessary imports at the top",
+            "# 3. Add type hints for all function parameters and return values",
+            "# 4. Include docstrings using Google-style format",
+            "# 5. Add error handling with try/except blocks",
+            "# 6. Include example usage in a `if __name__ == '__main__':` block\n\n"
+        ]
         
-        logger.debug(f"Formatted prompt (first 200 chars): {prompt[:200]}...")
-        return prompt
+        # Join the lines to create the final prompt
+        formatted_prompt = "\n".join(line for line in prompt_lines if line is not None)
+        
+        logger.debug(f"Formatted prompt (first 200 chars): {formatted_prompt[:200]}...")
+        return formatted_prompt
     
     def _extract_code_from_response(self, response_text: str) -> str:
-        """Extracts Python code from Ollama's response, handling various formats."""
+        """Extracts Python code from Ollama's response, handling various formats.
+        
+        Args:
+            response_text: The raw response text from Ollama
+            
+        Returns:
+            Extracted Python code as a string
+        """
         import re
         import logging
         logger = logging.getLogger(__name__)
@@ -296,7 +277,83 @@ class OllamaAdapter:
         logger.debug(f"Extracting code from response. Response length: {len(response_text)} characters")
         logger.debug(f"Response content (first 500 chars): {response_text[:500]}...")
         
-        # First, try to find markdown code blocks with optional language specifier
+        # Try to extract code from markdown code blocks first
+        code_blocks = re.findall(r'```(?:python)?\s*([\s\S]*?)\s*```', response_text, re.IGNORECASE)
+        if code_blocks:
+            logger.debug(f"Found {len(code_blocks)} code blocks in response")
+            # Join all code blocks with double newlines in between
+            return '\n\n'.join(block.strip() for block in code_blocks if block.strip())
+            
+        # If no code blocks found, try to extract any Python code between special markers
+        if '[PYTHON]' in response_text and '[/PYTHON]' in response_text:
+            logger.debug("Extracting code from [PYTHON] tags")
+            code = re.search(r'\[PYTHON\]([\s\S]*?)\[/PYTHON\]', response_text, re.IGNORECASE)
+            if code:
+                return code.group(1).strip()
+                
+        # If no special markers, try to extract code between ```python and ```
+        if '```python' in response_text and '```' in response_text:
+            logger.debug("Extracting code from triple backticks")
+            code = re.search(r'```python\s*([\s\S]*?)\s*```', response_text)
+            if code:
+                return code.group(1).strip()
+                
+        # If no code blocks found, try to find indented blocks that look like code
+        logger.debug("No clear code blocks found, checking if entire response is code...")
+        
+        # Check if the response looks like code (contains Python keywords and proper indentation)
+        python_keywords = [
+            'def ', 'class ', 'import ', 'from ', 'return ', 'async def ', 
+            'async with ', 'if ', 'for ', 'while ', 'try:', 'except ', 'with ',
+            'def\n', 'class\n', 'import\n', 'from\n', 'return\n', 'async def\n',
+            'async with\n', 'if\n', 'for\n', 'while\n', 'try:\n', 'except\n', 'with\n'
+        ]
+        
+        # Check for Python shebang or common imports
+        if (any(keyword in response_text for keyword in python_keywords) or
+            response_text.lstrip().startswith('#!') or
+            'import ' in response_text or 'def ' in response_text or 'class ' in response_text):
+            logger.debug("Response appears to be raw Python code")
+            return response_text.strip()
+            
+        # Try to extract any code-like content
+        logger.debug("Trying to extract any code-like content...")
+        # Look for lines that look like code (start with def, class, import, etc.)
+        code_lines = []
+        in_code_block = False
+        
+        for line in response_text.split('\n'):
+            stripped = line.strip()
+            if not stripped:
+                continue
+                
+            # Check if this line starts a code block
+            if any(stripped.startswith(keyword) for keyword in python_keywords):
+                in_code_block = True
+                
+            # If we're in a code block, add the line
+            if in_code_block:
+                # Check if this looks like the end of a function/class
+                if stripped == '```' or stripped == '```python' or stripped == '```py':
+                    in_code_block = False
+                else:
+                    code_lines.append(line)
+        
+        if code_lines:
+            logger.debug(f"Extracted {len(code_lines)} lines of potential code")
+            return '\n'.join(code_lines).strip()
+            
+        # If all else fails, return the entire response
+        logger.debug("No code found, returning entire response")
+        return response_text.strip()
+            
+        logger.debug(f"Extracting code from response. Response length: {len(response_text)} characters")
+        logger.debug(f"Response content (first 500 chars): {response_text[:500]}...")
+        
+        # Clean up the response text
+        response_text = response_text.strip()
+        
+        # 1. First try to find markdown code blocks with optional language specifier
         code_blocks = re.findall(r'```(?:python\n)?(.*?)```', response_text, re.DOTALL)
         if code_blocks:
             logger.debug(f"Found {len(code_blocks)} code blocks in response")
@@ -304,10 +361,23 @@ class OllamaAdapter:
             logger.debug(f"Extracted code block (first 200 chars): {code[:200]}...")
             return code
             
-        # Try to find code blocks without backticks (sometimes Ollama returns just the code)
-        logger.debug("No fenced code blocks found, looking for indented code...")
-        
-        # Try to find function or class definitions
+        # 2. Try to find code blocks with [PYTHON]...[/PYTHON] tags
+        python_blocks = re.findall(r'\[PYTHON\](.*?)\[/PYTHON\]', response_text, re.DOTALL | re.IGNORECASE)
+        if python_blocks:
+            logger.debug(f"Found {len(python_blocks)} Python blocks in response")
+            code = python_blocks[0].strip()
+            logger.debug(f"Extracted Python block (first 200 chars): {code[:200]}...")
+            return code
+            
+        # 3. Try to find code blocks with [CODE]...[/CODE] tags
+        code_blocks = re.findall(r'\[CODE\](.*?)\[/CODE\]', response_text, re.DOTALL | re.IGNORECASE)
+        if code_blocks:
+            logger.debug(f"Found {len(code_blocks)} code blocks in response")
+            code = code_blocks[0].strip()
+            logger.debug(f"Extracted code block (first 200 chars): {code[:200]}...")
+            return code
+            
+        # 4. Try to find function or class definitions directly in the response
         patterns = [
             # Function with docstring
             r'(def\s+\w+\s*\([^)]*\)\s*:[^\n]*\n(?:\s*"""(?:.|\n)*?"""\n)?(?:\s*#.*\n)*\s+(?:[^\n]*(?:\n|$))+)',
@@ -331,12 +401,12 @@ class OllamaAdapter:
             except Exception as e:
                 logger.warning(f"Error processing pattern {pattern}: {str(e)}")
         
-        # If we still don't have code, check if the whole response looks like code
+        # 5. If we still don't have code, check if the whole response looks like code
         logger.debug("No clear code blocks found, checking if entire response is code...")
-        lines = [line.strip() for line in response_text.strip().split('\n') if line.strip()]
+        lines = [line for line in response_text.split('\n') if line.strip()]
+        
         if len(lines) > 2:
             # Check if first few lines contain Python keywords
-            python_keywords = ['def ', 'class ', 'import ', 'from ', 'return ']
             if any(any(kw in line for kw in python_keywords) for line in lines[:3]):
                 logger.debug("Response appears to be raw Python code")
                 return '\n'.join(lines)
@@ -345,7 +415,41 @@ class OllamaAdapter:
             if any(line.startswith(('    ', '\t')) for line in lines[1:5]):
                 logger.debug("Found indented block that looks like code")
                 return '\n'.join(lines)
+                
+            # Check for lines that look like code (contain Python keywords)
+            python_code_lines = [line for line in lines if any(kw in line for kw in python_keywords)]
+            if len(python_code_lines) > 1:
+                logger.debug("Found multiple lines that look like Python code")
+                return '\n'.join(lines)
             
+        # 6. If all else fails, try to extract anything that looks like code
+        logger.debug("Trying to extract any code-like content...")
+        code_snippets = []
+        in_code_block = False
+        code_block = []
+        
+        for line in response_text.split('\n'):
+            line = line.rstrip()
+            
+            # Check for code block start/end
+            if line.strip().startswith('```'):
+                if in_code_block and code_block:
+                    code_snippets.append('\n'.join(code_block))
+                    code_block = []
+                in_code_block = not in_code_block
+                continue
+                
+            if in_code_block:
+                code_block.append(line)
+            elif any(kw in line for kw in python_keywords):
+                code_block.append(line)
+                
+        if code_block:
+            code = '\n'.join(code_block).strip()
+            if code:
+                logger.debug(f"Extracted potential code (first 200 chars): {code[:200]}...")
+                return code
+        
         logger.warning("No valid Python code found in response")
         logger.debug(f"Full response that couldn't be parsed: {response_text}")
         return ""
@@ -356,8 +460,9 @@ class OllamaLLMProvider:
     def __init__(self, config: Dict[str, Any]):
         ollama_config = OllamaConfig(
             base_url=config.get('base_url', 'http://localhost:11434'),
-            model=config.get('model_name', 'codellama:7b'),
-            timeout=config.get('timeout', 60),
+            # Using llama3 as it's a capable model for code generation
+            model=config.get('model_name', 'llama3:latest'),
+            timeout=config.get('timeout', 120),  # Increased timeout for code generation
             max_tokens=config.get('token_limit', 4000),
             temperature=config.get('temperature', 0.1)
         )
