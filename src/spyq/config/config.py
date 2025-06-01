@@ -32,6 +32,13 @@ class LLMIntegration:
     max_iterations: int = 3
     token_limit: int = 4000
     auto_fix_attempts: int = 2
+    api_provider: str = "openai"
+    providers: Optional[Dict[str, Any]] = None
+    
+    def __post_init__(self):
+        # Handle the case where providers might be passed from config
+        if self.providers is None:
+            self.providers = {}
 
 @dataclass
 class SpyqConfig:

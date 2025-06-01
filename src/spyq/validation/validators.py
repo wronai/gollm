@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-from ..config.config import SpyqConfig
+from ..config.config import SpyqConfig, ValidationRules
 
 @dataclass
 class Violation:
