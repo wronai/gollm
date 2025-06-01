@@ -1,6 +1,6 @@
 
 # src/spyq/project_management/task_prioritizer.py
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
 @dataclass
