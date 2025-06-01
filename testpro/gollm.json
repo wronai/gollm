@@ -1,14 +1,15 @@
 {
+  "version": "0.2.0",
   "validation_rules": {
     "max_function_lines": 50,
     "max_file_lines": 300,
     "max_cyclomatic_complexity": 10,
+    "max_function_params": 5,
     "max_line_length": 88,
     "forbid_print_statements": true,
     "forbid_global_variables": true,
     "require_docstrings": true,
     "require_type_hints": false,
-    "max_function_params": 5,
     "naming_convention": "snake_case"
   },
   "project_management": {
@@ -21,12 +22,18 @@
   },
   "llm_integration": {
     "enabled": true,
-    "model_name": "gpt-4",
-    "max_iterations": 3,
-    "token_limit": 4000,
-    "auto_fix_attempts": 2,
-    "api_provider": "openai",
-    "providers": {}
-  },
-  "project_root": "."
+    "provider": "ollama",
+    "providers": {
+      "openai": {
+        "enabled": false,
+        "model": "gpt-4"
+      },
+      "ollama": {
+        "enabled": true,
+        "model": "codellama:7b",
+        "base_url": "http://localhost:11434",
+        "timeout": 300
+      }
+    }
+  }
 }
