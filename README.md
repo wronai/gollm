@@ -1,3 +1,4 @@
+![gollm.svg](gollm.svg)
 # goLLM - Go Learn, Lead, Master!
 
 🚀 **Intelligent Python code quality guardian with LLM integration, automated TODO management and CHANGELOG generation.**

@@ -1,0 +1,7 @@
+"goLLM - Go Learn, Lead, Master!"
+🚀 Uzasadnienie
+
+Go = Ruszaj/Działaj (nawiązuje do "go" w nazwie)
+Learn = LLM uczy się standardów kodu
+Lead = LLM prowadzi development według reguł
+Master = Osiągnięcie mistrzostwa w kodzie

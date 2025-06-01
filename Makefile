@@ -40,9 +40,23 @@ clean:
 	find . -type d -name __pycache__ -delete
 	find . -name "*.pyc" -delete
 
+version:
+	@echo "Updating version in pyproject.toml"
+	@current_version=$$(grep -oP 'version = "\K[0-9]+\.[0-9]+\.[0-9]+(?=")' pyproject.toml); \
+	IFS='.' read -r major minor patch <<< "$$current_version"; \
+	new_patch=$$((patch + 1)); \
+	new_version="$$major.$$minor.$$new_patch"; \
+	sed -i "s/version = \".*\"/version = \"$$new_version\"/" pyproject.toml; \
+	echo "Version updated from $$current_version to $$new_version"
+
 # Budowanie
 build: clean
+	python -m venv venv
+	source venv/bin/activate
+	rm -rf dist/
+	pip install -e .
 	python -m build
+
 
 # Publikacja
 publish-test: build

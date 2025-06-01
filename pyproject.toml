@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gollm"
-version = "0.1.1"
+version = "0.1.2"
 description = "Go Learn, Lead, Master! - Inteligentny system kontroli jakości kodu z integracją LLM"
 authors = [
-    {name = "goLLM Team", email = "team@gollm.dev"}
+    {name = "Tom Sapletta", email = "info@softreck.dev"}
 ]
 readme = "README.md"
 license = {text = "MIT"}
