@@ -9,6 +9,7 @@ from .config.config import GollmConfig
 from .validation.validators import CodeValidator
 from .project_management.todo_manager import TodoManager
 from .project_management.changelog_manager import ChangelogManager
+from .project_management.metrics_tracker import MetricsTracker
 from .llm.orchestrator import LLMOrchestrator
 from .logging.log_aggregator import LogAggregator
 
@@ -24,6 +25,9 @@ class GollmCore:
             todo_manager=self.todo_manager
         )
         self.log_aggregator = LogAggregator(self.config)
+        self.metrics_tracker = MetricsTracker(
+            Path(self.config.project_root) / ".gollm" / "metrics.json"
+        )
     
     def validate_file(self, file_path: str) -> dict:
         """Waliduje pojedynczy plik"""

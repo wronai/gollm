@@ -138,6 +138,64 @@ def next_task(ctx):
         click.echo("✅ No pending tasks found")
 
 
+def _format_trend(trend_data, value_formatter=str):
+    """Format trend data for display"""
+    if not trend_data:
+        return "No data available"
+    
+    # Group by date for better visualization
+    date_groups = {}
+    for ts, value in trend_data:
+        date = ts.split('T')[0]  # Just get the date part
+        date_groups[date] = value
+    
+    # Create a simple bar chart
+    max_value = max(date_groups.values()) if date_groups else 0
+    scale = 30.0 / max_value if max_value > 0 else 1
+    
+    lines = []
+    for date, value in sorted(date_groups.items()):
+        bar = '█' * int(value * scale)
+        lines.append(f"{date}: {bar} {value_formatter(value)}")
+    
+    return '\n'.join(lines)
+
+@cli.group()
+@click.pass_context
+def metrics(ctx):
+    """Track and analyze code quality metrics"""
+    pass
+
+@metrics.command()
+@click.option('--period', type=click.Choice(['day', 'week', 'month'], case_sensitive=False), 
+              default='month', help='Time period to analyze')
+@click.pass_context
+def trend(ctx, period):
+    """Show code quality trends over time"""
+    gollm = ctx.obj['gollm']
+    
+    # Get quality trends
+    quality_trend = gollm.metrics_tracker.get_quality_trend(period)
+    violations_trend = gollm.metrics_tracker.get_violations_trend(period)
+    
+    click.echo("📈 CODE QUALITY TRENDS")
+    click.echo("=" * 40)
+    
+    # Show quality score trend
+    click.echo("\n🟢 CODE QUALITY SCORE")
+    click.echo(_format_trend(quality_trend, lambda x: f"{x:.1f}"))
+    
+    # Show violations trend
+    click.echo("\n🔴 CODE VIOLATIONS")
+    click.echo(_format_trend(violations_trend, lambda x: f"{int(x)} issues"))
+    
+    # Show summary
+    if quality_trend:
+        first_score = quality_trend[0][1]
+        last_score = quality_trend[-1][1]
+        trend_emoji = "📈" if last_score > first_score else "📉" if last_score < first_score else "➡️"
+        click.echo(f"\n{trend_emoji} Trend: {first_score:.1f} → {last_score:.1f}")
+
 @cli.command()
 @click.pass_context
 def config(ctx):
