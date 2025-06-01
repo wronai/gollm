@@ -10,9 +10,11 @@ class ValidationRules:
     max_function_lines: int = 50
     max_file_lines: int = 300
     max_cyclomatic_complexity: int = 10
+    max_line_length: int = 88
     forbid_print_statements: bool = True
     forbid_global_variables: bool = True
     require_docstrings: bool = True
+    require_type_hints: bool = False
     max_function_params: int = 5
     naming_convention: str = "snake_case"
 

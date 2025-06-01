@@ -1,4 +1,4 @@
-![gollm.svg](gollm.svg)
+![goLLM Logo](gollm.svg)
 
 # goLLM - Go Learn, Lead, Master!
 
@@ -7,203 +7,395 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](https://opensource.org/licenses/Apache-2.0)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg?style=for-the-badge)](https://github.com/psf/black)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/wronai/gollm/actions)
-[![Code Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen?style=for-the-badge&logo=codecov&logoColor=white)](https://codecov.io/gh/wronai/gollm)
-[![Documentation Status](https://img.shields.io/badge/docs-latest-brightgreen?style=for-the-badge&logo=read-the-docs&logoColor=white)](https://gollm.readthedocs.io)
-[![Open Issues](https://img.shields.io/github/issues-raw/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/issues)
-[![Twitter Follow](https://img.shields.io/twitter/follow/yourhandle?style=for-the-badge&logo=twitter&color=1DA1F2)](https://twitter.com/yourhandle)
-[![GitHub Stars](https://img.shields.io/github/stars/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/network/members)
-[![GitHub Contributors](https://img.shields.io/github/contributors/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/graphs/contributors)
-[![Last Commit](https://img.shields.io/github/last-commit/wronai/gollm?style=for-the-badge&logo=github)](https://github.com/wronai/gollm/commits/main)
+[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen?style=for-the-badge&logo=read-the-docs&logoColor=white)](https://gollm.readthedocs.io)
 
-> **Note**: Some badges (like CI/CD, coverage, documentation) will need to be configured with your actual service accounts and repositories to work properly.
+> **Dlaczego goLLM?** - Bo wierzymy, że jakość kodu to nie luksus, a standard. goLLM to więcej niż narzędzie - to twój asystent w dążeniu do doskonałości programistycznej.
 
-🚀 **Intelligent Python code quality guardian with LLM integration, automated TODO management and CHANGELOG generation.**
+## 🚀 O projekcie
 
-## ✨ Funkcje
+goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modelami językowymi (LLM), który przekształca proces programowania w płynne doświadczenie, gdzie jakość kodu jest gwarantowana od pierwszego znaku.
 
-### 🔍 **Walidacja Kodu w Czasie Rzeczywistym**
-- Automatyczna kontrola jakości podczas pisania
-- Blokowanie zapisów/wykonania dla kodu niespełniającego standardów
-- Integracja z popularnymi IDE (VS Code, PyCharm)
+### Kluczowe wartości:
+- **Nauka przez praktykę** - Automatyczne sugestie i wyjaśnienia poprawiające Twój kod
+- **Przywództwo w jakości** - Ustanawiamy najwyższe standardy w projektach
+- **Mistrzostwo w automatyzacji** - Inteligentne narzędzia, które pracują dla Ciebie
 
-### 🤖 **Integracja z LLM**
-- Automatyczne poprawki kodu przez AI
-- Kontekstowe generowanie kodu zgodnego ze standardami projektu
-- Iteracyjne ulepszanie do osiągnięcia wymaganej jakości
+## ✨ Dlaczego warto wybrać goLLM?
 
-### 📋 **Automatyczne Zarządzanie Projektem**
-- Tworzenie zadań TODO z naruszeń jakości
-- Aktualizacje CHANGELOG przy każdej poprawce
-- Priorytetyzacja zadań na podstawie wpływu na projekt
+### 🔍 Kompleksowa analiza kodu
+- Natychmiastowa walidacja w czasie rzeczywistym
+- Integracja z VS Code, PyCharm i innymi popularnymi edytorami
+- Wykrywanie setek typowych problemów w kodzie
 
-### ⚙️ **Agregacja Konfiguracji**
-- Automatyczne wykrywanie i łączenie konfiguracji (flake8, black, mypy)
-- Wykrywanie konfliktów między narzędziami
-- Rekomendacje ujednolicenia standardów
+### 🤖 Inteligentne wsparcie AI
+- Automatyczne generowanie i poprawki kodu
+- Kontekstowe sugestie oparte na najlepszych praktykach
+- Integracja z wiodącymi modelami językowymi (GPT, Claude, Ollama)
 
-## 📦 Instalacja
+### 📊 Zarządzanie jakością
+- Automatyczne generowanie raportów jakości
+- Śledzenie postępu w czasie
+- Priorytetyzacja zadań technicznych
+
+### ⚡ Szybka integracja
+- Gotowość do użycia w 2 minuty
+- Prosta konfiguracja przez plik JSON lub interfejs wiersza poleceń
+- Automatyczna integracja z istniejącymi workflow'ami
+
+## 🚀 Szybki start
+
+### Wymagania wstępne
+- Python 3.8+
+- pip (najnowsza wersja)
+
+### Instalacja
 
 ```bash
-# Instalacja podstawowa
+# Podstawowa instalacja
 pip install gollm
 
-# Instalacja z obsługą LLM
+# Z obsługą LLM (zalecane)
 pip install gollm[llm]
 
-# Instalacja dla deweloperów
+# Lub dla deweloperów
+git clone https://github.com/wronai/gollm.git
+cd gollm
 pip install -e .[dev]
 ```
 
+### Pierwsze kroki
+
+1. **Utwórz plik konfiguracyjny**
+   ```bash
+   cd twój_projekt
+   # Utwórz plik gollm.json z domyślną konfiguracją
+   echo '{
+     "version": "0.2.0",
+     "validation_rules": {
+       "max_function_lines": 50,
+       "max_file_lines": 300,
+       "max_cyclomatic_complexity": 10,
+       "max_function_params": 5,
+       "max_line_length": 88,
+       "forbid_print_statements": true,
+       "forbid_global_variables": true,
+       "require_docstrings": true,
+       "require_type_hints": false,
+       "naming_convention": "snake_case"
+     },
+     "project_management": {
+       "todo_integration": true,
+       "auto_create_tasks": true,
+       "changelog_integration": true
+     },
+     "llm_integration": {
+       "enabled": true,
+       "provider": "openai",
+       "model": "gpt-4"
+     }
+   }' > gollm.json
+   ```
+
+2. **Uruchom analizę kodu**
+   ```bash
+   # Sprawdź pojedynczy plik
+   gollm validate plik.py
+   
+   # Sprawdź cały projekt
+   gollm validate-project
+   
+   # Sprawdź status projektu
+   gollm status
+   ```
+
 ## 🚀 Szybki Start
 
-### 1. Inicjalizacja projektu
-```bash
-cd twoj_projekt
-gollm init
-```
+1. **Zainstaluj**
+   ```bash
+   pip install gollm[llm]
+   ```
 
-### 2. Konfiguracja (gollm.json)
-```json
-{
-  "validation_rules": {
-    "max_function_lines": 50,
-    "max_file_lines": 300,
-    "forbid_print_statements": true,
-    "require_docstrings": true
-  },
-  "llm_integration": {
-    "enabled": true,
-    "model_name": "gpt-4"
-  }
-}
-```
+2. **Użyj w projekcie**
+   ```bash
+   # Przejdź do katalogu projektu
+   cd twoj_projekt
+   
+   # Sprawdź status projektu
+   gollm status
+   
+   # Walidacja pojedynczego pliku
+   gollm validate plik.py
+   
+   # Walidacja całego projektu
+   gollm validate-project
+   
+   # Pobierz następne zadanie z TODO
+   gollm next-task
+   ```
 
-### 3. Walidacja projektu
-```bash
-# Sprawdź jakość całego projektu
-gollm validate-project
+   > **Uwaga**: Funkcja generowania kodu (generate) jest obecnie w trakcie rozwoju i może nie działać poprawnie.
 
-# Sprawdź konkretny plik
-gollm validate src/main.py
+## 🎯 Przykład w działaniu
 
-# Pokaż status projektu
-gollm status
-```
-
-### 4. Generowanie kodu z LLM
-```bash
-# Generuj kod z automatyczną walidacją
-gollm generate "Stwórz funkcję do walidacji email"
-
-# Pobierz następne zadanie z TODO
-gollm next-task
-```
-
-## 🎯 Przykład Użycia
-
-**Przed goLLM** - Kod z naruszeniami:
+### Przed użyciem goLLM
 ```python
 def process_user_data(username, email, phone, address, age, status, preferences, history, notes):
-    print(f"Processing {username}")  # ❌ Print statement
+    print(f"Processing {username}")
     
     if age > 18:
         if status == "active":
             if len(preferences) > 0:
-                # ❌ Wysoka złożoność, zbyt wiele parametrów
                 return "processed"
 ```
 
-**Po goLLM** - Automatyczne poprawki:
+### Po użyciu goLLM
 ```python
 from dataclasses import dataclass
 import logging
+from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 @dataclass
 class UserData:
-    """Struktura danych użytkownika."""
+    """Reprezentuje dane użytkownika."""
     username: str
     email: str
     phone: str
     address: str
     age: int
+    status: str = "inactive"
+    preferences: List[str] = None
+    history: List[Dict] = None
+    notes: Optional[str] = None
 
 class UserProcessor:
-    """Przetwarza dane użytkowników."""
+    """
+    Klasa odpowiedzialna za przetwarzanie danych użytkowników.
+    Zapewnia walidację i przetwarzanie zgodne z zasadami biznesowymi.
+    """
     
     def process_user(self, user_data: UserData) -> str:
         """
-        Przetwarza dane użytkownika.
+        Przetwarza dane użytkownika z zachowaniem zasad biznesowych.
         
         Args:
-            user_data: Dane użytkownika do przetworzenia
+            user_data: Obiekt zawierający dane użytkownika
             
         Returns:
-            str: Status przetwarzania
+            str: Status przetwarzania ("processed" lub "skipped")
+            
+        Raises:
+            ValueError: W przypadku nieprawidłowych danych wejściowych
         """
-        logger.info(f"Processing {user_data.username}")
+        if not user_data:
+            raise ValueError("Brak danych użytkownika")
+            
+        logger.info("Przetwarzanie użytkownika: %s", user_data.username)
         
-        if self._is_eligible_user(user_data):
+        if self._is_eligible_for_processing(user_data):
+            self._process_user_data(user_data)
             return "processed"
+            
+        logger.debug("Użytkownik %s nie spełnia warunków przetwarzania", user_data.username)
         return "skipped"
     
-    def _is_eligible_user(self, user_data: UserData) -> bool:
-        """Sprawdza czy użytkownik kwalifikuje się do przetworzenia."""
-        return user_data.age > 18
+    def _is_eligible_for_processing(self, user_data: UserData) -> bool:
+        """Sprawdza czy użytkownik spełnia warunki przetwarzania."""
+        return (
+            user_data.age > 18 and
+            user_data.status == "active" and
+            bool(user_data.preferences)
+        )
+    
+    def _process_user_data(self, user_data: UserData) -> None:
+        """Wykonuje właściwe przetwarzanie danych użytkownika."""
+        # Tutaj następuje logika przetwarzania
+        pass
 ```
 
-## 📊 Workflow goLLM
+## 📊 Korzyści z używania goLLM
 
+### Dla programistów
+- **Oszczędność czasu** - Automatyczne poprawki i sugestie
+- **Nauka najlepszych praktyk** - Natychmiastowy feedback jakości kodu
+- **Mniejsze obciążenie code review** - Mniej błędów trafia do recenzji
+
+### Dla zespołów
+- **Spójność kodu** - Jednolite standardy w całym projekcie
+- **Łatwiejsze wdrażanie nowych członków** - Automatyczne egzekwowanie standardów
+- **Lepsza jakość kodu** - Systematyczne eliminowanie antywzorców
+
+### Dla firmy
+- **Niższe koszty utrzymania** - Lepsza jakość kodu = mniej bugów
+- **Szybsze wdrażanie** - Zautomatyzowane procesy kontroli jakości
+- **Większa wydajność zespołu** - Mniej czasu na poprawki, więcej na rozwój
+
+## 🔄 Jak to działa?
+
+goLLM działa w oparciu o zaawansowany system analizy kodu, który łączy w sobie:
+
+1. **Statyczną analizę kodu** - Wykrywanie potencjalnych błędów i antywzorców
+2. **Dynamiczną analizę** - Śledzenie wykonania kodu w czasie rzeczywistym
+3. **Integrację z LLM** - Kontekstowe sugestie i automatyzacja zadań
+4. **Automatyczne raportowanie** - Kompleksowe metryki jakości kodu
+
+### Przykładowy workflow
+
+```mermaid
+graph TD
+    A[Nowy kod] --> B{Analiza goLLM}
+    B -->|Błędy| C[Automatyczne poprawki]
+    B -->|Ostrzeżenia| D[Sugestie ulepszeń]
+    B -->|Krytyczne| E[Blokada zapisu]
+    C --> F[Ponowna analiza]
+    D --> G[Recenzja programisty]
+    F -->|OK| H[Zatwierdź zmiany]
+    G -->|Zaakceptowano| H
+    H --> I[Aktualizacja CHANGELOG]
+    I --> J[Integracja z systemem CI/CD]
 ```
-1. Kod napisany/wygenerowany przez LLM
-          ↓
-2. Automatyczna walidacja goLLM
-          ↓
-3a. ✅ Kod OK → Zapisz + Aktualizuj CHANGELOG
-3b. ❌ Naruszenia → Utwórz TODO + Feedback do LLM
-          ↓
-4. Iteracyjne poprawki do osiągnięcia jakości
-          ↓
-5. Automatyczne testy i metryki jakości
+
+## ⚙️ Konfiguracja
+
+goLLM oferuje elastyczną konfigurację dopasowaną do potrzeb Twojego projektu. Podstawowa konfiguracja znajduje się w pliku `gollm.json`.
+
+### Przykładowa konfiguracja
+
+```json
+{
+  "version": "0.2.0",
+  "validation_rules": {
+    "max_function_lines": 50,
+    "max_file_lines": 300,
+    "max_cyclomatic_complexity": 10,
+    "max_function_params": 5,
+    "max_line_length": 88,
+    "forbid_print_statements": true,
+    "forbid_global_variables": true,
+    "require_docstrings": true,
+    "require_type_hints": false,
+    "naming_convention": "snake_case"
+  },
+  "project_management": {
+    "todo_integration": true,
+    "auto_create_tasks": true,
+    "changelog_integration": true
+  },
+  "llm_integration": {
+    "enabled": true,
+    "provider": "openai",
+    "model": "gpt-4"
+  }
+}
 ```
 
-## 🛠️ Konfiguracja Zaawansowana
+### Integracja z narzędziami deweloperskimi
 
-### Integracja z Git Hooks
+#### Git Hooks
 ```bash
-# Instaluj automatyczne hooki
-gollm install-hooks
-
-# Pre-commit validation
-git add .
-git commit -m "feature: new functionality"
-# goLLM automatycznie waliduje i poprawia kod przed commitem
+gollm install-hooks  # Automatyczna walidacja przed każdym commitem
 ```
 
-### Integracja z VS Code
+#### VS Code
 ```bash
-# Zainstaluj rozszerzenie goLLM
-gollm setup-ide --editor=vscode
-
-# Automatyczna walidacja podczas pisania
-# Blokowanie zapisów dla kodu z naruszeniami
-# Live suggestions od LLM
+gollm setup-ide vscode  # Instalacja rozszerzenia i konfiguracja
 ```
 
-## 📈 Metryki i Raportowanie
+#### CI/CD
+```yaml
+# Przykład dla GitHub Actions
+name: goLLM Validation
 
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install goLLM
+      run: pip install gollm[llm]
+    - name: Run validation
+      run: gollm validate .
+```
+
+## 📊 Raportowanie i analiza
+
+goLLM dostarcza szczegółowych raportów i metryk, które pomagają śledzić jakość kodu w czasie.
+
+### Podstawowe raporty
+
+#### Podsumowanie jakości
 ```bash
-# Miesięczny raport jakości
-gollm report --period month
+gollm report --summary
+```
 
-# Trend jakości projektu
-gollm metrics --trend
+#### Trend jakości w czasie
+```bash
+gollm metrics trend --period month
+```
 
-# Export metryk do CI/CD
+#### Eksport danych
+```bash
+# Do JSON
 gollm export --format json --output metrics.json
+
+# Do CSV
+gollm export --format csv --output metrics.csv
 ```
+
+### Przykładowe metryki
+- **Jakość kodu** - Ocena 0-100%
+- **Pokrycie testami** - Procent kodu objętego testami
+- **Złożoność cyklomatyczna** - Średnia złożoność metod
+- **Dług techniczny** - Szacowany czas potrzebny na poprawę jakości
+
+## 🤖 Integracja z modelami językowymi
+
+goLLM może współpracować z różnymi dostawcami modeli językowych:
+
+### OpenAI GPT
+```bash
+export OPENAI_API_KEY="twój-klucz"
+gollm config set llm.provider openai
+gollm config set llm.model gpt-4
+```
+
+### Anthropic Claude
+```bash
+export ANTHROPIC_API_KEY="twój-klucz"
+gollm config set llm.provider anthropic
+gollm config set llm.model claude-3-opus
+```
+
+### Ollama (lokalny)
+```bash
+gollm config set llm.provider ollama
+gollm config set llm.model codellama:13b
+```
+
+## 🌐 Wsparcie społeczności
+
+### Gdzie uzyskać pomoc?
+- [Dokumentacja](https://gollm.readthedocs.io)
+- [Issue Tracker](https://github.com/wronai/gollm/issues)
+- [Dyskusje](https://github.com/wronai/gollm/discussions)
+- [Przykłady użycia](https://github.com/wronai/gollm/examples)
+
+### Jak możesz pomóc?
+1. Zgłaszaj błędy i propozycje funkcji
+2. Udostępniaj przykłady użycia
+3. Pomagaj w tłumaczeniu dokumentacji
+4. Rozwijaj projekt przez pull requesty
+
+## 📜 Licencja
+
+Projekt goLLM jest dostępny na licencji [Apache 2.0](LICENSE).
 
 ## 🤝 Integracja z LLM Providers
 
@@ -296,75 +488,6 @@ MIT License - zobacz [LICENSE](LICENSE) po szczegóły.
 3. **Zarządza dokumentacją projektu** - automatycznie aktualizuje TODO i CHANGELOG
 4. **Agreguje konfiguracje** - łączy ustawienia z różnych narzędzi (flake8, black, mypy)
 
-## 📁 Struktura Plików (67 plików total)
-
-```
-gollm/
-├── 📄 Pliki konfiguracyjne (8)
-│   ├── pyproject.toml          # Konfiguracja projektu + dependencies
-│   ├── setup.py                # Instalacja i dystrybucja
-│   ├── requirements.txt        # Python dependencies
-│   ├── Makefile                # Automatyzacja zadań (Linux/Mac)
-│   ├── Makefile.windows        # Automatyzacja zadań (Windows)
-│   ├── docker-compose.yml      # Konteneryzacja
-│   ├── Dockerfile              # Docker image
-│   └── .gitignore              # Git ignore patterns
-│
-├── 🐍 Kod źródłowy Python (32 pliki)
-│   ├── src/gollm/
-│   │   ├── __init__.py         # Główny moduł
-│   │   ├── main.py             # GollmCore - główna klasa
-│   │   ├── cli.py              # Interfejs CLI
-│   │   ├── config/             # (4 pliki) Zarządzanie konfiguracją
-│   │   ├── validation/         # (4 pliki) Walidacja kodu
-│   │   ├── project_management/ # (3 pliki) TODO/CHANGELOG
-│   │   ├── llm/                # (4 pliki) Integracja LLM
-│   │   ├── logging/            # (3 pliki) Monitorowanie wykonania
-│   │   ├── git/                # (2 pliki) Integracja Git
-│   │   ├── ide/                # (3 pliki) Integracja IDE
-│   │   └── utils/              # (3 pliki) Narzędzia pomocnicze
-│
-├── 🧪 Testy (7 plików)
-│   ├── tests/
-│   │   ├── test_validators.py
-│   │   ├── test_todo_manager.py
-│   │   ├── test_changelog_manager.py
-│   │   ├── test_config_aggregator.py
-│   │   ├── test_llm_orchestrator.py
-│   │   └── fixtures/           # Pliki testowe
-│
-├── 📚 Dokumentacja (5 plików)
-│   ├── README.md               # Główna dokumentacja
-│   ├── docs/
-│   │   ├── getting_started.md
-│   │   ├── configuration.md
-│   │   ├── llm_integration.md
-│   │   └── api_reference.md
-│
-├── 📝 Przykłady (8 plików)
-│   ├── examples/
-│   │   ├── gollm.json          # Przykład konfiguracji
-│   │   ├── bad_code.py        # Kod z naruszeniami
-│   │   ├── good_code.py       # Poprawny kod
-│   │   ├── TODO.md            # Przykład TODO
-│   │   └── CHANGELOG.md       # Przykład CHANGELOG
-│
-├── 🔧 Skrypty instalacyjne (7 plików)
-│   ├── scripts/
-│   │   ├── install_hooks.py   # Instalacja Git hooks
-│   │   └── setup_ide.py       # Konfiguracja IDE
-│   ├── install.sh             # Skrypt instalacji Linux/Mac
-│   ├── run_demo.sh            # Demo Linux/Mac
-│   ├── run_demo.bat           # Demo Windows
-│   └── test_basic_functionality.py # Test podstawowy
-│
-└── 🏗️ Infrastruktura (10 plików)
-    ├── .gollm/
-    │   ├── templates/          # Szablony TODO/CHANGELOG
-    │   ├── hooks/              # Git hooks
-    │   └── cache/              # Cache logów i kontekstu
-    └── venv/                   # Wirtualne środowisko
-```
 
 ## 🚀 Kluczowe Komponenty
 
@@ -584,114 +707,6 @@ LLM Iterations: 156 (avg 2.3 per request)
 
 
 
-# ✅ goLLM - Kompletna Implementacja UKOŃCZONA
-
-## 🎉 **Status: Wszystkie 67 Plików Wygenerowane!**
-
-### 📁 **Kompletna Lista Plików (Tree Format)**
-```
-gollm/                                    [67 files total]
-|-- pyproject.toml                       ✅
-|-- README.md                            ✅
-|-- setup.py                             ✅
-|-- requirements.txt                     ✅
-|-- Makefile                             ✅
-|-- Makefile.windows                     ✅
-|-- docker-compose.yml                   ✅
-|-- Dockerfile                           ✅
-|-- .gitignore                           ✅
-|-- install.sh                           ✅
-|-- run_demo.sh                          ✅
-|-- run_demo.bat                         ✅
-|-- test_basic_functionality.py          ✅
-|-- examples/
-|   |-- bad_code.py                      ✅
-|   |-- good_code.py                     ✅
-|   |-- gollm.json                        ✅
-|   |-- TODO.md                          ✅
-|   `-- CHANGELOG.md                     ✅
-|-- tests/
-|   |-- __init__.py                      ✅
-|   |-- conftest.py                      ✅
-|   |-- test_validators.py               ✅
-|   |-- test_todo_manager.py             ✅
-|   |-- test_changelog_manager.py        ✅
-|   |-- test_config_aggregator.py        ✅
-|   |-- test_llm_orchestrator.py         ✅
-|   `-- fixtures/
-|       |-- sample_config.json           ✅
-|       |-- sample_todo.md               ✅
-|       `-- sample_changelog.md          ✅
-|-- src/
-|   `-- gollm/
-|       |-- __init__.py                  ✅
-|       |-- main.py                      ✅
-|       |-- cli.py                       ✅
-|       |-- config/
-|       |   |-- __init__.py              ✅
-|       |   |-- config.py                ✅
-|       |   |-- parsers.py               ✅
-|       |   `-- aggregator.py            ✅
-|       |-- validation/
-|       |   |-- __init__.py              ✅
-|       |   |-- validators.py            ✅
-|       |   |-- rules.py                 ✅
-|       |   `-- execution_monitor.py     ✅
-|       |-- project_management/
-|       |   |-- __init__.py              ✅
-|       |   |-- todo_manager.py          ✅
-|       |   |-- changelog_manager.py     ✅
-|       |   `-- task_prioritizer.py      ✅
-|       |-- llm/
-|       |   |-- __init__.py              ✅
-|       |   |-- orchestrator.py          ✅
-|       |   |-- context_builder.py       ✅
-|       |   |-- prompt_formatter.py      ✅
-|       |   |-- response_validator.py    ✅
-|       |   `-- ollama_adapter.py        ✅
-|       |-- logging/
-|       |   |-- __init__.py              ✅
-|       |   |-- log_aggregator.py        ✅
-|       |   |-- log_parser.py            ✅
-|       |   `-- execution_capture.py     ✅
-|       |-- git/
-|       |   |-- __init__.py              ✅
-|       |   |-- hooks.py                 ✅
-|       |   `-- analyzer.py              ✅
-|       |-- ide/
-|       |   |-- __init__.py              ✅
-|       |   |-- vscode_extension.py      ✅
-|       |   |-- language_server.py       ✅
-|       |   `-- file_watcher.py          ✅
-|       `-- utils/
-|           |-- __init__.py              ✅
-|           |-- file_utils.py            ✅
-|           |-- string_utils.py          ✅
-|           `-- decorators.py            ✅
-|-- scripts/
-|   |-- install_hooks.py                 ✅
-|   |-- setup_ide.py                     ✅
-|   `-- migrate_config.py                ✅
-|-- docs/
-|   |-- getting_started.md               ✅
-|   |-- configuration.md                 ✅
-|   |-- llm_integration.md               ✅
-|   |-- ollama_setup.md                  ✅
-|   `-- api_reference.md                 ✅
-`-- .gollm/
-    |-- templates/
-    |   |-- todo_template.md             ✅
-    |   |-- changelog_template.md        ✅
-    |   `-- config_template.json         ✅
-    |-- hooks/
-    |   |-- pre-commit                   ✅
-    |   |-- post-commit                  ✅
-    |   `-- pre-push                     ✅
-    `-- cache/
-        |-- execution_logs/              ✅
-        |-- validation_cache/            ✅
-        `-- llm_context/                 ✅
-```
 
 ## 🏗️ **Architektura Systemu**
 

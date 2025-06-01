@@ -78,11 +78,19 @@ class LLMOrchestrator:
             
             # Sprawdź jakość kodu
             if validation_result['code_extracted']:
-                code_validation = self.code_validator.validate_content(
-                    validation_result['extracted_code'], 
-                    "generated_code.py"
-                )
-                validation_result['code_quality'] = code_validation
+                # Create a temporary file for validation
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
+                    temp_file.write(validation_result['extracted_code'])
+                    temp_file_path = temp_file.name
+                
+                try:
+                    code_validation = self.code_validator.validate_file(temp_file_path)
+                    validation_result['code_quality'] = code_validation
+                finally:
+                    # Clean up the temporary file
+                    import os
+                    os.unlink(temp_file_path)
             
             # Oceń wynik
             current_score = self._calculate_response_score(validation_result)
