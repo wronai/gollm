@@ -89,16 +89,24 @@ class LLMOrchestrator:
     
     async def _process_llm_request(self, request: LLMRequest) -> LLMResponse:
         """Przetwarza żądanie LLM z iteracjami i walidacją"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Starting LLM request processing for: {request.user_request[:100]}...")
+        logger.debug(f"Request context: {request.context}")
         
         # 1. Przygotuj pełny kontekst
         full_context = await self.context_builder.build_context(request.context)
+        logger.debug(f"Built full context with keys: {list(full_context.keys())}")
         
         # 2. Iteracyjne generowanie kodu
         best_response = None
         best_score = 0
+        logger.info(f"Starting {request.max_iterations} iterations of code generation")
         
         for iteration in range(request.max_iterations):
             # Sformatuj prompt
+            logger.info(f"\n--- Starting iteration {iteration + 1} ---")
             prompt = self.prompt_formatter.create_prompt(
                 request.user_request, 
                 full_context, 
@@ -106,11 +114,23 @@ class LLMOrchestrator:
                 previous_attempt=best_response
             )
             
-            # Symulacja wywołania LLM (w rzeczywistej implementacji tutaj byłby prawdziwy API call)
+            logger.debug(f"Generated prompt (truncated): {prompt[:300]}...")
+            
+            # Make the actual LLM call
+            logger.info("Calling LLM...")
             llm_output = await self._simulate_llm_call(prompt)
+            logger.debug(f"LLM output (first 500 chars): {str(llm_output)[:500]}...")
             
             # Waliduj odpowiedź
+            logger.info("Validating LLM response...")
             validation_result = await self.response_validator.validate_response(llm_output)
+            logger.debug(f"Validation result: {validation_result}")
+            
+            if not validation_result.get('code_extracted', False):
+                logger.warning("No code was extracted from the LLM response")
+                logger.debug(f"Full validation result: {validation_result}")
+            else:
+                logger.info(f"Code extracted successfully, length: {len(validation_result.get('extracted_code', ''))} chars")
             
             # Sprawdź jakość kodu
             if validation_result['code_extracted']:
@@ -130,6 +150,7 @@ class LLMOrchestrator:
             
             # Oceń wynik
             current_score = self._calculate_response_score(validation_result)
+            logger.info(f"Iteration {iteration + 1} score: {current_score}/100")
             
             if current_score > best_score:
                 best_score = current_score
@@ -139,12 +160,30 @@ class LLMOrchestrator:
                     'validation_result': validation_result,
                     'iteration': iteration + 1
                 }
+                logger.info(f"New best response found with score: {best_score}")
             
             # Jeśli osiągnęliśmy wystarczającą jakość, przerwij
             if current_score >= 90:  # 90% jakości
+                logger.info("Reached target quality score (90+), stopping iterations")
                 break
+                
+            logger.info(f"--- End of iteration {iteration + 1} ---\n")
         
-        # 3. Zwróć najlepszą odpowiedź
+        # 3. Sprawdź czy mamy jakąkolwiek odpowiedź
+        if best_response is None:
+            error_msg = "No valid response was generated after all iterations"
+            logger.error(error_msg)
+            return LLMResponse(
+                generated_code="",
+                explanation=error_msg,
+                validation_result={"error": error_msg, "success": False},
+                iterations_used=request.max_iterations,
+                quality_score=0
+            )
+        
+        logger.info(f"Best response score: {best_score}, from iteration {best_response['iteration']}")
+        
+        # 4. Zwróć najlepszą odpowiedź
         return LLMResponse(
             generated_code=best_response['generated_code'],
             explanation=best_response['explanation'],
@@ -154,104 +193,66 @@ class LLMOrchestrator:
         )
     
     async def _simulate_llm_call(self, prompt: str) -> str:
-        """Symuluje wywołanie LLM (do zastąpienia prawdziwym API)"""
+        """Makes an actual LLM call using the configured provider."""
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # W rzeczywistej implementacji tutaj byłoby:
-        # response = await openai.ChatCompletion.acreate(...)
-        # return response.choices[0].message.content
-        
-        # Symulacja - zwraca przykładowy kod na podstawie promptu
-        if "calculate_discount" in prompt.lower():
-            return '''Here's a refactored discount calculation function:
-
-```python
-from dataclasses import dataclass
-from typing import Dict
-import logging
-
-logger = logging.getLogger(__name__)
-
-@dataclass
-class DiscountRequest:
-    """Data structure for discount calculation parameters."""
-    user_type: str
-    product_price: float
-    quantity: int
-    is_vip: bool
-    season: str
-    product_category: str
-    is_first_purchase: bool
-    loyalty_points: int
-    previous_orders_count: int
-
-class DiscountCalculator:
-    """Calculates product discounts based on business rules."""
-    
-    def calculate(self, request: DiscountRequest) -> float:
-        """
-        Calculate discount based on user profile and product details.
-        
-        Args:
-            request: DiscountRequest containing all necessary data
+        try:
+            # Get the LLM provider from config
+            provider_name = self.config.llm_integration.api_provider.lower()
+            logger.debug(f"Using LLM provider: {provider_name}")
             
-        Returns:
-            float: Final price after discount
-        """
-        logger.info(f"Calculating discount for {request.user_type}")
-        
-        discount_rate = self._get_discount_rate(request)
-        final_price = request.product_price * (1 - discount_rate)
-        
-        return final_price
-    
-    def _get_discount_rate(self, request: DiscountRequest) -> float:
-        """Get discount rate based on user type."""
-        if request.user_type == "premium":
-            return self._calculate_premium_discount(request)
-        return 0.01
-    
-    def _calculate_premium_discount(self, request: DiscountRequest) -> float:
-        """Calculate discount for premium users."""
-        base_rate = 0.05
-        
-        if request.product_price > 1000:
-            base_rate += 0.10
-        if request.quantity > 5:
-            base_rate += 0.05
-        if request.is_vip:
-            base_rate += 0.10
+            if provider_name == "ollama":
+                from .ollama_adapter import OllamaLLMProvider
+                provider_config = self.config.llm_integration.providers.get('ollama', {})
+                logger.debug(f"Initializing Ollama provider with config: {provider_config}")
+                provider = OllamaLLMProvider(provider_config)
+                
+                # Generate response using the Ollama provider
+                logger.debug("Sending prompt to Ollama provider...")
+                response = await provider.generate_response(prompt)
+                logger.debug(f"Received response from Ollama: {response}")
+                
+                if response.get("success", False):
+                    generated_code = response.get("generated_code", "")
+                    if not generated_code.strip():
+                        logger.warning("Received empty generated code from Ollama")
+                    return generated_code
+                else:
+                    error = response.get("error", "Unknown error from Ollama")
+                    logger.error(f"LLM generation failed: {error}")
+                    raise Exception(f"LLM generation failed: {error}")
+                    
+            else:
+                # Default to OpenAI if configured
+                import openai
+                openai_config = self.config.llm_integration.providers.get('openai', {})
+                openai.api_key = openai_config.get('api_key', '')
+                
+                if not openai.api_key:
+                    raise ValueError("OpenAI API key is required but not provided in the configuration.")
+                
+                logger.debug("Sending request to OpenAI...")
+                response = await openai.ChatCompletion.acreate(
+                    model=self.config.llm_integration.model_name,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful AI coding assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=self.config.llm_integration.token_limit,
+                    temperature=0.1
+                )
+                return response.choices[0].message.content
+                    
+        except Exception as e:
+            # Fallback to a simple response if LLM call fails
+            logger.exception("LLM call failed")
+            return f"""Error: Failed to generate code. {str(e)}
             
-        return min(base_rate, 0.35)  # Cap at 35%
-```
+Please check your LLM configuration and try again.
+            """
 
-This refactored code:
-1. Uses dataclass to group parameters (9 → 1)
-2. Implements proper logging instead of print
-3. Reduces cyclomatic complexity through method extraction
-4. Adds comprehensive docstrings
-5. Follows single responsibility principle
-'''
-        else:
-            return '''Here's a sample Python function:
 
-```python
-def sample_function():
-    """
-    A sample function that demonstrates good practices.
-    
-    Returns:
-        str: A greeting message
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    logger.info("Generating greeting")
-    return "Hello, World!"
-```
-
-This code follows the project quality standards.
-'''
-    
     def _calculate_response_score(self, validation_result: Dict[str, Any]) -> int:
         """Oblicza wynik jakości odpowiedzi LLM (0-100)"""
         score = 0

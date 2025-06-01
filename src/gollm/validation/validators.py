@@ -1,6 +1,7 @@
 # src/gollm/validation/validators.py
 import ast
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
@@ -44,12 +45,24 @@ class CodeValidator:
             violations.extend(self._validate_content(content, file_path))
             violations.extend(self._validate_ast(content, file_path))
             
-            return {
+            result = {
                 "file_path": file_path,
                 "violations": violations,
                 "lines_count": len(content.splitlines()),
-                "quality_score": self._calculate_quality_score(violations)
+                "quality_score": self._calculate_quality_score(violations),
+                "timestamp": datetime.utcnow().isoformat()
             }
+            
+            # Record metrics if metrics_tracker is available
+            if hasattr(self, 'metrics_tracker'):
+                self.metrics_tracker.record_metrics({
+                    'quality_score': result['quality_score'],
+                    'violations_count': len(violations),
+                    'file': file_path,
+                    'timestamp': result['timestamp']
+                })
+            
+            return result
             
         except Exception as e:
             return {"violations": [Violation(

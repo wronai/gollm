@@ -49,70 +49,133 @@ def validate_project(ctx):
 
 @cli.command()
 @click.argument('request')
-@click.option('--output', '-o', help='Output file path')
+@click.option('--output', '-o', help='Output file or directory path')
 @click.option('--critical', is_flag=True, help='Mark as high priority task')
 @click.option('--no-todo', is_flag=True, help='Skip creating a TODO item')
 @click.pass_context
 def generate(ctx, request, output, critical, no_todo):
-    """Generate code using LLM with quality validation"""
+    """Generate code using LLM with quality validation
+    
+    For website projects, specify a directory as output to generate multiple files.
+    Example: gollm generate "create website with Flask and React" -o my_website/
+    """
     gollm = ctx.obj['gollm']
     
     context = {
         'is_critical': critical,
-        'related_files': [output] if output else []
+        'related_files': [output] if output else [],
+        'is_website_project': any(keyword in request.lower() for keyword in 
+                               ['website', 'web app', 'webapp', 'frontend', 'backend', 'api'])
     }
     
     if no_todo:
         context['skip_todo'] = True
     
-    async def run_generation():
-        click.echo("🚀 Starting code generation...")
-        click.echo(f"📝 Request: {request}")
+    def suggest_filename(request_text: str, is_website: bool = False) -> str:
+        """Generate a filename or directory name based on the request text"""
+        clean_name = request_text.lower().replace(' ', '_')
+        clean_name = ''.join(c if c.isalnum() or c == '_' else '' for c in clean_name)
+        clean_name = '_'.join(filter(None, clean_name.split('_')))
         
+        if is_website:
+            return clean_name  # Directory for website projects
+        return f"{clean_name}.py"
+    
+    async def save_generated_files(generated_code: str, base_path: Path) -> list:
+        """Save generated code to appropriate files, handling multi-file output"""
+        saved_files = []
+        
+        # Check for multi-file format (files separated by --- filename.ext ---)
+        if '--- ' in generated_code and '\n' in generated_code:
+            files_section = generated_code.strip().split('--- ')[1:]
+            
+            for file_section in files_section:
+                if '\n' not in file_section:
+                    continue
+                    
+                file_header, *file_content = file_section.split('\n', 1)
+                file_path = base_path / file_header.strip()
+                file_content = '\n'.join(file_content).strip()
+                
+                # Ensure parent directory exists
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Save the file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(file_content)
+                saved_files.append(str(file_path))
+        else:
+            # Single file output
+            base_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(base_path, 'w', encoding='utf-8') as f:
+                f.write(generated_code)
+            saved_files.append(str(base_path))
+            
+        return saved_files
+        
+    async def run_generation():
+        is_website = context.get('is_website_project', False)
+        suggested_name = suggest_filename(request, is_website)
+        
+        # Set up output path
         if output:
-            click.echo(f"💾 Will save to: {output}")
+            output_path = Path(output)
+            if is_website and not output_path.suffix:  # Directory for website
+                output_path = output_path / 'app.py'  # Default main file
+        else:
+            output_path = Path(suggested_name)
         
         try:
+            # Add context about the project structure
+            if is_website:
+                context['project_structure'] = {
+                    'type': 'website',
+                    'frontend': 'templates/',
+                    'backend': 'app.py',
+                    'static': 'static/'
+                }
+            
             result = await gollm.handle_code_generation(request, context=context)
             
-            # Save the generated code if output file is specified
-            if output:
-                output_path = Path(output)
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(result.generated_code)
-                click.echo(f"✅ Code saved to: {output_path.absolute()}")
+            # Save all generated files
+            saved_files = await save_generated_files(
+                result.generated_code, 
+                output_path
+            )
             
-            # Show generation results
-            click.echo("\n✨ Generation complete!")
+            # Show results
+            score_emoji = "🌟" if result.quality_score >= 90 else "👍"
             
-            if result.quality_score > 0:
-                score_emoji = "🌟" if result.quality_score >= 90 else "👍"
-                click.echo(f"{score_emoji} Quality Score: {result.quality_score}/100")
+            if len(saved_files) > 1:
+                click.echo(f"\n✨ Generated {len(saved_files)} files! {score_emoji} Quality: {result.quality_score}/100")
+                for i, file_path in enumerate(saved_files, 1):
+                    file_icon = "📄" if file_path.endswith('.py') else "📝"
+                    click.echo(f"  {i}. {file_icon} {file_path}")
+            else:
+                file_icon = "📄" if str(output_path).endswith('.py') else "📝"
+                click.echo(f"\n✨ Generation complete! {score_emoji} Quality: {result.quality_score}/100 {file_icon} {saved_files[0]}")
             
-            # Show validation results if available
-            if result.validation_result.get('code_quality'):
-                quality = result.validation_result['code_quality']
-                violations = quality.get('violations', [])
-                
-                if violations:
-                    click.echo("\n🔍 Found the following issues:")
-                    for v in violations:
-                        severity = v.get('severity', 'info').upper()
-                        click.echo(f"  - [{severity}] {v.get('message', 'Unknown issue')}")
-                        if 'suggested_fix' in v:
-                            click.echo(f"    💡 Suggestion: {v['suggested_fix']}")
-                else:
-                    click.echo("✅ No code quality issues found!")
+            # Show next steps for website projects
+            if is_website and len(saved_files) > 1:
+                click.echo("\n🚀 Next steps:")
+                click.echo(f"  $ cd {output_path.parent}")
+                click.echo("  $ pip install -r requirements.txt")
+                click.echo("  $ python app.py")
             
-            # Show next steps
+            # Show validation issues if any
+            if result.validation_result.get('code_quality', {}).get('violations'):
+                click.echo("\n🔍 Found the following issues:")
+                for v in result.validation_result['code_quality']['violations']:
+                    severity = getattr(v, 'severity', 'info').upper()
+                    message = getattr(v, 'message', 'Unknown issue')
+                    click.echo(f"  - [{severity}] {message}")
+            
+            # Show next task if available
             if not no_todo:
                 next_task = gollm.todo_manager.get_next_task()
                 if next_task:
                     click.echo(f"\n📋 Next Task: {next_task['title']}")
                     click.echo(f"   Priority: {next_task['priority']}")
-                    if next_task.get('estimated_effort'):
-                        click.echo(f"   Estimated Effort: {next_task['estimated_effort']}")
             
             return result
             
@@ -197,45 +260,200 @@ def trend(ctx, period):
         click.echo(f"\n{trend_emoji} Trend: {first_score:.1f} → {last_score:.1f}")
 
 @cli.command()
+@click.option('--interactive', '-i', is_flag=True, help='Enter interactive mode to modify configuration')
 @click.pass_context
-def config(ctx):
-    """Show complete configuration"""
+def config(ctx, interactive):
+    """Show or modify configuration"""
     gollm = ctx.obj['gollm']
     config = gollm.config
     
-    click.echo("🔧 goLLM CONFIGURATION")
-    click.echo("=" * 40)
+    def display_config():
+        click.clear()
+        click.echo("🔧 goLLM CONFIGURATION")
+        click.echo("=" * 40)
+        
+        # LLM Configuration
+        llm_config = config.llm_integration
+        click.echo("\n🤖 LLM SETTINGS")
+        click.echo(f"  1. Provider:    {llm_config.api_provider or 'Not configured'}")
+        click.echo(f"  2. Model:       {llm_config.model_name or 'Not specified'}")
+        click.echo(f"  3. Max Tokens:  {llm_config.token_limit}")
+        click.echo(f"  4. Max Iters:   {llm_config.max_iterations}")
+        
+        # Provider-specific settings
+        if llm_config.providers:
+            click.echo("\n🌐 PROVIDER CONFIGURATION")
+            for i, (provider, settings) in enumerate(llm_config.providers.items(), 5):
+                click.echo(f"  {i}. {provider.upper()}:")
+                for key, value in settings.items():
+                    if key.lower().endswith('key') or key.lower().endswith('token'):
+                        value = "*" * 8 + (str(value)[-4:] if value else "")
+                    click.echo(f"     {key}: {value}")
+        
+        # Validation Rules
+        click.echo("\n✅ VALIDATION RULES")
+        rules = config.validation_rules
+        click.echo(f"  5. Max Line Length: {rules.max_line_length}")
+        click.echo(f"  6. Allow Print:    {not rules.forbid_print_statements}")
+        click.echo(f"  7. Require Docs:   {rules.require_docstrings}")
+        
+        # Project Settings
+        click.echo("\n📁 PROJECT SETTINGS")
+        click.echo(f"  8. Project Root:  {config.project_root}")
+        click.echo(f"  9. TODO File:     {config.project_management.todo_file}")
+        click.echo(f" 10. Changelog:     {config.project_management.changelog_file}")
+        click.echo("\n 0. Save and Exit")
+        click.echo(" q. Quit without saving")
     
-    # LLM Configuration
-    llm_config = config.llm_integration
-    click.echo("\n🤖 LLM SETTINGS")
-    click.echo(f"  Provider:    {llm_config.api_provider or 'Not configured'}")
-    click.echo(f"  Model:       {llm_config.model_name or 'Not specified'}")
-    click.echo(f"  Max Tokens:  {llm_config.token_limit}")
-    click.echo(f"  Max Iters:   {llm_config.max_iterations}")
+    if not interactive:
+        display_config()
+        return
     
-    # Provider-specific settings
-    if llm_config.providers:
-        click.echo("\n🌐 PROVIDER CONFIGURATION")
-        for provider, settings in llm_config.providers.items():
-            click.echo(f"  {provider.upper()}:")
-            for key, value in settings.items():
-                if key.lower().endswith('key') or key.lower().endswith('token'):
-                    value = "*" * 8 + (str(value)[-4:] if value else "")
-                click.echo(f"    {key}: {value}")
-    
-    # Validation Rules
-    click.echo("\n✅ VALIDATION RULES")
-    rules = config.validation_rules
-    click.echo(f"  Max Line Length: {rules.max_line_length}")
-    click.echo(f"  Allow Print:    {not rules.forbid_print_statements}")
-    click.echo(f"  Require Docs:   {rules.require_docstrings}")
-    
-    # Project Settings
-    click.echo("\n📁 PROJECT SETTINGS")
-    click.echo(f"  Project Root:  {config.project_root}")
-    click.echo(f"  TODO File:     {config.project_management.todo_file}")
-    click.echo(f"  Changelog:     {config.project_management.changelog_file}")
+    # Interactive mode
+    while True:
+        display_config()
+        
+        choice = click.prompt("\nSelect an option to modify (or 0/q to exit)", default="0")
+        
+        if choice.lower() == 'q':
+            if click.confirm("Discard all changes?", default=False):
+                return
+            continue
+            
+        if choice == '0':
+            config.save()
+            click.echo("\n✅ Configuration saved!")
+            return
+            
+        try:
+            option = int(choice)
+            if 1 <= option <= 10:
+                if option == 1:  # Provider
+                    # List available providers
+                    providers = [
+                        {"name": "openai", "description": "OpenAI API"},
+                        {"name": "ollama", "description": "Local Ollama"},
+                        {"name": "anthropic", "description": "Anthropic Claude"},
+                        {"name": "custom", "description": "Custom API endpoint"}
+                    ]
+                    
+                    click.echo("\n🛠️  Available providers:")
+                    for i, provider in enumerate(providers, 1):
+                        click.echo(f"  {i}. {provider['name']} - {provider['description']}")
+                    
+                    while True:
+                        choice = click.prompt("\nSelect provider (number) or enter custom name", default=config.llm_integration.api_provider)
+                        
+                        try:
+                            # Try to convert to number
+                            num_choice = int(choice)
+                            if 1 <= num_choice <= len(providers):
+                                new_provider = providers[num_choice-1]['name']
+                                break
+                            click.echo("❌ Invalid selection. Please try again.", err=True)
+                        except ValueError:
+                            # Not a number, use as custom provider
+                            new_provider = choice.strip()
+                            if new_provider:
+                                break
+                            click.echo("❌ Provider name cannot be empty.", err=True)
+                    
+                    config.llm_integration.api_provider = new_provider
+                    
+                    # Special handling for Ollama provider
+                    if new_provider.lower() == 'ollama':
+                        try:
+                            import requests
+                            click.echo("\n🔄 Fetching available Ollama models...")
+                            response = requests.get("http://localhost:11434/api/tags")
+                            if response.status_code == 200:
+                                models = response.json().get('models', [])
+                                if models:
+                                    click.echo("\n📦 Available Ollama models:")
+                                    for i, model in enumerate(models, 1):
+                                        size_gb = model.get('size', 0) / 1024 / 1024 / 1024
+                                        click.echo(f"  {i}. {model.get('name')} ({size_gb:.1f}GB)")
+                                    
+                                    while True:
+                                        choice = click.prompt("\nSelect model (number) or enter custom model name", 
+                                                           default=config.llm_integration.model_name)
+                                        try:
+                                            num_choice = int(choice)
+                                            if 1 <= num_choice <= len(models):
+                                                selected_model = models[num_choice-1]['name']
+                                                click.echo(f"✅ Selected: {selected_model}")
+                                                config.llm_integration.model_name = selected_model
+                                                break
+                                            click.echo("❌ Invalid selection. Please try again.", err=True)
+                                        except ValueError:
+                                            # Not a number, use as custom model name
+                                            if choice.strip():
+                                                config.llm_integration.model_name = choice.strip()
+                                                break
+                                            click.echo("❌ Model name cannot be empty.", err=True)
+                                else:
+                                    click.echo("ℹ️ No models found in Ollama.", err=True)
+                            else:
+                                click.echo("❌ Could not connect to Ollama. Is it running?", err=True)
+                        except Exception as e:
+                            click.echo(f"❌ Error: {str(e)}", err=True)
+                        click.pause()
+                    
+                elif option == 2:  # Model
+                    new_model = click.prompt("Enter model name", 
+                                           default=config.llm_integration.model_name)
+                    config.llm_integration.model_name = new_model
+                    
+                elif option == 3:  # Max Tokens
+                    new_tokens = click.prompt("Enter max tokens", 
+                                            default=config.llm_integration.token_limit,
+                                            type=int)
+                    config.llm_integration.token_limit = new_tokens
+                    
+                elif option == 4:  # Max Iterations
+                    new_iters = click.prompt("Enter max iterations", 
+                                           default=config.llm_integration.max_iterations,
+                                           type=int)
+                    config.llm_integration.max_iterations = new_iters
+                    
+                elif option == 5:  # Max Line Length
+                    new_length = click.prompt("Enter max line length", 
+                                            default=config.validation_rules.max_line_length,
+                                            type=int)
+                    config.validation_rules.max_line_length = new_length
+                    
+                elif option == 6:  # Allow Print
+                    allow_print = click.confirm("Allow print statements?", 
+                                              default=not config.validation_rules.forbid_print_statements)
+                    config.validation_rules.forbid_print_statements = not allow_print
+                    
+                elif option == 7:  # Require Docstrings
+                    require_docs = click.confirm("Require docstrings?", 
+                                               default=config.validation_rules.require_docstrings)
+                    config.validation_rules.require_docstrings = require_docs
+                    
+                elif option == 8:  # Project Root
+                    new_root = click.prompt("Enter project root path", 
+                                          default=config.project_root)
+                    config.project_root = new_root
+                    
+                elif option == 9:  # TODO File
+                    new_todo = click.prompt("Enter TODO file path", 
+                                          default=config.project_management.todo_file)
+                    config.project_management.todo_file = new_todo
+                    
+                elif option == 10:  # Changelog File
+                    new_changelog = click.prompt("Enter changelog file path", 
+                                               default=config.project_management.changelog_file)
+                    config.project_management.changelog_file = new_changelog
+                    
+            else:
+                click.echo("❌ Invalid option. Please try again.", err=True)
+                
+        except ValueError:
+            click.echo("❌ Please enter a valid number.", err=True)
+            
+        click.pause()
 
 
 @cli.command()

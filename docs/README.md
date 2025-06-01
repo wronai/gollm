@@ -1,53 +1,61 @@
-# goLLM Documentation
+# 📚 Dokumentacja goLLM
 
-Welcome to the goLLM documentation! This directory contains comprehensive guides and references for using and extending goLLM.
+Witaj w dokumentacji goLLM! Ten katalog zawiera szczegółowe przewodniki i referencje dotyczące używania i rozszerzania goLLM.
 
-## Documentation Structure
+## 📖 Spis treści
 
-### 📚 [Guides](./guides/README.md)
-Step-by-step tutorials and how-to guides for common tasks.
+### Przewodniki
+- [Wprowadzenie](./guides/getting_started.md) - Pierwsze kroki z goLLM
+- [Konfiguracja projektu](./configuration/README.md) - Szczegóły konfiguracji
+- [Integracja z Ollama](./guides/ollama_setup.md) - Jak używać lokalnych modeli LLM
+- [Generowanie wielu plików](./guides/multi_file_generation.md) - Zarządzanie złożonymi projektami
 
-### ⚙️ [Configuration](./configuration/README.md)
-Detailed documentation of configuration options and settings.
+### 🛠️ API
+- [Podstawowe funkcje](./api/core.md) - Główne komponenty goLLM
+- [Rozszerzenia](./api/extensions.md) - Jak rozszerzać funkcjonalność
+- [Interfejs wiersza poleceń](./api/cli.md) - Pełna dokumentacja CLI
 
-### 📚 [API Reference](./api/README.md)
-Complete reference for goLLM's public API.
+### ⚙️ Konfiguracja
+- [Zaawansowane opcje](./configuration/advanced.md) - Szczegółowa konfiguracja
+- [Reguły walidacji](./configuration/validation_rules.md) - Dostosowywanie zasad jakości kodu
+- [Integracja z LLM](./configuration/llm_integration.md) - Konfiguracja modeli językowych
+- [Zarządzanie projektem](./configuration/project_management.md) - Automatyzacja zadań
 
-## Getting Started
+## 🚀 Szybki start
 
-1. **Install goLLM**
+1. **Zainstaluj goLLM**
    ```bash
    pip install gollm[llm]
    ```
 
-2. **Initialize a Project**
+2. **Zainicjuj nowy projekt**
    ```bash
-   mkdir myproject
-   cd myproject
+   mkdir moj-projekt
+   cd moj-projekt
    gollm init
    ```
 
-3. **Explore the Documentation**
-   - [Quick Start Guide](./guides/getting_started.md)
-   - [Configuration Options](./configuration/README.md)
-   - [API Reference](./api/README.md)
+3. **Zapoznaj się z dokumentacją**
+   - [Przewodnik wprowadzający](./guides/getting_started.md)
+   - [Opcje konfiguracyjne](./configuration/README.md)
+   - [Dokumentacja API](./api/README.md)
 
-## Documentation Conventions
+## Konwencje dokumentacji
 
-- **Code blocks** show example usage
-- **Bolded terms** indicate important concepts
-- `Inline code` represents commands and configuration values
-- 🔹 Icons help identify different types of content
+- **Bloki kodu** pokazują przykłady użycia
+- **Pogrubione terminy** oznaczają ważne pojęcia
+- `Kod w tekście` reprezentuje polecenia i wartości konfiguracyjne
+- 🔹 Ikony pomagają zidentyfikować różne typy treści
 
-## Building the Documentation
+## Budowanie dokumentacji
 
-To build the documentation locally:
+Aby zbudować dokumentację lokalnie:
 
 ```bash
-# Install documentation dependencies
+# Zainstaluj zależności dokumentacji
 pip install -r docs/requirements.txt
 
-# Build the documentation
+# Zbuduj dokumentację
 cd docs
 make html
 

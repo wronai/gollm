@@ -16,7 +16,17 @@ from .logging.log_aggregator import LogAggregator
 class GollmCore:
     def __init__(self, config_path: str = "gollm.json"):
         self.config = GollmConfig.load(config_path)
+        
+        # Initialize metrics tracker first
+        self.metrics_tracker = MetricsTracker(
+            Path(self.config.project_root) / ".gollm" / "metrics.json"
+        )
+        
+        # Initialize validator with metrics tracking
         self.validator = CodeValidator(self.config)
+        self.validator.metrics_tracker = self.metrics_tracker
+        
+        # Initialize other components
         self.todo_manager = TodoManager(self.config)
         self.changelog_manager = ChangelogManager(self.config)
         self.llm_orchestrator = LLMOrchestrator(
@@ -25,9 +35,6 @@ class GollmCore:
             todo_manager=self.todo_manager
         )
         self.log_aggregator = LogAggregator(self.config)
-        self.metrics_tracker = MetricsTracker(
-            Path(self.config.project_root) / ".gollm" / "metrics.json"
-        )
     
     def validate_file(self, file_path: str) -> dict:
         """Waliduje pojedynczy plik"""

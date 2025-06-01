@@ -23,6 +23,10 @@ class PromptFormatter:
     def _build_base_prompt(self, user_request: str, context: Dict[str, Any]) -> str:
         """Buduje podstawowy prompt"""
         
+        # Check if this is a website project
+        is_website = context.get('is_website_project', False)
+        project_structure = context.get('project_structure', {})
+        
         # Kontekst projektu
         project_context = self._format_project_context(context)
         
@@ -34,6 +38,9 @@ class PromptFormatter:
         
         # Reguły jakości
         quality_rules = self._format_quality_rules()
+        
+        # Multi-file generation instructions
+        file_format_instructions = self._get_file_format_instructions(is_website, project_structure)
         
         prompt = f"""goLLM CODE GENERATION REQUEST
 
@@ -56,6 +63,8 @@ REQUIREMENTS:
 5. Limit function parameters to {self.config.validation_rules.max_function_params}
 6. Maintain cyclomatic complexity under {self.config.validation_rules.max_cyclomatic_complexity}
 
+{file_format_instructions}
+
 Please provide:
 1. Clean, well-documented code that passes all validation rules
 2. Brief explanation of the approach taken
@@ -64,15 +73,81 @@ Please provide:
         
         return prompt
     
+    def _get_file_format_instructions(self, is_website: bool, project_structure: Dict[str, Any]) -> str:
+        """Returns instructions for file formatting based on project type"""
+        if not is_website:
+            return """OUTPUT FORMAT:
+Provide your response as a single code block with markdown syntax highlighting:
+```python
+# Your code here
+```"""
+        
+        # Website project structure
+        return f"""OUTPUT FORMAT FOR WEBSITE PROJECT:
+
+1. For each file, use the following format:
+
+--- relative/path/to/file.ext
+# Content of the file
+# More content...
+
+--- another/file.ext
+# Content of another file
+
+2. Include all necessary files (Python, HTML, CSS, JavaScript, etc.)
+3. Create a requirements.txt with all Python dependencies
+4. Include a README.md with setup instructions
+5. Project structure should include:
+   - {project_structure.get('backend', 'app.py')} - Main application entry point
+   - {project_structure.get('frontend', 'templates/')} - Frontend templates
+   - {project_structure.get('static', 'static/')} - Static files (CSS, JS, images)
+   - requirements.txt - Python dependencies
+   - README.md - Project documentation
+
+Example:
+--- app.py
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+--- templates/index.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Website</title>
+</head>
+<body>
+    <h1>Welcome to my website!</h1>
+</body>
+</html>
+
+--- requirements.txt
+flask==2.0.1
+"""
+
     def _format_project_context(self, context: Dict[str, Any]) -> str:
         """Formatuje kontekst projektu"""
         config_ctx = context.get('project_config', {})
+        is_website = context.get('is_website_project', False)
         
-        return f"""PROJECT CONTEXT:
+        project_info = f"""PROJECT CONTEXT:
 - Project Root: {context.get('project_root', '.')}
+- Project Type: {'Website' if is_website else 'General'}
 - Configuration Files: {len(config_ctx.get('config_files', []))} found
 - Quality Score: {config_ctx.get('current_quality_score', 'Unknown')}
 """
+        
+        if is_website:
+            project_info += "- This is a website project. Please generate all necessary files.\n"
+            
+        return project_info
     
     def _format_execution_context(self, exec_ctx: Dict[str, Any]) -> str:
         """Formatuje kontekst wykonania"""
