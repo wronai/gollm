@@ -42,10 +42,11 @@ class OllamaAdapter:
         async def on_request_end(session, trace_config_ctx, params):
             """Log the completion of a request."""
             duration = time.time() - trace_config_ctx.start
+            status_code = getattr(params.response, 'status', 0)
             logger.debug(
                 'Request #%d finished: %s - %d in %.2fs',
                 trace_config_ctx.request_id,
-                params.response.status,
+                status_code,
                 duration
             )
             
@@ -103,15 +104,30 @@ class OllamaAdapter:
         **kwargs
     ) -> Dict[str, Any]:
         """Generate text using the completion endpoint."""
+        # Extract options from kwargs
+        options = kwargs.pop('options', {})
+        
+        # Set default options if not provided
+        if 'temperature' not in options:
+            options['temperature'] = self.config.temperature
+        if 'num_predict' not in options and 'max_tokens' in kwargs:
+            options['num_predict'] = kwargs.pop('max_tokens')
+        elif 'num_predict' not in options:
+            options['num_predict'] = self.config.max_tokens
+            
+        # Add any other generation parameters to options
+        for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
+            if param in kwargs and param not in options:
+                options[param] = kwargs.pop(param)
+        
         data = {
             "model": model or self.config.model,
             "prompt": prompt,
-            "options": {
-                "temperature": self.config.temperature,
-                "num_predict": self.config.max_tokens,
-            },
-            **kwargs
+            "options": options,
+            **kwargs  # Include any remaining kwargs at the top level
         }
+        
+        logger.debug(f"Sending generate request with data: {json.dumps(data, indent=2)}")
         return await self._request('POST', '/api/generate', json=data)
     
     async def chat(
@@ -121,15 +137,30 @@ class OllamaAdapter:
         **kwargs
     ) -> Dict[str, Any]:
         """Generate chat completion."""
+        # Extract options from kwargs
+        options = kwargs.pop('options', {})
+        
+        # Set default options if not provided
+        if 'temperature' not in options:
+            options['temperature'] = self.config.temperature
+        if 'num_predict' not in options and 'max_tokens' in kwargs:
+            options['num_predict'] = kwargs.pop('max_tokens')
+        elif 'num_predict' not in options:
+            options['num_predict'] = self.config.max_tokens
+            
+        # Add any other generation parameters to options
+        for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
+            if param in kwargs and param not in options:
+                options[param] = kwargs.pop(param)
+        
         data = {
             "model": model or self.config.model,
             "messages": messages,
-            "options": {
-                "temperature": self.config.temperature,
-                "num_predict": self.config.max_tokens,
-            },
-            **kwargs
+            "options": options,
+            **kwargs  # Include any remaining kwargs at the top level
         }
+        
+        logger.debug(f"Sending chat request with data: {json.dumps(data, indent=2)}")
         return await self._request('POST', '/api/chat', json=data)
     
     async def list_models(self) -> Dict[str, Any]:

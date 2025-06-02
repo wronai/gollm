@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from .context_builder import ContextBuilder
 from .prompt_formatter import PromptFormatter
 from .response_validator import ResponseValidator
-from ..validation.validators import CodeValidator
+from gollm.validation.validators import CodeValidator
 
 @dataclass
 class LLMRequest:

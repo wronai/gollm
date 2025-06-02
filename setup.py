@@ -6,9 +6,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="gollm",
     version="0.1.0",
-    author="goLLM Team",
-    author_email="team@gollm.dev",
-    description="Smart Python Quality Guardian - Inteligentny system kontroli jakości kodu z integracją LLM",
+    author="Tom Sapletta",
+    author_email="info@softreck.dev",
+    description="Go Learn, Lead, Master! - Inteligentny system kontroli jakości kodu z integracją LLM",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/wronai/gollm",

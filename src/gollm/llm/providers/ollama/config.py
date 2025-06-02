@@ -21,6 +21,7 @@ class OllamaConfig:
     timeout: int = 60
     max_tokens: int = 4000
     temperature: float = 0.1
+    api_type: str = "chat"
     api_key: Optional[str] = None
     headers: Dict[str, str] = None
     
@@ -29,6 +30,7 @@ class OllamaConfig:
         """Create config from dictionary with environment variable resolution."""
         return cls(
             base_url=config_dict.get('base_url', cls.base_url),
+            api_type=config_dict.get('api_type', cls.api_type),
             model=config_dict.get('model', cls.model),
             timeout=config_dict.get('timeout', cls.timeout),
             max_tokens=config_dict.get('max_tokens', cls.max_tokens),

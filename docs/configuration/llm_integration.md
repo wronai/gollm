@@ -13,13 +13,13 @@ goLLM supports multiple LLM providers for code generation and analysis. This doc
 
 ### Default Provider
 - **Setting**: `default_provider`
-- **Default**: `"openai"`
-- **Options**: `"openai"`, `"ollama"`, `"huggingface"`
+- **Default**: `"ollama"`
+- **Options**: `"openai"`, `"ollama"`, `"anthropic"`
 - **Description**: Default LLM provider to use.
 
 ### Model Selection
 - **Setting**: `model`
-- **Default**: `"gpt-4"`
+- **Default**: `"codellama:7b"` (for Ollama)
 - **Description**: Default model to use for generation.
 
 ## Provider Configuration
@@ -28,15 +28,16 @@ goLLM supports multiple LLM providers for code generation and analysis. This doc
 
 ```json
 {
-  "llm_integration": {
+  "llm": {
     "enabled": true,
     "default_provider": "openai",
     "providers": {
       "openai": {
-        "api_key": "your-api-key",
-        "model": "gpt-4",
-        "temperature": 0.7,
-        "max_tokens": 2048
+        "api_key": "your-openai-api-key",
+        "model": "gpt-4-turbo",
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "timeout": 120
       }
     }
   }
@@ -47,45 +48,84 @@ goLLM supports multiple LLM providers for code generation and analysis. This doc
 
 ```json
 {
-  "llm_integration": {
+  "llm": {
     "enabled": true,
     "default_provider": "ollama",
     "providers": {
       "ollama": {
         "base_url": "http://localhost:11434",
         "model": "codellama:7b",
-        "temperature": 0.5
+        "timeout": 180,
+        "max_tokens": 4000,
+        "temperature": 0.1,
+        "api_type": "chat"
       }
     }
   }
 }
 ```
 
-### Hugging Face
+### Anthropic
 
 ```json
 {
-  "llm_integration": {
+  "llm": {
     "enabled": true,
-    "default_provider": "huggingface",
+    "default_provider": "anthropic",
     "providers": {
-      "huggingface": {
-        "api_key": "your-api-key",
-        "model": "codellama/CodeLlama-7b-hf",
-        "max_new_tokens": 512
+      "anthropic": {
+        "api_key": "your-anthropic-api-key",
+        "model": "claude-3-sonnet",
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "timeout": 120
       }
     }
   }
 }
 ```
 
-## Advanced Settings
+## Environment Variables
+
+You can also configure providers using environment variables:
+
+```bash
+# OpenAI
+export OPENAI_API_KEY=your-api-key
+
+# Ollama
+export OLLAMA_BASE_URL=http://localhost:11434
+
+# Anthropic
+export ANTHROPIC_API_KEY=your-api-key
+```
+
+## Provider Priority
+
+If multiple providers are configured, goLLM will use them in this order:
+1. The provider specified in the command line (if any)
+2. The default provider from config
+3. Ollama (if available)
+4. OpenAI (if configured)
+5. Anthropic (if configured)
+
+## Health Checks
+
+You can verify your LLM provider configuration with:
+
+```bash
+gollm health
+```
+
+This will check the availability of all configured providers and show their status.
+
+## Advanced Configuration
 
 ### Caching
 
 ```json
 {
-  "llm_integration": {
+  "llm": {
     "caching": {
       "enabled": true,
       "ttl": 3600,
@@ -99,7 +139,7 @@ goLLM supports multiple LLM providers for code generation and analysis. This doc
 
 ```json
 {
-  "llm_integration": {
+  "llm": {
     "rate_limiting": {
       "enabled": true,
       "requests_per_minute": 60
@@ -108,47 +148,27 @@ goLLM supports multiple LLM providers for code generation and analysis. This doc
 }
 ```
 
-## Environment Variables
-
-You can also configure LLM settings using environment variables:
-
-```bash
-export GOLLM_LLM_ENABLED=true
-export GOLLM_LLM_DEFAULT_PROVIDER=openai
-export OPENAI_API_KEY=your-api-key
-```
-
-## Testing Configuration
-
-To test your LLM configuration:
-
-```bash
-# Test LLM connection
-gollm test-llm
-
-# Get available models
-gollm list-models
-```
-
 ## Troubleshooting
 
 ### Common Issues
 
-1. **API Key Not Found**
-   - Verify the API key is set in the config file or environment variables
-   - Check for typos in the configuration
+1. **Connection Issues**:
+   - Verify the provider's base URL is correct
+   - Check if the service is running (for local providers like Ollama)
+   - Ensure your API keys are valid and have sufficient permissions
 
-2. **Connection Errors**
-   - Verify the API endpoint URL is correct
-   - Check your internet connection
-   - For local models (Ollama), ensure the service is running
+2. **Model Not Found**:
+   - Verify the model name is correct
+   - For Ollama, make sure the model is downloaded locally
+   - Check if the model is accessible with your API key
 
-3. **Rate Limiting**
-   - Check your API provider's rate limits
-   - Enable rate limiting in the configuration
+3. **Timeout Errors**:
+   - Increase the timeout setting in your configuration
+   - Check your network connection
+   - For local models, ensure you have sufficient system resources
 
-## Related Documentation
+## Next Steps
 
-- [Validation Rules](./validation_rules.md)
-- [Project Management](./project_management.md)
+- [Getting Started with Ollama](./../guides/ollama_setup.md)
 - [Advanced Configuration](./advanced.md)
+- [Project Management](./project_management.md)

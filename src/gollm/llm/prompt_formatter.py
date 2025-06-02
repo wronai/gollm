@@ -3,14 +3,14 @@
 from typing import Dict, Any, Optional
 
 class PromptFormatter:
-    """Formatuje prompty dla LLM z kontekstem projektu"""
+    """Formats prompts for LLM with project context"""
     
     def __init__(self, config):
         self.config = config
     
     def create_prompt(self, user_request: str, context: Dict[str, Any], 
                      iteration: int = 0, previous_attempt: Optional[Dict] = None) -> str:
-        """Tworzy sformatowany prompt dla LLM"""
+        """Creates a formatted prompt for the LLM"""
         
         base_prompt = self._build_base_prompt(user_request, context)
         
@@ -21,22 +21,22 @@ class PromptFormatter:
         return base_prompt
     
     def _build_base_prompt(self, user_request: str, context: Dict[str, Any]) -> str:
-        """Buduje podstawowy prompt"""
+        """Builds the base prompt"""
         
         # Check if this is a website project
         is_website = context.get('is_website_project', False)
         project_structure = context.get('project_structure', {})
         
-        # Kontekst projektu
+        # Project context
         project_context = self._format_project_context(context)
         
-        # Kontekst wykonania
+        # Execution context
         execution_context = self._format_execution_context(context.get('execution_context', {}))
         
-        # Zadania TODO
+        # TODO items
         todo_context = self._format_todo_context(context.get('todo_context', {}))
         
-        # Reguły jakości
+        # Quality rules
         quality_rules = self._format_quality_rules()
         
         # Multi-file generation instructions
@@ -44,7 +44,8 @@ class PromptFormatter:
         
         prompt = f"""goLLM CODE GENERATION REQUEST
 
-USER REQUEST:
+# TASK
+Please generate code for the following request:
 {user_request}
 
 {project_context}
@@ -53,22 +54,37 @@ USER REQUEST:
 
 {todo_context}
 
-{quality_rules}
-
-REQUIREMENTS:
-1. Generate code that follows all project quality standards
-2. Include comprehensive docstrings for all functions
-3. Use proper logging instead of print statements
-4. Keep functions under {self.config.validation_rules.max_function_lines} lines
-5. Limit function parameters to {self.config.validation_rules.max_function_params}
-6. Maintain cyclomatic complexity under {self.config.validation_rules.max_cyclomatic_complexity}
+# INSTRUCTIONS
+1. Generate a complete, runnable solution
+2. Follow these quality standards:
+   - Keep functions under {self.config.validation_rules.max_function_lines} lines
+   - Limit function parameters to {self.config.validation_rules.max_function_params}
+   - Maintain cyclomatic complexity under {self.config.validation_rules.max_cyclomatic_complexity}
+   - Include comprehensive docstrings for all functions
+   - Use proper logging instead of print statements
 
 {file_format_instructions}
 
-Please provide:
-1. Clean, well-documented code that passes all validation rules
-2. Brief explanation of the approach taken
-3. Any assumptions made during implementation
+# INSTRUCTIONS - READ CAREFULLY
+
+## YOUR TASK:
+Write a Python program that prints "Hello, World!" to the console.
+
+## REQUIREMENTS:
+1. Your response must be ONLY the Python code - NOTHING ELSE
+2. The code must be minimal and simple
+3. No comments, explanations, or markdown formatting
+4. No error handling or logging
+5. No unnecessary imports
+6. Must be runnable as-is
+
+## EXAMPLE OF WHAT WE WANT:
+```
+print("Hello, World!")
+```
+
+## YOUR RESPONSE MUST BE ONLY THE CODE - NOTHING ELSE
+# IMPORTANT: If you include ANYTHING other than the raw Python code, it will cause an error
 """
         
         return prompt
@@ -133,7 +149,7 @@ flask==2.0.1
 """
 
     def _format_project_context(self, context: Dict[str, Any]) -> str:
-        """Formatuje kontekst projektu"""
+        """Formats the project context"""
         config_ctx = context.get('project_config', {})
         is_website = context.get('is_website_project', False)
         
@@ -150,7 +166,7 @@ flask==2.0.1
         return project_info
     
     def _format_execution_context(self, exec_ctx: Dict[str, Any]) -> str:
-        """Formatuje kontekst wykonania"""
+        """Formats the execution context"""
         if not exec_ctx:
             return "EXECUTION CONTEXT: No recent execution data"
         
@@ -169,7 +185,7 @@ Please ensure your solution addresses this error if relevant.
         return "EXECUTION CONTEXT: No recent errors detected"
     
     def _format_todo_context(self, todo_ctx: Dict[str, Any]) -> str:
-        """Formatuje kontekst TODO"""
+        """Formats the TODO context"""
         next_task = todo_ctx.get('next_task')
         stats = todo_ctx.get('stats', {})
         
@@ -197,7 +213,7 @@ Consider addressing the priority task if your code generation can help resolve i
 """
     
     def _format_quality_rules(self) -> str:
-        """Formatuje reguły jakości"""
+        """Formats the quality rules"""
         rules = self.config.validation_rules
         
         return f"""QUALITY STANDARDS:
