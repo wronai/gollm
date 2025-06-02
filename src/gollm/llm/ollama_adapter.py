@@ -406,131 +406,110 @@ class OllamaAdapter:
         return ""
 
 class OllamaLLMProvider:
-    """Provider LLM dla Ollama - kompatybilny z interfejsem goLLM"""
+    """LLM Provider for Ollama - compatible with goLLM interface"""
     
     def __init__(self, config):
+        """Initialize the Ollama provider with configuration.
+        
+        Args:
+            config: Dictionary containing provider configuration
+        """
         self.config = config
         
-        # Default values
-        base_url = 'http://192.168.188.108:8081'  # Updated default to match your configuration
-        model_name = 'deepseek-coder:latest'  # Using latest version
-        timeout = 180  # Increased timeout
-        token_limit = 4000
-        temperature = 0.1
+        # Set default values from config
+        self.base_url = config.get('base_url', 'http://localhost:11434')
+        self.model_name = config.get('model', 'deepseek-coder:latest')
+        self.timeout = config.get('timeout', 180)
+        self.token_limit = config.get('max_tokens', 4000)
+        self.temperature = config.get('temperature', 0.1)
+        self.api_type = config.get('api_type', 'chat')
+        self.interactive = config.get('interactive', True)
         
         logger.debug(f"Initializing OllamaLLMProvider with config: {config}")
         
-        try:
-            # First try to get llm_integration from config
-            if hasattr(config, 'get'):  # Handle dict-like config
-                llm_config = config.get('llm_integration', {})
-                providers = llm_config.get('providers', {})
-                provider_config = providers.get('ollama', {})
-                
-                # Debug log the config structure
-                logger.debug(f"Config structure - llm_config: {llm_config}")
-                logger.debug(f"Config structure - providers: {providers}")
-                logger.debug(f"Config structure - provider_config: {provider_config}")
-                
-            elif hasattr(config, 'llm_integration'):  # Handle object-style config
-                llm_config = config.llm_integration
-                providers = getattr(llm_config, 'providers', {})
-                provider_config = getattr(providers, 'ollama', {}) if hasattr(providers, 'get') else {}
-                
-                # Debug log the config structure
-                logger.debug(f"Config structure - llm_config: {llm_config}")
-                logger.debug(f"Config structure - providers: {providers}")
-                logger.debug(f"Config structure - provider_config: {provider_config}")
-            else:
-                llm_config = {}
-                provider_config = {}
-                logger.debug("No llm_integration found in config")
-            
-            # Log the configuration we found with more details
-            logger.debug(f"Raw LLM config: {llm_config}")
-            logger.debug(f"Raw Ollama provider config: {provider_config}")
-            
-            # Debug: Print the full config structure if it's a dict
-            if hasattr(config, 'get'):
-                logger.debug(f"Full config keys: {list(config.keys())}")
-                if 'llm_integration' in config:
-                    logger.debug(f"llm_integration keys: {list(config['llm_integration'].keys())}")
-                    if 'providers' in config['llm_integration']:
-                        logger.debug(f"Providers keys: {list(config['llm_integration']['providers'].keys())}")
-            
-            # Get values from provider config first (highest priority)
-            if isinstance(provider_config, dict):
-                base_url = provider_config.get('base_url', base_url)
-                model_name = provider_config.get('model', model_name)
-                timeout = provider_config.get('timeout', timeout)
-                token_limit = provider_config.get('max_tokens', token_limit)
-                temperature = provider_config.get('temperature', temperature)
-            
-            # Then check for direct attributes in llm_config (medium priority)
-            if isinstance(llm_config, dict):
-                if 'model_name' in llm_config and llm_config['model_name']:
-                    model_name = llm_config['model_name']
-                if 'timeout' in llm_config and llm_config['timeout'] is not None:
-                    timeout = llm_config['timeout']
-                if 'token_limit' in llm_config and llm_config['token_limit'] is not None:
-                    token_limit = llm_config['token_limit']
-                if 'temperature' in llm_config and llm_config['temperature'] is not None:
-                    temperature = llm_config['temperature']
-            
-            # Finally, check for direct attributes in the root config (lowest priority)
-            if hasattr(config, 'get'):
-                if 'model_name' in config and config['model_name']:
-                    model_name = config['model_name']
-                if 'timeout' in config and config['timeout'] is not None:
-                    timeout = config['timeout']
-            elif hasattr(config, 'model_name') and config.model_name:
-                model_name = config.model_name
-            
-        except Exception as e:
-            logger.error(f"Error loading Ollama configuration: {e}", exc_info=True)
-            logger.debug("Falling back to default configuration")
+        # Initialize the adapter
+        self._update_adapter()
         
-        logger.info(f"Ollama configuration - URL: {base_url}, Model: {model_name}, Timeout: {timeout}")
+        logger.info(
+            f"Ollama configuration - URL: {self.base_url}, "
+            f"Model: {self.model_name}, "
+            f"API Type: {self.api_type}, "
+            f"Timeout: {self.timeout}"
+        )
         
+    def _update_adapter(self):
+        """Update the Ollama adapter with current configuration"""
         ollama_config = OllamaConfig(
-            base_url=base_url,
-            model=model_name,
-            timeout=timeout,
-            max_tokens=token_limit,
-            temperature=temperature
+            base_url=self.base_url,
+            model=self.model_name,
+            timeout=self.timeout,
+            max_tokens=self.token_limit,
+            temperature=self.temperature
         )
         self.adapter = OllamaAdapter(ollama_config)
-        self.project_management = {
-            'enabled': True,
-            'version': '1.0',
-            'features': ['task_tracking', 'code_review']
-        }
+    
+    async def _ensure_valid_model(self) -> bool:
+        """Ensure the configured model is available.
+        
+        Returns:
+            bool: True if the model is available, False otherwise
+        """
+        try:
+            models = await self.adapter.list_models()
+            if not models:
+                logger.error("No models found on the Ollama server")
+                return False
+                
+            # Check if model exists (with or without tag)
+            model_found = any(
+                m == self.model_name or m.startswith(f"{self.model_name}:")
+                for m in models
+            )
+            
+            if not model_found:
+                logger.warning(
+                    f"Configured model '{self.model_name}' not found. "
+                    f"Available models: {', '.join(models)}"
+                )
+                return False
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating model: {e}", exc_info=True)
+            return False
     
     async def generate_response(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Generates a response compatible with the goLLM LLM interface"""
+        """
+        Generates a response using the Ollama API.
+        
+        Args:
+            prompt: The prompt to generate a response for
+            context: Additional context for the generation
+            
+        Returns:
+            Dictionary containing the generated response and metadata
+        """
         import logging
         import json
         import traceback
         logger = logging.getLogger(__name__)
         
-        # First perform health check
-        health = await self.health_check()
-        if not health.get('status', False):
-            error_msg = "Ollama health check failed. "
-            if 'error' in health:
-                error_msg += f"Error: {health['error']} "
-            
-            # Safely get config details
-            config_info = {}
-            if hasattr(self, 'adapter') and hasattr(self.adapter, 'config'):
-                config = self.adapter.config
-                config_info = {
-                    'base_url': getattr(config, 'base_url', 'unknown'),
-                    'model': getattr(config, 'model', 'unknown'),
-                    'timeout': getattr(config, 'timeout', 'unknown')
+        # Ensure we have a valid model before proceeding
+        if not await self._ensure_valid_model():
+            return {
+                "success": False,
+                "error": "No valid model available. Please check your configuration.",
+                "generated_code": "",
+                "explanation": "Failed to find a valid model to use for generation.",
+                "model_info": {
+                    "provider": "ollama",
+                    "model": self.model_name,
+                    "tokens_used": 0
                 }
+            }
             
-            error_msg += f"Config: {json.dumps(config_info, indent=2)}"
+        # Use the appropriate API based on configuration
             logger.error(error_msg)
             
             return {
