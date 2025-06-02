@@ -6,8 +6,8 @@ import logging
 from typing import Dict, Any, Optional, List, Union, AsyncIterator
 
 from ..base import BaseLLMProvider
-from .adapter import OllamaAdapter
 from .config import OllamaConfig
+from .factory import get_best_available_adapter, create_adapter, AdapterType
 
 logger = logging.getLogger('gollm.ollama.provider')
 
@@ -22,18 +22,34 @@ class OllamaLLMProvider(BaseLLMProvider):
         """
         super().__init__(config)
         self.config = OllamaConfig.from_dict(config)
-        self.adapter: Optional[OllamaAdapter] = None
+        self.adapter = None
         self._model_available: Optional[bool] = None
+        
+        # Determine adapter type from config
+        self.adapter_type = config.get('adapter_type', 'http')
+        
+        # Check if we should use gRPC for better performance
+        self.use_grpc = config.get('use_grpc', False)
         
         logger.info(
             f"Ollama configuration - URL: {self.config.base_url}, "
             f"Model: {self.config.model}, "
+            f"Adapter: {self.adapter_type}, "
             f"Timeout: {self.config.timeout}"
         )
     
     async def __aenter__(self):
         """Async context manager entry."""
-        self.adapter = OllamaAdapter(self.config)
+        # Create the appropriate adapter
+        if self.use_grpc:
+            try:
+                self.adapter = create_adapter(self.config, AdapterType.GRPC)
+            except (ImportError, ValueError):
+                logger.warning("Failed to create gRPC adapter, falling back to HTTP")
+                self.adapter = create_adapter(self.config, AdapterType.HTTP)
+        else:
+            self.adapter = create_adapter(self.config, self.adapter_type)
+            
         await self.adapter.__aenter__()
         return self
     

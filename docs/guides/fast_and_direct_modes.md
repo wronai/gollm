@@ -127,10 +127,56 @@ gollm direct generate "Write a Python class for a bank account" -o bank_account.
 
 ## Troubleshooting
 
-If you encounter issues with the direct API mode, check that:
+### Common Issues
+
+#### Timeouts
+
+If you encounter timeout errors when using either direct mode or fast mode, try the following:
+
+1. **Use a smaller model**: Larger models require more resources and may time out on systems with limited capacity
+   ```bash
+   # Example using a smaller model
+   gollm direct generate "Write a function" --model deepseek-coder:1.3b
+   ```
+
+2. **Increase the timeout**: The default timeout is 60 seconds, which may not be enough for complex prompts
+   ```bash
+   # Set environment variable for longer timeout
+   export GOLLM_TIMEOUT=120
+   ```
+
+3. **Check server load**: If the Ollama server is running on a remote machine, it might be overloaded
+   ```bash
+   # Check if the server is responsive
+   curl -I http://your-server:11434/api/tags
+   ```
+
+4. **Reduce context size**: Larger context windows require more processing time
+   ```bash
+   # Use fast mode to reduce context size
+   gollm generate "Write a function" --fast
+   ```
+
+#### Model Availability
+
+If you get errors about models not being available:
+
+1. Check which models are installed on your Ollama server
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+2. Pull the required model if it's not already available
+   ```bash
+   ollama pull codellama:7b
+   ```
+
+### General Troubleshooting
 
 1. Your Ollama service is running (`ollama serve`)
 2. You have the required models pulled (`ollama pull codellama:7b`)
 3. The API URL is correct (default: http://localhost:11434)
+4. The server has sufficient resources (RAM, CPU) for the model you're using
+5. Network connectivity between your client and the Ollama server is stable
 
 For fast mode issues, ensure that your goLLM configuration is valid and that the LLM integration is properly configured.

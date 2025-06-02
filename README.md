@@ -96,6 +96,9 @@ pip install -e .[dev]
    
    # Bezpośredni dostęp do API (bez walidacji)
    gollm direct generate "Stwórz klasę użytkownika"
+   
+   # Użyj mniejszego modelu, jeśli masz problemy z timeoutem
+   gollm direct generate "Stwórz klasę użytkownika" --model deepseek-coder:1.3b
    ```
    
    > 📘 Pełna dokumentacja dostępna w [przewodniku wprowadzającym](./docs/guides/getting_started.md)
@@ -763,6 +766,14 @@ curl -X POST http://rock:8081/api/chat \
        "stream": false
      }' | jq
      
+curl -X POST http://rock:8081/api/chat \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "model": "qwen3:4b",
+       "messages": [ {"role": "user", "content": "Write Hello World in Python"} ],
+       "stream": false
+     }' | jq
+          
 gollm generate "Write Hello World in Python"
 gollm -v generate "Write Hello World in Python"
 gollm generate "Write Hello World in Python" --fast

@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package ollama;
+
+service OllamaService {
+  // Generate completion from a prompt
+  rpc Generate(GenerateRequest) returns (GenerateResponse);
+  
+  // Chat completion with message history
+  rpc Chat(ChatRequest) returns (ChatResponse);
+  
+  // List available models
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  
+  // Check service health
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message GenerateRequest {
+  string model = 1;
+  string prompt = 2;
+  bool stream = 3;
+  GenerateOptions options = 4;
+}
+
+message GenerateOptions {
+  float temperature = 1;
+  int32 num_predict = 2;
+  float top_p = 3;
+  int32 top_k = 4;
+  float repeat_penalty = 5;
+  repeated string stop = 6;
+}
+
+message GenerateResponse {
+  string model = 1;
+  string response = 2;
+  UsageInfo usage = 3;
+  bool done = 4;
+}
+
+message ChatRequest {
+  string model = 1;
+  repeated Message messages = 2;
+  bool stream = 3;
+  GenerateOptions options = 4;
+}
+
+message Message {
+  string role = 1;
+  string content = 2;
+}
+
+message ChatResponse {
+  string model = 1;
+  Message message = 2;
+  UsageInfo usage = 3;
+  bool done = 4;
+}
+
+message UsageInfo {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
+}
+
+message ListModelsRequest {}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}
+
+message ModelInfo {
+  string name = 1;
+  string family = 2;
+  int64 size = 3;
+  string modified_at = 4;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool healthy = 1;
+  string status = 2;
+  string version = 3;
+}

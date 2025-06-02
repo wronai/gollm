@@ -5,7 +5,7 @@ This package provides integration with Ollama's local LLM service with both HTTP
 
 from .config import OllamaConfig
 from .factory import create_adapter, get_best_available_adapter, AdapterType
-from .provider import OllamaLLMProvider
+from .provider_new import OllamaLLMProvider
 
 # Import HTTP modules
 from .http import OllamaHttpAdapter, OllamaHttpClient, OllamaOperations
@@ -27,6 +27,3 @@ except ImportError:
         'OllamaHttpAdapter', 'OllamaHttpClient', 'OllamaOperations',
         'GRPC_AVAILABLE'
     ]
-
-# For backward compatibility
-from .http.adapter import OllamaHttpAdapter as OllamaAdapter

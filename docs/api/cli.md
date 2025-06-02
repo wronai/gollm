@@ -97,6 +97,7 @@ Generate text using direct API access without validation pipeline.
 - `--api-url URL`: API base URL (default: http://localhost:11434)
 - `-o, --output FILE`: Output file path
 - `-f, --format FORMAT`: Output format (text or json)
+- `--timeout INT`: Request timeout in seconds (default: 60)
 
 **Examples:**
 ```bash
