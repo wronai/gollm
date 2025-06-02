@@ -3,9 +3,18 @@
 import asyncio
 import json
 import logging
-from typing import Dict, Any, Optional, List
+import os
+from typing import Dict, Any, Optional, List, Union
 
 import aiohttp
+
+# Try to import gRPC-related modules
+try:
+    from ..llm.providers.ollama.factory import create_adapter, AdapterType
+    from ..llm.providers.ollama.config import OllamaConfig
+    ADAPTERS_AVAILABLE = True
+except ImportError:
+    ADAPTERS_AVAILABLE = False
 
 logger = logging.getLogger('gollm.direct_api')
 
@@ -14,30 +23,60 @@ class DirectLLMClient:
     
     This client provides a streamlined interface for making direct API calls
     to LLM providers with minimal overhead, similar to using curl directly.
+    Supports both HTTP and gRPC communication for improved performance.
     """
     
-    def __init__(self, base_url: str = "http://localhost:11434", timeout: int = 30):
+    def __init__(self, base_url: str = "http://localhost:11434", timeout: int = 30, use_grpc: bool = False):
         """Initialize the direct LLM client.
         
         Args:
             base_url: Base URL of the LLM API server
             timeout: Request timeout in seconds
+            use_grpc: Whether to use gRPC for faster communication
         """
         self.base_url = base_url
         self.timeout = timeout
+        self.use_grpc = use_grpc and ADAPTERS_AVAILABLE
         self.session: Optional[aiohttp.ClientSession] = None
+        self.adapter = None
     
     async def __aenter__(self):
         """Async context manager entry."""
-        self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=self.timeout),
-            headers={'Content-Type': 'application/json'}
-        )
+        if self.use_grpc and ADAPTERS_AVAILABLE:
+            # Create a config object for the adapter
+            config = OllamaConfig(
+                base_url=self.base_url,
+                timeout=self.timeout
+            )
+            
+            try:
+                # Try to create a gRPC adapter
+                self.adapter = create_adapter(config, AdapterType.GRPC)
+                await self.adapter.__aenter__()
+                logger.info("Using gRPC adapter for improved performance")
+            except Exception as e:
+                logger.warning(f"Failed to create gRPC adapter: {e}. Falling back to HTTP.")
+                self.adapter = None
+                self.use_grpc = False
+                # Fall back to HTTP session
+                self.session = aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(total=self.timeout),
+                    headers={'Content-Type': 'application/json'}
+                )
+        else:
+            # Use standard HTTP session
+            self.session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+                headers={'Content-Type': 'application/json'}
+            )
+        
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        if self.session:
+        if self.adapter:
+            await self.adapter.__aexit__(exc_type, exc_val, exc_tb)
+        elif self.session:
             await self.session.close()
     
     async def chat_completion(self, 
@@ -58,6 +97,38 @@ class DirectLLMClient:
         Returns:
             The API response as a dictionary
         """
+        # Use gRPC adapter if available
+        if self.adapter and self.use_grpc:
+            try:
+                start_time = asyncio.get_event_loop().time()
+                logger.debug(f"Making direct chat request via gRPC with model {model}")
+                
+                # Prepare options for the adapter
+                options = {
+                    "temperature": temperature,
+                    "num_predict": max_tokens
+                }
+                
+                # Call the adapter's chat method
+                result = await self.adapter.chat(model=model, messages=messages, options=options)
+                
+                duration = asyncio.get_event_loop().time() - start_time
+                logger.debug(f"Direct gRPC request completed in {duration:.2f}s")
+                
+                # Add duration information for consistency with HTTP response
+                if 'total_duration' not in result:
+                    result['total_duration'] = int(duration * 1_000_000_000)  # Convert to nanoseconds
+                    
+                return result
+                
+            except Exception as e:
+                logger.error(f"Direct gRPC request failed: {str(e)}")
+                return {
+                    "error": str(e),
+                    "success": False
+                }
+        
+        # Fall back to HTTP if gRPC is not available or failed
         if not self.session:
             self.session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self.timeout),

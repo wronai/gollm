@@ -24,8 +24,9 @@ def direct_group():
 @click.option('--api-url', default='http://localhost:11434', help='API base URL')
 @click.option('--output', '-o', type=click.Path(), help='Output file path')
 @click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text', help='Output format')
+@click.option('--use-grpc', is_flag=True, help='Use gRPC for faster communication')
 @click.pass_context
-def generate(ctx, prompt, model, temperature, max_tokens, api_url, output, format):
+def generate(ctx, prompt, model, temperature, max_tokens, api_url, output, format, use_grpc):
     """Generate text using direct API access without validation pipeline.
     
     This command makes a direct API call similar to using curl, bypassing
@@ -88,8 +89,9 @@ def generate(ctx, prompt, model, temperature, max_tokens, api_url, output, forma
 @click.option('--api-url', default='http://localhost:11434', help='API base URL')
 @click.option('--output', '-o', type=click.Path(), help='Output file path')
 @click.option('--format', '-f', type=click.Choice(['text', 'json']), default='text', help='Output format')
+@click.option('--use-grpc', is_flag=True, help='Use gRPC for faster communication')
 @click.pass_context
-def chat(ctx, prompt, model, temperature, max_tokens, api_url, output, format):
+def chat(ctx, prompt, model, temperature, max_tokens, api_url, output, format, use_grpc):
     """Chat with LLM using direct API access without validation pipeline.
     
     This command makes a direct API call similar to using curl, bypassing

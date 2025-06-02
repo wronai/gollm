@@ -58,6 +58,59 @@ class OllamaLLMProvider(BaseLLMProvider):
         if self.adapter:
             await self.adapter.__aexit__(exc_type, exc_val, exc_tb)
     
+    async def is_available(self) -> bool:
+        """Check if Ollama service is available.
+        
+        Returns:
+            True if available, False otherwise
+        """
+        if not self.adapter:
+            return False
+            
+        return await self.adapter.is_available()
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """Perform a comprehensive health check of the Ollama service.
+        
+        Returns:
+            Dict containing health status information
+        """
+        if not self.adapter:
+            return {
+                "status": False,
+                "available": False,
+                "model_available": False,
+                "error": "Adapter not initialized",
+                "config": {
+                    "base_url": self.config.base_url,
+                    "model": self.config.model,
+                    "adapter_type": self.adapter_type
+                }
+            }
+        
+        # Check if service is available
+        available = await self.adapter.is_available()
+        
+        # Check if model is available
+        model_available = False
+        if available:
+            model_available = await self._ensure_valid_model()
+        
+        return {
+            "status": available and model_available,
+            "available": available,
+            "model_available": model_available,
+            "error": None if (available and model_available) else (
+                "Service not available" if not available else f"Model '{self.config.model}' not available"
+            ),
+            "config": {
+                "base_url": self.config.base_url,
+                "model": self.config.model,
+                "adapter_type": self.adapter_type,
+                "use_grpc": self.use_grpc
+            }
+        }
+    
     async def _ensure_valid_model(self) -> bool:
         """Ensure the configured model is available.
         
@@ -68,8 +121,8 @@ class OllamaLLMProvider(BaseLLMProvider):
             return self._model_available
             
         try:
-            models = await self.adapter.list_models()
-            available_models = [model['name'] for model in models.get('models', [])]
+            result = await self.adapter.list_models()
+            available_models = [model['name'] for model in result.get('models', [])]
             self._model_available = self.config.model in available_models
             
             if not self._model_available:
