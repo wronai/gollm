@@ -38,19 +38,26 @@ class LLMIntegration:
     providers: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
-        # Handle the case where providers might be passed from config
+        # Initialize providers if None
         if self.providers is None:
             self.providers = {}
-        elif isinstance(self.providers, dict):
-            # Ensure we don't keep any unexpected attributes in the providers dict
-            self.providers = {k: v for k, v in self.providers.items() if k in ['ollama', 'openai']}
+        
+        # Convert providers to dict if it's not already
+        if not isinstance(self.providers, dict):
+            self.providers = {}
             
-            # Handle Ollama provider configuration
-            if 'ollama' in self.providers and isinstance(self.providers['ollama'], dict):
-                self.providers['ollama'] = {
-                    k: v for k, v in self.providers['ollama'].items()
-                    if k in ['enabled', 'model', 'base_url', 'temperature', 'max_tokens', 'timeout']
-                }
+        # Filter out any non-dict provider configs
+        self.providers = {
+            k: v for k, v in self.providers.items() 
+            if isinstance(v, dict) and k in ['ollama', 'openai']
+        }
+        
+        # Handle Ollama provider configuration
+        if 'ollama' in self.providers:
+            self.providers['ollama'] = {
+                k: v for k, v in self.providers['ollama'].items()
+                if k in ['enabled', 'model', 'base_url', 'temperature', 'max_tokens', 'timeout']
+            }
 
 @dataclass
 class GollmConfig:
@@ -73,10 +80,26 @@ class GollmConfig:
         with open(config_file, 'r') as f:
             data = json.load(f)
         
+        # Extract llm_integration data and ensure it's a dict
+        llm_data = data.get('llm_integration', {})
+        if not isinstance(llm_data, dict):
+            llm_data = {}
+            
+        # Create LLMIntegration instance with the data
+        llm_integration = LLMIntegration(
+            enabled=llm_data.get('enabled', True),
+            model_name=llm_data.get('model_name', 'gpt-4'),
+            max_iterations=llm_data.get('max_iterations', 3),
+            token_limit=llm_data.get('token_limit', 4000),
+            auto_fix_attempts=llm_data.get('auto_fix_attempts', 2),
+            api_provider=llm_data.get('api_provider', 'openai'),
+            providers=llm_data.get('providers')
+        )
+        
         return cls(
             validation_rules=ValidationRules(**data.get('validation_rules', {})),
             project_management=ProjectManagement(**data.get('project_management', {})),
-            llm_integration=LLMIntegration(**data.get('llm_integration', {})),
+            llm_integration=llm_integration,
             project_root=data.get('project_root', '.')
         )
     

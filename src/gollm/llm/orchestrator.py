@@ -206,7 +206,8 @@ class LLMOrchestrator:
                 from .ollama_adapter import OllamaLLMProvider
                 provider_config = self.config.llm_integration.providers.get('ollama', {})
                 logger.debug(f"Initializing Ollama provider with config: {provider_config}")
-                provider = OllamaLLMProvider(provider_config)
+                # Pass the full config to ensure all settings are available
+                provider = OllamaLLMProvider(self.config)
                 
                 # Generate response using the Ollama provider
                 logger.debug("Sending prompt to Ollama provider...")
@@ -257,14 +258,22 @@ Please check your LLM configuration and try again.
         """Oblicza wynik jakości odpowiedzi LLM (0-100)"""
         score = 0
         
-        # Podstawowe punkty za wyodrębnienie kodu
+        # Basic points for code extraction
         if validation_result.get('code_extracted', False):
             score += 30
         
-        # Punkty za jakość kodu
+        # Points for code quality
         code_quality = validation_result.get('code_quality', {})
         if code_quality:
-            quality_score = code_quality.get('quality_score', 0)
-            score += quality_score * 0.7  # 70% wagi za jakość kodu
+            # Ensure quality_score is a number, default to 0 if not
+            try:
+                quality_score = float(code_quality.get('quality_score', 0))
+                # Ensure the score is within valid range (0-100)
+                quality_score = max(0, min(100, quality_score))
+                score += quality_score * 0.7  # 70% weight for code quality
+            except (TypeError, ValueError):
+                # If quality_score is not a number, skip adding to the score
+                pass
         
-        return int(score)
+        # Ensure the final score is an integer between 0 and 100
+        return min(100, max(0, int(score)))

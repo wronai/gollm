@@ -22,7 +22,7 @@
   },
   "llm_integration": {
     "enabled": true,
-    "model_name": "deepseek-coder:latest",
+    "model_name": "deepseek-coder:1.3b",
     "max_iterations": 3,
     "token_limit": 4000,
     "auto_fix_attempts": 2,
@@ -31,7 +31,8 @@
       "ollama": {
         "enabled": true,
         "base_url": "http://192.168.188.108:8081",
-        "model": "deepseek-coder:latest",
+        "model": "deepseek-coder:1.3b",
+        "api_type": "chat",
         "temperature": 0.1,
         "max_tokens": 1000,
         "timeout": 180

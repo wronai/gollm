@@ -88,13 +88,15 @@ class OllamaAdapter:
         # Set timeout from config, with a minimum of 30 seconds
         timeout = aiohttp.ClientTimeout(total=max(30, self.config.timeout))
         
-        # Prepare the payload for chat API
+        # Prepare the payload for completion API
         payload = {
             "model": self.config.model,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-            "stream": False
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": self.config.max_tokens
+            }
         }
         
         # Log the request payload
@@ -114,52 +116,50 @@ class OllamaAdapter:
                     logger.debug(f"Received response status: {response.status}")
                     
                     if response.status != 200:
-                        error_msg = f"Ollama API request failed with status {response.status}"
-                        logger.error(f"{error_msg}. Response: {response_text}")
-                        return {
-                            "success": False,
-                            "error": error_msg,
-                            "generated_code": "",
-                            "raw_response": response_text
-                        }
-                    
-                    try:
-                        response_data = json.loads(response_text)
-                        generated_text = response_data.get("response", "")
-                        
-                        if not generated_text:
-                            error_msg = f"Empty response from Ollama API. Model: {self.config.model}"
-                            logger.warning(error_msg)
-                            logger.debug(f"Full response data: {response_data}")
+                        try:
+                            error_data = await response.json()
+                            error_msg = error_data.get('error', 'Unknown error')
+                            logger.error(f"Ollama API request failed with status {response.status}. Response: {error_msg}")
                             return {
                                 "success": False,
-                                "error": error_msg,
+                                "error": f"Ollama API error: {response.status} - {error_msg}",
                                 "generated_code": "",
-                                "raw_response": response_text
+                                "raw_response": str(error_data)
                             }
-                        
-                        # Log the response details
-                        logger.debug(f"Generated text (first 500 chars): {generated_text[:500]}...")
-                        
-                        # Clean up the response
-                        extracted_code = generated_text.strip()
-                        
-                        return {
-                            "success": True,
-                            "generated_code": extracted_code,
-                            "raw_response": generated_text,
-                            "model": self.config.model
-                        }
-                        
-                    except json.JSONDecodeError as e:
-                        error_msg = f"Failed to parse Ollama API response: {e}"
-                        logger.error(f"{error_msg}. Response: {response_text}")
+                        except (json.JSONDecodeError, aiohttp.ContentTypeError) as e:
+                            error_text = await response.text()
+                            logger.error(f"Failed to parse Ollama API error response: {str(e)}. Raw: {error_text}")
+                            return {
+                                "success": False,
+                                "error": f"Ollama API error: {response.status} - {error_text}",
+                                "generated_code": "",
+                                "raw_response": error_text
+                            }
+                    
+                    result = await response.json()
+                    logger.debug(f"Raw response from Ollama: {json.dumps(result, indent=2, ensure_ascii=False)}")
+                    
+                    # Extract the generated text from the response
+                    generated_text = result.get('response', '')
+                    
+                    if not generated_text:
+                        error_msg = f"Empty response from Ollama API. Model: {self.config.model}"
+                        logger.warning(error_msg)
                         return {
                             "success": False,
                             "error": error_msg,
                             "generated_code": "",
-                            "raw_response": response_text
+                            "raw_response": result
                         }
+                    
+                    logger.debug(f"Generated text (first 500 chars): {generated_text[:500]}...")
+                    
+                    return {
+                        "success": True,
+                        "generated_code": generated_text.strip(),
+                        "raw_response": result,
+                        "model": self.config.model
+                    }
         
         except asyncio.TimeoutError:
             error_msg = f"Ollama API request timed out after {timeout.total} seconds"
@@ -411,33 +411,86 @@ class OllamaLLMProvider:
     def __init__(self, config):
         self.config = config
         
-        # Get base_url from config.llm_integration.providers.ollama if available
-        base_url = 'http://localhost:11434'
-        model_name = 'llama3:latest'
-        timeout = 120
+        # Default values
+        base_url = 'http://192.168.188.108:8081'  # Updated default to match your configuration
+        model_name = 'deepseek-coder:latest'  # Using latest version
+        timeout = 180  # Increased timeout
         token_limit = 4000
         temperature = 0.1
         
-        if hasattr(config, 'llm_integration'):
-            llm_config = config.llm_integration
-            if hasattr(llm_config, 'providers') and 'ollama' in llm_config.providers:
-                provider_config = llm_config.providers['ollama']
-                if isinstance(provider_config, dict):
-                    base_url = provider_config.get('base_url', base_url)
-                    model_name = provider_config.get('model', model_name)
-                    timeout = provider_config.get('timeout', timeout)
-                    token_limit = provider_config.get('token_limit', token_limit)
-                    temperature = provider_config.get('temperature', temperature)
+        logger.debug(f"Initializing OllamaLLMProvider with config: {config}")
+        
+        try:
+            # First try to get llm_integration from config
+            if hasattr(config, 'get'):  # Handle dict-like config
+                llm_config = config.get('llm_integration', {})
+                providers = llm_config.get('providers', {})
+                provider_config = providers.get('ollama', {})
+                
+                # Debug log the config structure
+                logger.debug(f"Config structure - llm_config: {llm_config}")
+                logger.debug(f"Config structure - providers: {providers}")
+                logger.debug(f"Config structure - provider_config: {provider_config}")
+                
+            elif hasattr(config, 'llm_integration'):  # Handle object-style config
+                llm_config = config.llm_integration
+                providers = getattr(llm_config, 'providers', {})
+                provider_config = getattr(providers, 'ollama', {}) if hasattr(providers, 'get') else {}
+                
+                # Debug log the config structure
+                logger.debug(f"Config structure - llm_config: {llm_config}")
+                logger.debug(f"Config structure - providers: {providers}")
+                logger.debug(f"Config structure - provider_config: {provider_config}")
+            else:
+                llm_config = {}
+                provider_config = {}
+                logger.debug("No llm_integration found in config")
             
-            # Override with direct attributes if available
-            if hasattr(llm_config, 'model_name'):
-                model_name = llm_config.model_name
-            if hasattr(llm_config, 'timeout'):
-                timeout = llm_config.timeout
-            if hasattr(llm_config, 'token_limit'):
-                token_limit = llm_config.token_limit
-            if hasattr(llm_config, 'temperature'):
-                temperature = llm_config.temperature
+            # Log the configuration we found with more details
+            logger.debug(f"Raw LLM config: {llm_config}")
+            logger.debug(f"Raw Ollama provider config: {provider_config}")
+            
+            # Debug: Print the full config structure if it's a dict
+            if hasattr(config, 'get'):
+                logger.debug(f"Full config keys: {list(config.keys())}")
+                if 'llm_integration' in config:
+                    logger.debug(f"llm_integration keys: {list(config['llm_integration'].keys())}")
+                    if 'providers' in config['llm_integration']:
+                        logger.debug(f"Providers keys: {list(config['llm_integration']['providers'].keys())}")
+            
+            # Get values from provider config first (highest priority)
+            if isinstance(provider_config, dict):
+                base_url = provider_config.get('base_url', base_url)
+                model_name = provider_config.get('model', model_name)
+                timeout = provider_config.get('timeout', timeout)
+                token_limit = provider_config.get('max_tokens', token_limit)
+                temperature = provider_config.get('temperature', temperature)
+            
+            # Then check for direct attributes in llm_config (medium priority)
+            if isinstance(llm_config, dict):
+                if 'model_name' in llm_config and llm_config['model_name']:
+                    model_name = llm_config['model_name']
+                if 'timeout' in llm_config and llm_config['timeout'] is not None:
+                    timeout = llm_config['timeout']
+                if 'token_limit' in llm_config and llm_config['token_limit'] is not None:
+                    token_limit = llm_config['token_limit']
+                if 'temperature' in llm_config and llm_config['temperature'] is not None:
+                    temperature = llm_config['temperature']
+            
+            # Finally, check for direct attributes in the root config (lowest priority)
+            if hasattr(config, 'get'):
+                if 'model_name' in config and config['model_name']:
+                    model_name = config['model_name']
+                if 'timeout' in config and config['timeout'] is not None:
+                    timeout = config['timeout']
+            elif hasattr(config, 'model_name') and config.model_name:
+                model_name = config.model_name
+            
+        except Exception as e:
+            logger.error(f"Error loading Ollama configuration: {e}", exc_info=True)
+            logger.debug("Falling back to default configuration")
+        
+        logger.info(f"Ollama configuration - URL: {base_url}, Model: {model_name}, Timeout: {timeout}")
         
         ollama_config = OllamaConfig(
             base_url=base_url,
@@ -460,6 +513,38 @@ class OllamaLLMProvider:
         import traceback
         logger = logging.getLogger(__name__)
         
+        # First perform health check
+        health = await self.health_check()
+        if not health.get('status', False):
+            error_msg = "Ollama health check failed. "
+            if 'error' in health:
+                error_msg += f"Error: {health['error']} "
+            
+            # Safely get config details
+            config_info = {}
+            if hasattr(self, 'adapter') and hasattr(self.adapter, 'config'):
+                config = self.adapter.config
+                config_info = {
+                    'base_url': getattr(config, 'base_url', 'unknown'),
+                    'model': getattr(config, 'model', 'unknown'),
+                    'timeout': getattr(config, 'timeout', 'unknown')
+                }
+            
+            error_msg += f"Config: {json.dumps(config_info, indent=2)}"
+            logger.error(error_msg)
+            
+            return {
+                "generated_code": "",
+                "explanation": f"Ollama service is not available: {health.get('error', 'Unknown error')}",
+                "success": False,
+                "error": error_msg,
+                "model_info": {
+                    "provider": "ollama",
+                    "model": config_info.get('model', 'unknown'),
+                    "tokens_used": 0
+                }
+            }
+        
         try:
             if not context:
                 context = {}
@@ -467,65 +552,75 @@ class OllamaLLMProvider:
             logger.info(f"Generating response with prompt (truncated): {prompt[:200]}...")
             logger.debug(f"Full prompt: {prompt}")
             logger.debug(f"Context: {json.dumps(context, indent=2)}")
-            logger.debug(f"Full prompt: {prompt}")
-            logger.debug(f"Context keys: {list(context.keys())}")
             
-            async with self.adapter as adapter:
-                logger.info(f"Sending request to Ollama with model: {adapter.config.model}")
-                logger.debug(f"Adapter config: {adapter.config}")
+            # Get the API type from config (default to 'generate' for backward compatibility)
+            api_type = 'generate'  # Default
+            if hasattr(self, 'config'):
+                if hasattr(self.config, 'get'):  # Dict-like config
+                    llm_config = self.config.get('llm_integration', {})
+                    providers = llm_config.get('providers', {})
+                    provider_config = providers.get('ollama', {})
+                    api_type = provider_config.get('api_type', 'generate')
+                elif hasattr(self.config, 'llm_integration'):  # Object-style config
+                    llm_config = self.config.llm_integration
+                    if hasattr(llm_config, 'providers') and hasattr(llm_config.providers, 'get'):
+                        provider_config = llm_config.providers.get('ollama', {})
+                        if hasattr(provider_config, 'get'):
+                            api_type = provider_config.get('api_type', 'generate')
+            
+            logger.debug(f"Using Ollama API type: {api_type}")
+            logger.debug(f"Using model: {self.adapter.config.model}")
+            
+            # Use the adapter to generate code
+            if api_type == 'generate':
+                response = await self.adapter.generate_code(prompt, context)
+            elif api_type == 'chat':
+                response = await self.adapter.chat(prompt, context)
+            else:
+                raise ValueError(f"Unsupported API type: {api_type}")
+            
+            # Log the response for debugging
+            logger.debug(f"Raw response from Ollama: {json.dumps(response, indent=2) if isinstance(response, dict) else response}")
+            
+            if not response or not isinstance(response, dict):
+                error_msg = f"Invalid response format from Ollama: {response}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
                 
-                # Log the full request payload for debugging
-                request_payload = {
-                    "prompt": prompt[:500] + "..." if len(prompt) > 500 else prompt,
-                    "context_keys": list(context.keys())
-                }
-                logger.debug(f"Request payload: {json.dumps(request_payload, indent=2)}")
-                
-                # Make the actual API call
-                result = await adapter.generate_code(prompt, context)
-                
-                # Log the raw response for debugging
-                logger.debug(f"Raw response from Ollama: {json.dumps(result, indent=2) if isinstance(result, dict) else result}")
-                
-                if not result or not isinstance(result, dict):
-                    raise ValueError(f"Invalid response format from Ollama: {result}")
-                
-                logger.info(f"Received response from Ollama, success: {result.get('success', False)}")
-                logger.debug(f"Response keys: {list(result.keys())}")
-                
-                if not result.get("success", False):
-                    error_msg = result.get("error", "Unknown error from Ollama")
-                    logger.error(f"Ollama generation failed: {error_msg}")
-                    return {
-                        "generated_code": "",
-                        "explanation": f"Error: {error_msg}",
-                        "success": False,
-                        "error": error_msg,
-                        "model_info": {
-                            "provider": "ollama",
-                            "model": adapter.config.model,
-                            "tokens_used": 0
-                        }
-                    }
-                
-                generated_code = result.get("generated_code", "")
-                if not generated_code.strip():
-                    logger.warning("Received empty generated code from Ollama")
-                
-                response = {
-                    "generated_code": generated_code,
-                    "explanation": "Code generated by Ollama",
-                    "success": True,
-                    "error": None,
+            if not response.get("success", False):
+                error_msg = response.get("error", "Unknown error from Ollama")
+                logger.error(f"Ollama generation failed: {error_msg}")
+                return {
+                    "generated_code": "",
+                    "explanation": f"Error: {error_msg}",
+                    "success": False,
+                    "error": error_msg,
                     "model_info": {
                         "provider": "ollama",
-                        "model": adapter.config.model,
-                        "tokens_used": result.get("tokens_used", 0)
+                        "model": self.adapter.config.model,
+                        "tokens_used": 0
                     }
                 }
-                
-                logger.debug(f"Successfully generated response with {len(generated_code)} characters")
-                return response
+            
+            # Extract the generated code and explanation
+            generated_code = response.get("generated_code", "")
+            explanation = response.get("explanation", "")
+            
+            # If no explanation was provided, create a default one
+            if not explanation and generated_code:
+                explanation = "Here's the generated code:"
+            
+            return {
+                "generated_code": generated_code,
+                "explanation": explanation,
+                "success": True,
+                "model_info": {
+                    "provider": "ollama",
+                    "model": self.adapter.config.model,
+                    "tokens_used": response.get("tokens_used", 0)
+                },
+                "raw_response": response.get("raw_response", "")
+            }
                 
         except Exception as e:
             logger.exception("Error in OllamaLLMProvider.generate_response")
@@ -541,10 +636,103 @@ class OllamaLLMProvider:
                 }
             }
     
-    async def health_check(self) -> bool:
-        """Check if the Ollama service is healthy"""
-        return await self.adapter.is_available()
-
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Performs a comprehensive health check of the Ollama service.
+        
+        Returns:
+            Dict containing:
+            - status (bool): Overall health status
+            - available (bool): If the service is reachable
+            - model_available (bool): If the configured model is available
+            - error (str): Error message if any
+            - config (dict): Current configuration
+        """
+        # Safely get config values with defaults
+        config = getattr(self, 'adapter', {}).config
+        base_url = getattr(config, 'base_url', 'http://localhost:11434')
+        model = getattr(config, 'model', 'deepseek-coder:latest')
+        timeout = getattr(config, 'timeout', 120)
+        
+        result = {
+            'status': False,
+            'available': False,
+            'model_available': False,
+            'error': None,
+            'config': {
+                'base_url': base_url,
+                'model': model,
+                'timeout': timeout
+            }
+        }
+        
+        try:
+            # Check basic connectivity
+            try:
+                # First check if we can reach the base URL
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{base_url}/api/tags", timeout=5) as response:
+                        if response.status != 200:
+                            result['error'] = f"Ollama API returned status {response.status}"
+                            return result
+                        
+                        # If we got here, the service is available
+                        result['available'] = True
+                        
+                        # Check if model is available
+                        data = await response.json()
+                        available_models = [m['name'] for m in data.get('models', [])]
+                        
+                        # Check for exact match or prefix match
+                        model_found = any(
+                            m == model or m.startswith(f"{model}:")
+                            for m in available_models
+                        )
+                        
+                        if not model_found:
+                            result['error'] = (
+                                f"Model '{model}' not found in available models. "
+                                f"Available models: {', '.join(available_models)}"
+                            )
+                            return result
+                            
+                        result['model_available'] = True
+                        
+            except aiohttp.ClientError as e:
+                result['error'] = f"Failed to connect to Ollama service at {base_url}: {str(e)}"
+                return result
+            except json.JSONDecodeError as e:
+                result['error'] = f"Invalid JSON response from Ollama API: {str(e)}"
+                return result
+            except Exception as e:
+                result['error'] = f"Unexpected error during health check: {str(e)}"
+                return result
+            
+            # Test a simple request
+            try:
+                test_prompt = "Respond with just the word 'pong'"
+                if hasattr(self.adapter, 'chat'):
+                    response = await self.adapter.chat(test_prompt, {})
+                else:
+                    response = await self.adapter.generate_code(test_prompt, {})
+                
+                if not response or not response.get('success') or 'pong' not in str(response).lower():
+                    result['error'] = f"Unexpected test response: {response}"
+                    return result
+                    
+            except Exception as e:
+                result['error'] = f"Test request failed: {str(e)}"
+                return result
+            
+            # If we got here, everything is working
+            result['status'] = True
+            return result
+            
+        except Exception as e:
+            result['error'] = f"Health check failed: {str(e)}"
+            return result
+            
     async def is_available(self):
         """Sprawdza dostępność Ollama"""
-        return await self.health_check()
+        health = await self.health_check()
+        return health.get('status', False)
