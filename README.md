@@ -729,5 +729,26 @@ curl -X POST http://localhost:11434/api/generate -d '{"model": "codellama:7b", "
 
 
 ```
-curl -X POST http://192.168.188.108:11434/api/generate -d '{"model": "qwen2.5:7b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
+curl -X POST http://192.168.188.108:8081/api/generate -d '{"model": "qwen2.5:7b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
+
+curl http://192.168.188.108:8081/api/tags | jq
+curl -X POST http://192.168.188.108:8081/api/generate -d '{"model": "deepseek-coder:1.3b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
+
+curl -X POST http://192.168.188.108:8081/api/chat \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "model": "deepseek-coder:1.3b",
+       "messages": [ {"role": "user", "content": "Write Animation in shell in Python"} ],
+       "stream": false
+     }' | jq
+
+curl -X POST http://192.168.188.108:8081/api/chat \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "model": "deepseek-coder:1.3b",
+       "messages": [ {"role": "user", "content": "Write Hello World in Python"} ],
+       "stream": false
+     }' | jq
+     
+gollm generate "Write Hello World in Python"     
 ```

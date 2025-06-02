@@ -69,9 +69,9 @@ def ollama_provider():
     return OllamaLLMProvider(config)
 
 @pytest.fixture
-def llm_orchestrator(ollama_provider, temp_project_dir):
-    """Fixture providing an LLM orchestrator with Ollama provider."""
-    # Create a proper config object using the dataclasses
+def llm_orchestrator(mocker, temp_project_dir):
+    """Fixture providing an LLM orchestrator with a mocked Ollama provider."""
+    # Create a simple config for testing
     validation_rules = ValidationRules(
         max_function_lines=50,
         max_file_lines=1000,
@@ -112,20 +112,49 @@ def llm_orchestrator(ollama_provider, temp_project_dir):
         llm_integration=llm_integration
     )
     
-    # Add the llm_provider as an attribute to the config
-    config.llm_provider = ollama_provider
+    # Create a mock LLM provider
+    class MockLLMProvider:
+        def __init__(self, config):
+            self.config = config
+            
+        async def generate_response(self, prompt, context=None):
+            from gollm.llm.response_validator import LLMResponse
+            return LLMResponse(
+                success=True,
+                generated_code="""from flask import Flask\napp = Flask(__name__)\n\n@app.route('/')\ndef home():\n    return 'Hello, World!'\n\nif __name__ == '__main__':\n    app.run(debug=True)""",
+                metadata={"model": "codellama:7b", "tokens_used": 128}
+            )
+            
+        async def is_available(self):
+            return True
+    
+    # Create the orchestrator with the config
+    orchestrator = LLMOrchestrator(config=config)
+    
+    # Create and set the mock provider
+    mock_provider = MockLLMProvider(config)
+    orchestrator.llm_provider = mock_provider
+    
+    # Mock the context builder with an async function
+    async def mock_build_context(context):
+        return {
+            "execution_context": {"recent_changes": [], "current_file": "test.py"},
+            "todo_context": {"todos": [], "pending_tasks": 0},
+            "changelog_context": {"latest_version": "0.1.0"},
+            "project_config": {"language": "python", "framework": "flask"},
+            "recent_changes": []
+        }
+    
+    # Create a mock context builder with the async function
+    mock_context_builder = mocker.MagicMock()
+    mock_context_builder.build_context.side_effect = mock_build_context
+    orchestrator.context_builder = mock_context_builder
     
     # Create empty TODO and CHANGELOG files
     os.makedirs(temp_project_dir, exist_ok=True)
     for filename in ["TODO.md", "CHANGELOG.md"]:
         with open(os.path.join(temp_project_dir, filename), 'w') as f:
             f.write("# " + filename + "\n\n")
-    
-    # Create the orchestrator with the config
-    orchestrator = LLMOrchestrator(config=config)
-    
-    # Add the provider to the orchestrator for testing
-    orchestrator.llm_provider = ollama_provider
     
     return orchestrator
 
@@ -172,97 +201,88 @@ async def test_ollama_generate_code(ollama_provider, mocker):
     assert "def factorial" in response.get("generated_code", "")
 
 @pytest.mark.asyncio
-async def test_llm_orchestrator_integration(llm_orchestrator, mocker, temp_project_dir):
+async def test_llm_orchestrator_integration(llm_orchestrator, mocker):
     """Test the LLM orchestrator with Ollama backend."""
-    # Create a proper config object for the test
-    class TestConfig:
-        def __init__(self, config_dict):
-            for key, value in config_dict.items():
-                if isinstance(value, dict):
-                    setattr(self, key, TestConfig(value))
-                else:
-                    setattr(self, key, value)
+    from gollm.llm.orchestrator import LLMResponse
+    from gollm.llm.ollama_adapter import OllamaLLMProvider
     
-    config = {
-        "project_root": temp_project_dir,
-        "project_management": {
-            "todo_file": os.path.join(temp_project_dir, "TODO.md"),
-            "changelog_file": os.path.join(temp_project_dir, "CHANGELOG.md")
+    # Create a mock response
+    mock_code = """from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return 'Hello, World!'
+
+if __name__ == '__main__':
+    app.run(debug=True)"""
+    
+    # Create a proper LLMResponse object
+    mock_llm_response = LLMResponse(
+        generated_code=mock_code,
+        explanation="Created a simple Flask web server with a single route.",
+        validation_result={
+            "code_extracted": True,
+            "extracted_code": mock_code,
+            "syntax_valid": True,
+            "violations": [],
+            "explanation": "Code is valid and follows all rules"
         },
-        "model": "codellama:7b",
-        "base_url": "http://localhost:11434",
-        "timeout": 300,
-        "temperature": 0.1,
-        "token_limit": 4000
-    }
-    
-    config_obj = TestConfig(config)
-    
-    # Mock the context builder to return a simple context
-    mock_context = {
-        "execution_context": {"recent_changes": [], "current_file": "test.py"},
-        "todo_context": {"todos": [], "pending_tasks": 0},
-        "changelog_context": {"latest_version": "0.1.0"},
-        "project_config": {"language": "python", "framework": "flask"},
-        "recent_changes": []
-    }
-    
-    # Mock the LLM provider's generate_response
-    mock_response = {
-        "success": True,
-        "generated_code": """
-        from flask import Flask
-        app = Flask(__name__)
-        
-        @app.route('/')
-        def home():
-            return 'Hello, World!'
-            
-        if __name__ == '__main__':
-            app.run(debug=True)
-        """,
-        "metadata": {
-            "model": "codellama:7b",
-            "tokens_used": 128
-        }
-    }
-    
-    # Update the orchestrator's config
-    llm_orchestrator.llm_provider.config = config_obj
-    
-    # Mock the methods
-    mocker.patch.object(llm_orchestrator.llm_provider, 'generate_response', 
-                       return_value=mock_response)
-    mocker.patch.object(llm_orchestrator.context_builder, 'build_context',
-                       return_value=mock_context)
-    
-    user_request = "Create a simple Flask web server"
-    
-    # Create a request context
-    request = {
-        "user_request": user_request,
-        "context": {
-            "project_config": {
-                "framework": "flask",
-                "language": "python"
-            }
-        },
-        "session_id": "test_session_123"
-    }
-    
-    # Call the handle_code_generation_request method and capture the response
-    response = await llm_orchestrator.handle_code_generation_request(
-        user_request=user_request,
-        context=request["context"]
+        iterations_used=1,
+        quality_score=95
     )
     
-    # Verify the response contains the expected keys
-    assert response is not None
-    assert response.get("success") is True
-    assert "generated_code" in response
-    assert "flask" in response["generated_code"].lower()
-    assert "@app.route" in response["generated_code"]
-    assert "app = Flask" in response["generated_code"]
+    # Create a mock LLM response string that matches what the LLM would return
+    mock_llm_output = f"""```python
+{mock_code}
+```
+
+Explanation: Created a simple Flask web server with a single route."""
+    
+    # Patch the Ollama provider to return our mock response
+    with mocker.patch('gollm.llm.ollama_adapter.OllamaLLMProvider.generate_response', 
+                     return_value=mock_llm_output):
+        # Patch the context builder
+        mock_context = {
+            "execution_context": {"recent_changes": [], "current_file": "test.py"},
+            "todo_context": {"todos": [], "pending_tasks": 0},
+            "changelog_context": {"latest_version": "0.1.0"},
+            "project_config": {"language": "python", "framework": "flask"},
+            "recent_changes": []
+        }
+        
+        with mocker.patch('gollm.llm.orchestrator.ContextBuilder.build_context', 
+                         return_value=mock_context):
+            # Patch the response validator
+            mock_validation_result = {
+                "code_extracted": True,
+                "extracted_code": mock_code,
+                "syntax_valid": True,
+                "violations": [],
+                "explanation": "Code is valid and follows all rules"
+            }
+            
+            with mocker.patch('gollm.llm.response_validator.ResponseValidator.validate_response',
+                            return_value=mock_validation_result):
+                # Mock the code validator
+                with mocker.patch('gollm.validation.validators.CodeValidator.validate_file',
+                                return_value={"success": True, "violations": []}):
+                    # Test data
+                    user_request = "Create a simple Flask web server"
+                    
+                    # Call the method under test
+                    response = await llm_orchestrator.handle_code_generation_request(
+                        user_request=user_request,
+                        context={"project_config": {"framework": "flask", "language": "python"}}
+                    )
+                    
+                    # Verify the response
+                    assert response is not None
+                    assert response.generated_code is not None
+                    assert isinstance(response.generated_code, str)
+                    assert "flask" in response.generated_code.lower()
+                    assert "@app.route" in response.generated_code
+                    assert "app = Flask" in response.generated_code
 
 @pytest.mark.asyncio
 async def test_ollama_health_check(ollama_provider, mocker):

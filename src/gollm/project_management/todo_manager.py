@@ -108,7 +108,19 @@ class TodoManager:
         return tasks
     
     def add_task_from_violation(self, violation_type: str, details: Dict[str, Any]) -> Task:
-        """Tworzy zadanie na podstawie naruszenia jakości kodu"""
+        """Tworzy zadanie na podstawie naruszenia jakości kodu, jeśli nie istnieje już podobne zadanie"""
+        # Sprawdź czy istnieje już podobne zadanie
+        file_path = details.get('file_path', '')
+        issue_message = details.get('message', '')
+        
+        # Szukaj istniejącego zadania z tym samym typem naruszenia i plikiem
+        for task in self.tasks:
+            if (task.status == "pending" and 
+                violation_type in task.title.lower().replace(' ', '_') and 
+                file_path in task.related_files):
+                return task  # Zwróć istniejące zadanie zamiast tworzyć nowe
+        
+        # Jeśli nie znaleziono istniejącego zadania, utwórz nowe
         priority_map = {
             "file_too_long": "HIGH",
             "function_too_long": "MEDIUM", 
@@ -131,15 +143,15 @@ class TodoManager:
         suggestions = suggestion_map.get(violation_type, [])
         
         task = Task(
-            id=f"gollm-{datetime.now().strftime('%Y%m%d')}-{len(self.tasks)+1:03d}",
-            title=f"Fix {violation_type.replace('_', ' ')} in {details.get('file_path', 'unknown')}",
-            description=f"Location: {details.get('file_path')}:{details.get('line_number', 0)}\n" +
-                       f"Issue: {details.get('message', 'No description')}\n" +
+            id=f"gollm-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(self.tasks)+1:03d}",
+            title=f"Fix {violation_type.replace('_', ' ')} in {file_path or 'unknown'}",
+            description=f"Location: {file_path}:{details.get('line_number', 0)}\n" +
+                       f"Issue: {issue_message or 'No description'}\n" +
                        f"Auto-fix available: {'Yes' if details.get('auto_fix_available') else 'No'}",
             priority=priority,
             created_at=datetime.now().isoformat(),
             estimated_effort=self._estimate_effort(violation_type),
-            related_files=[details.get('file_path', '')],
+            related_files=[file_path] if file_path else [],
             approach_suggestions=suggestions
         )
         
@@ -184,13 +196,24 @@ class TodoManager:
             "approach_suggestions": next_task.approach_suggestions
         }
     
-    def complete_task(self, task_id: str):
-        """Oznacza zadanie jako ukończone"""
+    def complete_task(self, task_id: str, changelog_manager=None):
+        """Oznacza zadanie jako ukończone i dodaje wpis do changelog"""
         for task in self.tasks:
-            if task.id == task_id:
+            if task.id == task_id and task.status != "completed":
                 task.status = "completed"
-                break
-        self._save_tasks()
+                
+                # Dodaj wpis do changelog jeśli podano manager
+                if changelog_manager and hasattr(changelog_manager, 'record_change'):
+                    change_details = {
+                        'description': f"Completed task: {task.title}",
+                        'files': task.related_files,
+                        'quality_delta': 5  # Przykładowa wartość poprawy jakości
+                    }
+                    changelog_manager.record_change("task_completed", change_details)
+                
+                self._save_tasks()
+                return True
+        return False
     
     def get_stats(self) -> Dict[str, int]:
         """Zwraca statystyki zadań"""
@@ -286,24 +309,33 @@ class TodoManager:
         return False
 
     def _generate_todo_content(self) -> str:
-        """Generuje zawartość pliku TODO.md"""
+        """Generuje zawartość pliku TODO.md z tylko nieukończonymi zadaniami"""
+        # Filtruj tylko nieukończone zadania
+        pending_tasks = [t for t in self.tasks if t.status != "completed"]
         stats = self.get_stats()
         
         content = f"# 📋 TODO List - Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        content += f"**Status:** {stats['completed']}✓ {stats['pending']}⏳ • "
-        content += f"**Priority:** {stats['high_priority']}🔴 • "
+        content += f"**Status:** {stats['completed']}✓ {len(pending_tasks)}⏳ • "
+        
+        # Policz zadania wg priorytetów
+        priority_counts = {
+            "HIGH": len([t for t in pending_tasks if t.priority == "HIGH"]),
+            "MEDIUM": len([t for t in pending_tasks if t.priority == "MEDIUM"]),
+            "LOW": len([t for t in pending_tasks if t.priority == "LOW"])
+        }
+        
+        content += f"**Priority:** {priority_counts['HIGH']}🔴 {priority_counts['MEDIUM']}🟡 {priority_counts['LOW']}🟢 • "
         content += f"**Code Gen:** {stats['code_generation_tasks']}🔄\n\n"
         
-        # Grupuj zadania według priorytetu
+        # Grupuj zadania według priorytetu (tylko nieukończone)
         for priority, emoji in [("HIGH", "🔴"), ("MEDIUM", "🟡"), ("LOW", "🟢")]:
-            priority_tasks = [t for t in self.tasks if t.priority == priority]
+            priority_tasks = [t for t in pending_tasks if t.priority == priority]
             
             if priority_tasks:
                 content += f"## {emoji} {priority} Priority ({len(priority_tasks)} tasks)\n\n"
                 
                 for task in priority_tasks:
-                    status_emoji = "✅" if task.status == "completed" else "⏳"
-                    content += f"- [{'x' if task.status == 'completed' else ' '}] **{status_emoji} {task.title}**"
+                    content += f"- [ ] **⏳ {task.title}**"
                     
                     if task.id.startswith("gen-") and task.status == "pending":
                         content += " 🆕"

@@ -6,6 +6,12 @@
       "quality_score": 75,
       "violations_count": 3,
       "file": "/tmp/tmprx5uf31t.py"
+    },
+    {
+      "timestamp": "2025-06-02T08:49:12.311858",
+      "quality_score": 75,
+      "violations_count": 3,
+      "file": "/tmp/tmpzlz8mrlm.py"
     }
   ]
 }

@@ -1,18 +1,40 @@
 # src/gollm/cli.py
 import click
 import asyncio
+import logging
+import sys
 from pathlib import Path
-
 from .main import GollmCore
+
+# Configure basic logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stderr)
+    ]
+)
 
 
 @click.group()
 @click.option('--config', default='gollm.json', help='Path to config file')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.pass_context
-def cli(ctx, config):
+def cli(ctx, config, verbose):
     """goLLM - Go Learn, Lead, Master!"""
+    # Configure logging level
+    log_level = logging.DEBUG if verbose else logging.INFO
+    logging.getLogger().setLevel(log_level)
+    
+    # Enable HTTP request logging if verbose
+    if verbose:
+        http_logger = logging.getLogger('aiohttp.client')
+        http_logger.setLevel(logging.DEBUG)
+        http_logger.propagate = True
+    
     ctx.ensure_object(dict)
     ctx.obj['gollm'] = GollmCore(config)
+    ctx.obj['verbose'] = verbose
 
 
 @cli.command()

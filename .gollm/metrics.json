@@ -57108,6 +57108,24 @@
       "quality_score": 75,
       "violations_count": 5,
       "file": "src/gollm/utils/decorators.py"
+    },
+    {
+      "timestamp": "2025-06-02T09:11:11.279628",
+      "quality_score": 75,
+      "violations_count": 3,
+      "file": "/tmp/tmplska75cv.py"
+    },
+    {
+      "timestamp": "2025-06-02T09:29:12.973304",
+      "quality_score": 75,
+      "violations_count": 3,
+      "file": "/tmp/tmpb0wef6de.py"
+    },
+    {
+      "timestamp": "2025-06-02T09:32:44.652375",
+      "quality_score": 90,
+      "violations_count": 1,
+      "file": "/tmp/tmpxb_j99ah.py"
     }
   ]
 }

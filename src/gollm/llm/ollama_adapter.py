@@ -2,9 +2,13 @@
 import asyncio
 import json
 import os
+import logging
 import aiohttp
+import time
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+
+logger = logging.getLogger('gollm.ollama')
 
 @dataclass
 class OllamaConfig:
@@ -22,8 +26,22 @@ class OllamaAdapter:
         self.session: Optional[aiohttp.ClientSession] = None
     
     async def __aenter__(self):
+        trace_config = aiohttp.TraceConfig()
+        
+        async def on_request_start(session, trace_config_ctx, params):
+            logger.debug(f'Starting request: {params.method} {params.url}')
+            trace_config_ctx.start = time.time()
+            
+        async def on_request_end(session, trace_config_ctx, params):
+            duration = time.time() - trace_config_ctx.start
+            logger.debug(f'Request finished: {params.method} {params.url} - {params.response.status} in {duration:.2f}s')
+            
+        trace_config.on_request_start.append(on_request_start)
+        trace_config.on_request_end.append(on_request_end)
+        
         self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=self.config.timeout)
+            timeout=aiohttp.ClientTimeout(total=self.config.timeout),
+            trace_configs=[trace_config]
         )
         return self
     
@@ -63,26 +81,19 @@ class OllamaAdapter:
         Returns:
             Dict containing the generated code and metadata
         """
-        import logging
-        import json
-        from datetime import datetime
-        
-        # Configure logger with file handler
-        logger = logging.getLogger('gollm.ollama')
-        logger.setLevel(logging.DEBUG)
-        
-        # Ensure logs directory exists
+        start_time = time.time()
+        logger.debug(f"Starting code generation with model: {self.config.model}")
+        logger.debug(f"Prompt (first 200 chars): {prompt[:200]}...")
         
         # Set timeout from config, with a minimum of 30 seconds
         timeout = aiohttp.ClientTimeout(total=max(30, self.config.timeout))
         
-        logger.debug(f"Generating code with Ollama model: {self.config.model}")
-        logger.debug(f"Prompt: {prompt}")
-        
-        # Prepare the simplest possible payload
+        # Prepare the payload for chat API
         payload = {
             "model": self.config.model,
-            "prompt": prompt,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
             "stream": False
         }
         
