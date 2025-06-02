@@ -2,6 +2,7 @@ codellama
 openai_example
 test_app
 test_website
+gollm-*
 .idea
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -397,16 +397,50 @@ class OllamaAdapter:
 class OllamaLLMProvider:
     """Provider LLM dla Ollama - kompatybilny z interfejsem goLLM"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config):
+        self.config = config
+        
+        # Get base_url from config.llm_integration.providers.ollama if available
+        base_url = 'http://localhost:11434'
+        model_name = 'llama3:latest'
+        timeout = 120
+        token_limit = 4000
+        temperature = 0.1
+        
+        if hasattr(config, 'llm_integration'):
+            llm_config = config.llm_integration
+            if hasattr(llm_config, 'providers') and 'ollama' in llm_config.providers:
+                provider_config = llm_config.providers['ollama']
+                if isinstance(provider_config, dict):
+                    base_url = provider_config.get('base_url', base_url)
+                    model_name = provider_config.get('model', model_name)
+                    timeout = provider_config.get('timeout', timeout)
+                    token_limit = provider_config.get('token_limit', token_limit)
+                    temperature = provider_config.get('temperature', temperature)
+            
+            # Override with direct attributes if available
+            if hasattr(llm_config, 'model_name'):
+                model_name = llm_config.model_name
+            if hasattr(llm_config, 'timeout'):
+                timeout = llm_config.timeout
+            if hasattr(llm_config, 'token_limit'):
+                token_limit = llm_config.token_limit
+            if hasattr(llm_config, 'temperature'):
+                temperature = llm_config.temperature
+        
         ollama_config = OllamaConfig(
-            base_url=config.get('base_url', 'http://localhost:11434'),
-            # Using llama3 as it's a capable model for code generation
-            model=config.get('model_name', 'llama3:latest'),
-            timeout=config.get('timeout', 120),  # Increased timeout for code generation
-            max_tokens=config.get('token_limit', 4000),
-            temperature=config.get('temperature', 0.1)
+            base_url=base_url,
+            model=model_name,
+            timeout=timeout,
+            max_tokens=token_limit,
+            temperature=temperature
         )
         self.adapter = OllamaAdapter(ollama_config)
+        self.project_management = {
+            'enabled': True,
+            'version': '1.0',
+            'features': ['task_tracking', 'code_review']
+        }
     
     async def generate_response(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generates a response compatible with the goLLM LLM interface"""
@@ -496,6 +530,10 @@ class OllamaLLMProvider:
                 }
             }
     
-    async def is_available(self) -> bool:
-        """Sprawdza dostępność Ollama"""
+    async def health_check(self) -> bool:
+        """Check if the Ollama service is healthy"""
         return await self.adapter.is_available()
+
+    async def is_available(self):
+        """Sprawdza dostępność Ollama"""
+        return await self.health_check()
