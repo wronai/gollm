@@ -15,6 +15,7 @@ class LLMRequest:
     context: Dict[str, Any]
     session_id: str
     max_iterations: int = 3
+    fast_mode: bool = False
 
 @dataclass
 class LLMResponse:
@@ -54,11 +55,20 @@ class LLMOrchestrator:
         
         session_id = context.get('session_id', f"session-{asyncio.get_event_loop().time()}")
         
+        # Get fast mode and max iterations from context
+        fast_mode = context.get('fast_mode', False)
+        max_iterations = context.get('max_iterations', self.config.llm_integration.max_iterations)
+        
+        # If fast mode is enabled, limit to 1 iteration
+        if fast_mode:
+            max_iterations = 1
+        
         request = LLMRequest(
             user_request=user_request,
             context=context,
             session_id=session_id,
-            max_iterations=self.config.llm_integration.max_iterations
+            max_iterations=max_iterations,
+            fast_mode=fast_mode
         )
         
         try:
@@ -96,8 +106,21 @@ class LLMOrchestrator:
         logger.debug(f"Request context: {request.context}")
         
         # 1. Przygotuj pełny kontekst
-        full_context = await self.context_builder.build_context(request.context)
-        logger.debug(f"Built full context with keys: {list(full_context.keys())}")
+        # In fast mode, use minimal context building
+        if request.fast_mode:
+            logger.info("Fast mode enabled: Using minimal context building")
+            full_context = {
+                'request': request.user_request,
+                'session_id': request.session_id,
+                'fast_mode': True
+            }
+            # Add only essential context elements
+            for key in ['related_files', 'output_file', 'is_website_project']:
+                if key in request.context:
+                    full_context[key] = request.context[key]
+        else:
+            full_context = await self.context_builder.build_context(request.context)
+            logger.debug(f"Built full context with keys: {list(full_context.keys())}")
         
         # 2. Iteracyjne generowanie kodu
         best_response = None
@@ -121,32 +144,69 @@ class LLMOrchestrator:
             llm_output = await self._simulate_llm_call(prompt)
             logger.debug(f"LLM output (first 500 chars): {str(llm_output)[:500]}...")
             
-            # Waliduj odpowiedź
+            # Waliduj odpowiedź - simplified in fast mode
             logger.info("Validating LLM response...")
-            validation_result = await self.response_validator.validate_response(llm_output)
-            logger.debug(f"Validation result: {validation_result}")
             
-            if not validation_result.get('code_extracted', False):
-                logger.warning("No code was extracted from the LLM response")
-                logger.debug(f"Full validation result: {validation_result}")
-            else:
-                logger.info(f"Code extracted successfully, length: {len(validation_result.get('extracted_code', ''))} chars")
-            
-            # Sprawdź jakość kodu
-            if validation_result['code_extracted']:
-                # Create a temporary file for validation
-                import tempfile
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
-                    temp_file.write(validation_result['extracted_code'])
-                    temp_file_path = temp_file.name
+            if request.fast_mode:
+                logger.info("Fast mode: Using simplified validation")
+                # Simple code extraction without extensive validation
+                import re
                 
-                try:
-                    code_validation = self.code_validator.validate_file(temp_file_path)
-                    validation_result['code_quality'] = code_validation
-                finally:
-                    # Clean up the temporary file
-                    import os
-                    os.unlink(temp_file_path)
+                # Try to extract code blocks first
+                code_blocks = re.findall(r'```(?:python)?\n(.+?)\n```', llm_output, re.DOTALL)
+                
+                if code_blocks:
+                    extracted_code = code_blocks[0]  # Take the first code block
+                    logger.info(f"Fast mode: Extracted code block of {len(extracted_code)} chars")
+                    validation_result = {
+                        'success': True,
+                        'code_extracted': True,
+                        'extracted_code': extracted_code,
+                        'explanation': "Code extracted in fast mode",
+                        'code_quality': {
+                            'violations': [],
+                            'quality_score': 80  # Assume reasonable quality in fast mode
+                        }
+                    }
+                else:
+                    # If no code blocks, assume the whole response is code
+                    logger.info("Fast mode: No code blocks found, using entire response")
+                    validation_result = {
+                        'success': True,
+                        'code_extracted': True,
+                        'extracted_code': llm_output,
+                        'explanation': "Full response used as code in fast mode",
+                        'code_quality': {
+                            'violations': [],
+                            'quality_score': 70  # Lower assumed quality when no blocks found
+                        }
+                    }
+            else:
+                # Standard validation for normal mode
+                validation_result = await self.response_validator.validate_response(llm_output)
+                logger.debug(f"Validation result: {validation_result}")
+                
+                if not validation_result.get('code_extracted', False):
+                    logger.warning("No code was extracted from the LLM response")
+                    logger.debug(f"Full validation result: {validation_result}")
+                else:
+                    logger.info(f"Code extracted successfully, length: {len(validation_result.get('extracted_code', ''))} chars")
+                
+                # Sprawdź jakość kodu
+                if validation_result['code_extracted'] and not request.fast_mode:
+                    # Create a temporary file for validation
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
+                        temp_file.write(validation_result['extracted_code'])
+                        temp_file_path = temp_file.name
+                    
+                    try:
+                        code_validation = self.code_validator.validate_file(temp_file_path)
+                        validation_result['code_quality'] = code_validation
+                    finally:
+                        # Clean up the temporary file
+                        import os
+                        os.unlink(temp_file_path)
             
             # Oceń wynik
             current_score = self._calculate_response_score(validation_result)

@@ -55,10 +55,14 @@ gollm validate --rules=line-length,function-length
 
 ### `gollm generate PROMPT`
 
-Generate code using LLM.
+Generate code using LLM with quality validation.
 
 **Options:**
-- `-o, --output FILE`: Output file
+- `-o, --output FILE`: Output file or directory path
+- `--critical`: Mark as high priority task
+- `--no-todo`: Skip creating a TODO item
+- `-f, --fast`: Use fast mode with minimal validation
+- `-i, --iterations INT`: Number of generation iterations (default: 3)
 - `--model MODEL`: Override default model
 - `--temperature FLOAT`: Sampling temperature (0.0-2.0)
 - `--max-tokens INT`: Maximum number of tokens to generate
@@ -71,8 +75,55 @@ gollm generate "Create a Flask web server"
 # Save to file
 gollm generate "Create a Flask web server" -o app.py
 
+# Use fast mode for quicker results
+gollm generate "Create a Flask web server" --fast
+
+# Specify number of iterations
+gollm generate "Create a Flask web server" --iterations 2
+```
+
+### `gollm direct`
+
+Direct API commands for fast LLM access with minimal processing.
+
+#### `gollm direct generate PROMPT`
+
+Generate text using direct API access without validation pipeline.
+
+**Options:**
+- `-m, --model MODEL`: Model to use (default: deepseek-coder:1.3b)
+- `-t, --temperature FLOAT`: Sampling temperature (0.0-1.0)
+- `--max-tokens INT`: Maximum tokens to generate
+- `--api-url URL`: API base URL (default: http://localhost:11434)
+- `-o, --output FILE`: Output file path
+- `-f, --format FORMAT`: Output format (text or json)
+
+**Examples:**
+```bash
+# Generate code with direct API access
+gollm direct generate "Write Hello World in Python"
+
 # Use specific model
-gollm generate --model=gpt-4 "Create a Flask web server"
+gollm direct generate "Write Hello World in Python" --model codellama:7b
+
+# Save output to file
+gollm direct generate "Write Hello World in Python" -o hello.py
+```
+
+#### `gollm direct chat PROMPT`
+
+Chat with LLM using direct API access without validation pipeline.
+
+**Options:**
+- Same as `gollm direct generate`
+
+**Examples:**
+```bash
+# Chat with LLM using direct API access
+gollm direct chat "How do I use asyncio in Python?"
+
+# Get JSON response
+gollm direct chat "How do I use asyncio in Python?" --format json
 ```
 
 ### `gollm todo`

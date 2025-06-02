@@ -129,6 +129,10 @@ demo:
 	python -m gollm validate examples/good_code.py
 	@echo "\n3. Project status..."
 	python -m gollm status
+	@echo "\n4. Testing fast mode..."
+	python -m gollm generate "Create a simple function" --fast
+	@echo "\n5. Testing direct mode..."
+	python -m gollm direct generate "Create a simple function"
 
 # Test quick installation
 test-install:
@@ -161,7 +165,17 @@ demo-interactive:
 	python -m gollm status
 
 	@echo ""
-	@echo "4️⃣  Next TODO task..."
+	@echo "4️⃣  Code generation with fast mode..."
+	@echo "---------------------------------------"
+	python -m gollm generate "Create a simple calculator function" --fast
+
+	@echo ""
+	@echo "5️⃣  Direct API access (curl-like)..."
+	@echo "------------------------------------"
+	python -m gollm direct generate "Create a simple hello world function"
+
+	@echo ""
+	@echo "6️⃣  Next TODO task..."
 	@echo "--------------------"
 	python -m gollm next-task
 
@@ -171,5 +185,6 @@ demo-interactive:
 	@echo "💡 Try these commands:"
 	@echo "   gollm validate-project    # Validate entire project"
 	@echo "   gollm generate 'create user class'  # Generate code with LLM"
-	@echo "   gollm fix --auto         # Auto-fix violations"
+	@echo "   gollm generate --fast 'quick function'  # Fast generation"
+	@echo "   gollm direct generate 'direct api call'  # Direct API access"
 	@echo "   gollm --help             # Show all commands"

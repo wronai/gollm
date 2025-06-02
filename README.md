@@ -44,6 +44,7 @@ goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modela
 ### Wymagania wstępne
 - Python 3.8+
 - pip (najnowsza wersja)
+- Ollama (opcjonalnie, dla lokalnych modeli LLM)
 
 ### Instalacja
 
@@ -71,7 +72,7 @@ pip install -e .[dev]
    gollm init
    ```
    
-   > ℹ️ Więcej o konfiguracji: [Dokumentacja konfiguracji](./docs/configuration/README.md)
+   > ℹufe0f Więcej o konfiguracji: [Dokumentacja konfiguracji](./docs/configuration/README.md)
 
 2. **Uruchom analizę kodu**
    ```bash
@@ -83,6 +84,18 @@ pip install -e .[dev]
    
    # Sprawdź status projektu
    gollm status
+   ```
+
+3. **Generuj kod z LLM**
+   ```bash
+   # Standardowe generowanie z walidacją
+   gollm generate "Stwórz klasę użytkownika"
+   
+   # Szybkie generowanie (tryb fast)
+   gollm generate "Stwórz klasę użytkownika" --fast
+   
+   # Bezpośredni dostęp do API (bez walidacji)
+   gollm direct generate "Stwórz klasę użytkownika"
    ```
    
    > 📘 Pełna dokumentacja dostępna w [przewodniku wprowadzającym](./docs/guides/getting_started.md)
@@ -752,4 +765,5 @@ curl -X POST http://rock:8081/api/chat \
      
 gollm generate "Write Hello World in Python"
 gollm -v generate "Write Hello World in Python"
+gollm generate "Write Hello World in Python" --fast
 ```

@@ -5,6 +5,7 @@ import logging
 import sys
 from pathlib import Path
 from .main import GollmCore
+from .commands.direct import direct_group
 
 # Configure basic logging
 logging.basicConfig(
@@ -74,8 +75,10 @@ def validate_project(ctx):
 @click.option('--output', '-o', help='Output file or directory path')
 @click.option('--critical', is_flag=True, help='Mark as high priority task')
 @click.option('--no-todo', is_flag=True, help='Skip creating a TODO item')
+@click.option('--fast', '-f', is_flag=True, help='Use fast mode with minimal validation')
+@click.option('--iterations', '-i', default=3, type=int, help='Number of generation iterations')
 @click.pass_context
-def generate(ctx, request, output, critical, no_todo):
+def generate(ctx, request, output, critical, no_todo, fast, iterations):
     """Generate code using LLM with quality validation
     
     For website projects, specify a directory as output to generate multiple files.
@@ -87,11 +90,19 @@ def generate(ctx, request, output, critical, no_todo):
         'is_critical': critical,
         'related_files': [output] if output else [],
         'is_website_project': any(keyword in request.lower() for keyword in 
-                               ['website', 'web app', 'webapp', 'frontend', 'backend', 'api'])
+                               ['website', 'web app', 'webapp', 'frontend', 'backend', 'api']),
+        'fast_mode': fast,
+        'max_iterations': 1 if fast else iterations
     }
     
     if no_todo:
         context['skip_todo'] = True
+        
+    # Log mode information
+    if fast:
+        logging.info("Using fast mode with minimal validation")
+    else:
+        logging.info(f"Using standard mode with up to {iterations} iterations")
     
     def suggest_filename(request_text: str, is_website: bool = False) -> str:
         """Generate a filename or directory name based on the request text"""
@@ -556,6 +567,9 @@ def status(ctx):
     click.echo("  gollm generate     Generate new code")
     click.echo("  gollm config       Show full configuration")
 
+
+# Register the direct command group
+cli.add_command(direct_group)
 
 if __name__ == '__main__':
     cli()
