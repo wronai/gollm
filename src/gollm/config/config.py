@@ -68,17 +68,56 @@ class GollmConfig:
     
     @classmethod
     def load(cls, config_path: str = "gollm.json") -> "GollmConfig":
-        """Ładuje konfigurację z pliku JSON"""
+        """Load configuration from JSON file with environment variable support.
+        
+        Args:
+            config_path: Path to the JSON config file
+            
+        Returns:
+            GollmConfig: Loaded configuration with environment variables resolved
+        """
         config_file = Path(config_path)
         
+        # Load environment variables from .env file if it exists
+        env_file = Path(".env")
+        if env_file.exists():
+            with open(env_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        try:
+                            key, value = line.split('=', 1)
+                            os.environ[key] = value.strip('\'"')
+                        except ValueError:
+                            continue
+        
         if not config_file.exists():
-            # Utwórz domyślną konfigurację
+            # Create default config if it doesn't exist
             default_config = cls.default()
             default_config.save(config_path)
             return default_config
         
         with open(config_file, 'r') as f:
             data = json.load(f)
+        
+        # Helper function to recursively resolve environment variables in config
+        def resolve_env_vars(config):
+            if isinstance(config, dict):
+                return {k: resolve_env_vars(v) for k, v in config.items()}
+            elif isinstance(config, list):
+                return [resolve_env_vars(item) for item in config]
+            elif isinstance(config, str) and config.startswith('${') and '}' in config:
+                # Handle ${VAR:default} syntax
+                var_part = config[2:].split('}')[0]  # Extract VAR:default
+                if ':' in var_part:
+                    var_name, default = var_part.split(':', 1)
+                    return os.environ.get(var_name, default)
+                else:
+                    return os.environ.get(var_part, config)  # Fallback to original if not found
+            return config
+        
+        # Resolve environment variables in the config
+        data = resolve_env_vars(data)
         
         # Extract llm_integration data and ensure it's a dict
         llm_data = data.get('llm_integration', {})
@@ -92,7 +131,7 @@ class GollmConfig:
             max_iterations=llm_data.get('max_iterations', 3),
             token_limit=llm_data.get('token_limit', 4000),
             auto_fix_attempts=llm_data.get('auto_fix_attempts', 2),
-            api_provider=llm_data.get('api_provider', 'openai'),
+            api_provider=llm_data.get('api_provider', 'ollama'),
             providers=llm_data.get('providers')
         )
         
