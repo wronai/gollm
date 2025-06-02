@@ -742,7 +742,7 @@ curl -X POST http://192.168.188.108:8081/api/chat \
        "stream": false
      }' | jq
 
-curl -X POST http://192.168.188.108:8081/api/chat \
+curl -X POST http://rock:8081/api/chat \
      -H 'Content-Type: application/json' \
      -d '{
        "model": "deepseek-coder:1.3b",
@@ -751,5 +751,5 @@ curl -X POST http://192.168.188.108:8081/api/chat \
      }' | jq
      
 gollm generate "Write Hello World in Python"
-gollm generate -v "Write Hello World in Python"
+gollm -v generate "Write Hello World in Python"
 ```

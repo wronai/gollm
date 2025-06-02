@@ -95,6 +95,9 @@ class ResponseValidator:
     def _extract_code_and_explanation(self, text: str) -> Tuple[str, str]:
         """Extract code and explanation from LLM response.
         
+        This method is designed to be extremely permissive in what it accepts as code,
+        especially for minimal examples like 'print("Hello, World!")'.
+        
         Args:
             text: Raw LLM response text
             
@@ -107,26 +110,55 @@ class ResponseValidator:
         # Clean up the text first
         text = text.strip()
         
-        # First, check for the simplest case - just a print statement
+        # First, check for the absolute simplest case - just a print statement
         simple_print = re.search(r'^print\([\'"].*?[\"\']\)\s*$', text, re.MULTILINE)
         if simple_print:
             return simple_print.group(0).strip(), 'Simple print statement extracted'
+            
+        # Check for print statement with possible whitespace before/after
+        simple_print_ws = re.search(r'^\s*print\([\'"].*?[\"\']\)\s*$', text, re.MULTILINE)
+        if simple_print_ws:
+            return simple_print_ws.group(0).strip(), 'Simple print statement with whitespace extracted'
+        
+        # Check for print statement with newlines
+        simple_print_nl = re.search(r'^\s*print\([\'"].*?[\"\']\)\s*$', text, re.MULTILINE | re.DOTALL)
+        if simple_print_nl:
+            return simple_print_nl.group(0).strip(), 'Simple print statement with newlines extracted'
         
         # Try to find code blocks with different formats
         explanation = ''
         
-        # Try to find the first Python code block (with or without language specifier)
-        code_block_match = re.search(
-            r'```(?:python\n)?\s*([\s\S]*?)\s*```', 
-            text, 
-            re.MULTILINE
-        )
+        # Try to find Python code blocks with or without language specifier, handling various formats
+        code_block_patterns = [
+            # Triple backticks with optional language specifier
+            r'```(?:python\n)?\s*([\s\S]*?)\s*```',
+            # Code fences with indentation
+            r'(?m)^(?:> )?(?:\s*\n)?( {4,}|\t+)([\s\S]*?)(?=\n\s*\n|\Z)',
+            # Inline code with backticks
+            r'`([^`]+)`',
+            # Any line that looks like code
+            r'(?m)^(?!\s*#|\s*-\s|\s*\*\s|\s*$).+$'
+        ]
         
-        if code_block_match:
-            # Found a code block, extract it and any explanation before it
-            code = code_block_match.group(1).strip()
-            explanation = text[:code_block_match.start()].strip()
-            return code, explanation or 'Code block extracted from response'
+        for pattern in code_block_patterns:
+            code_block_match = re.search(pattern, text, re.MULTILINE)
+            if code_block_match:
+                # Get the first non-None group that matched
+                code = next((g for g in code_block_match.groups() if g), '').strip()
+                if code:
+                    # Clean up the code
+                    code = re.sub(r'^\s*>>>\s*', '', code, flags=re.MULTILINE)  # Remove Python REPL prompts
+                    code = re.sub(r'^\s*\$\s*', '', code, flags=re.MULTILINE)  # Remove shell prompts
+                    code = re.sub(r'\n\s*\n', '\n', code).strip()  # Remove empty lines
+                    
+                    # Extract any explanation before the code block
+                    explanation = text[:code_block_match.start()].strip()
+                    
+                    # If we have a print statement after cleaning, return it
+                    if re.match(r'^print\([\'"].*?[\"\']\)$', code):
+                        return code, explanation or 'Simple print statement extracted from code block'
+                        
+                    return code, explanation or 'Code block extracted from response'
         
         # If no code blocks found, try to extract just the code
         # Look for Python code patterns (imports, def, class, etc.)
