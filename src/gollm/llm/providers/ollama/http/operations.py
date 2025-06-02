@@ -63,9 +63,10 @@ class OllamaOperations:
         }
         
         logger.debug(f"Sending generate request with data: {data}")
-        start_time = logging.Formatter.converter()
+        import time
+        start_time = time.time()
         result = await self.client._request('POST', '/api/generate', json=data)
-        duration = logging.Formatter.converter() - start_time
+        duration = time.time() - start_time
         
         # Add performance metrics
         if 'success' not in result:
@@ -118,9 +119,10 @@ class OllamaOperations:
         }
         
         logger.debug(f"Sending chat request with data: {data}")
-        start_time = logging.Formatter.converter()
+        import time
+        start_time = time.time()
         result = await self.client._request('POST', '/api/chat', json=data)
-        duration = logging.Formatter.converter() - start_time
+        duration = time.time() - start_time
         
         # Add performance metrics
         if 'success' not in result:

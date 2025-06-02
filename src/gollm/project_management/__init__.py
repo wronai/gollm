@@ -8,13 +8,15 @@ This module handles automatic project documentation management:
 - Project progress monitoring
 """
 
-from .todo_manager import TodoManager, Task
+from .todo import TodoManager, Task, TaskPriority, TaskStatus
 from .changelog_manager import ChangelogManager
 from .task_prioritizer import TaskPrioritizer, TaskContext
 
 __all__ = [
     "TodoManager",
     "Task",
+    "TaskPriority",
+    "TaskStatus",
     "ChangelogManager", 
     "TaskPrioritizer",
     "TaskContext"

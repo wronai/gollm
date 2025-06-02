@@ -185,6 +185,38 @@ class DirectLLMClient:
         Returns:
             The API response as a dictionary
         """
+        # Use gRPC adapter if available
+        if self.adapter and self.use_grpc:
+            try:
+                start_time = asyncio.get_event_loop().time()
+                logger.debug(f"Making direct generate request via gRPC with model {model}")
+                
+                # Prepare options for the adapter
+                options = {
+                    "temperature": temperature,
+                    "num_predict": max_tokens
+                }
+                
+                # Call the adapter's generate method
+                result = await self.adapter.generate(model=model, prompt=prompt, options=options)
+                
+                duration = asyncio.get_event_loop().time() - start_time
+                logger.debug(f"Direct gRPC request completed in {duration:.2f}s")
+                
+                # Add duration information for consistency with HTTP response
+                if 'total_duration' not in result:
+                    result['total_duration'] = int(duration * 1_000_000_000)  # Convert to nanoseconds
+                    
+                return result
+                
+            except Exception as e:
+                logger.error(f"Direct gRPC request failed: {str(e)}")
+                return {
+                    "error": str(e),
+                    "success": False
+                }
+        
+        # Fall back to HTTP if gRPC is not available or failed
         if not self.session:
             self.session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self.timeout),

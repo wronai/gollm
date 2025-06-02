@@ -226,14 +226,18 @@ class OllamaLLMProvider(BaseLLMProvider):
                 - model: The model used for generation
                 - usage: Token usage information
         """
+        # Import the generation module
+        from .generation import generate_response as generate
+        from .prompt import extract_response_content
+        from .models import ensure_model_available
+        
+        # Ensure we have an adapter
         if not self.adapter:
-            return {
-                "success": False,
-                "error": "Adapter not initialized",
-                "generated_text": ""
-            }
+            await self.__aenter__()
             
-        if not await self._ensure_valid_model():
+        # Ensure the model is available
+        model_available = await ensure_model_available(self.adapter, self.config.model)
+        if not model_available:
             return {
                 "success": False,
                 "error": f"Model '{self.config.model}' is not available",
@@ -468,35 +472,25 @@ class OllamaLLMProvider(BaseLLMProvider):
         Returns:
             Dict containing health check results
         """
-        result = {
-            'status': False,
-            'available': False,
-            'model_available': False,
-            'error': None,
-            'config': {
-                'base_url': self.config.base_url,
-                'model': self.config.model,
-                'timeout': self.config.timeout,
-                'api_type': self.config.api_type
-            }
-        }
+        # Use the new comprehensive health check from the health module
+        from .health import comprehensive_health_check
         
-        try:
-            # Check if service is reachable
-            await self.adapter.list_models()
-            result['available'] = True
+        # Ensure we have an adapter
+        if not self.adapter:
+            await self.__aenter__()
             
-            # Check if model is available
-            result['model_available'] = await self._ensure_valid_model()
-            result['status'] = result['model_available']
-            
-            if not result['model_available']:
-                result['error'] = f"Model '{self.config.model}' not found"
-                
-        except Exception as e:
-            result['error'] = str(e)
-            
-        return result
+        # Perform the health check
+        result = await comprehensive_health_check(self.adapter, self.config)
+        
+        # Convert to the expected format for backward compatibility
+        return {
+            'status': result['status'],
+            'available': result['service'].get('available', False),
+            'model_available': result['model'].get('available', False),
+            'error': result.get('error') or result['service'].get('error') or result['model'].get('error'),
+            'config': result['config'],
+            'details': result  # Include full details for advanced diagnostics
+        }
     
     def is_available(self) -> bool:
         """Check if the Ollama service is available."""

@@ -1,4 +1,4 @@
-"""Direct API access command for fast LLM requests without extensive validation."""
+"""Direct API access commands for fast LLM requests without extensive validation."""
 
 import asyncio
 import click
@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from ..llm.direct_api import DirectLLMClient
+from ...llm.direct_api import DirectLLMClient
 
 logger = logging.getLogger('gollm.commands.direct')
 
@@ -78,6 +78,10 @@ def generate(ctx, prompt, model, temperature, max_tokens, api_url, output, forma
             if 'total_duration' in result:
                 duration_ms = result['total_duration'] / 1_000_000  # Convert nanoseconds to milliseconds
                 click.echo(f"⏱️ Generated in {duration_ms:.2f}ms")
+                
+            # Show adapter type information if using gRPC
+            if use_grpc:
+                click.echo("🚀 Used gRPC for faster communication")
     
     asyncio.run(run_direct_generate())
 
@@ -141,5 +145,9 @@ def chat(ctx, prompt, model, temperature, max_tokens, api_url, output, format, u
             if 'total_duration' in result:
                 duration_ms = result['total_duration'] / 1_000_000  # Convert nanoseconds to milliseconds
                 click.echo(f"⏱️ Generated in {duration_ms:.2f}ms")
+                
+            # Show adapter type information if using gRPC
+            if use_grpc:
+                click.echo("🚀 Used gRPC for faster communication")
     
     asyncio.run(run_direct_chat())
