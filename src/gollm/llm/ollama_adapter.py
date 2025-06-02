@@ -72,128 +72,86 @@ class OllamaAdapter:
         logger.setLevel(logging.DEBUG)
         
         # Ensure logs directory exists
-        os.makedirs('logs', exist_ok=True)
         
-        # Add file handler if not already added
-        if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
-            log_file = f"logs/ollama_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-            file_handler = logging.FileHandler(log_file)
-            file_handler.setLevel(logging.DEBUG)
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-            
-            # Also add console handler for immediate feedback
-            console = logging.StreamHandler()
-            console.setLevel(logging.INFO)
-            logger.addHandler(console)
+        # Set timeout from config, with a minimum of 30 seconds
+        timeout = aiohttp.ClientTimeout(total=max(30, self.config.timeout))
         
         logger.debug(f"Generating code with Ollama model: {self.config.model}")
+        logger.debug(f"Prompt: {prompt}")
         
-        # Format the prompt for the model
-        formatted_prompt = self._format_prompt_for_ollama(prompt, context or {})
-        
-        # Prepare the request payload - enable streaming for better performance
+        # Prepare the simplest possible payload
         payload = {
             "model": self.config.model,
-            "prompt": formatted_prompt,
-            "stream": True,  # Enable streaming for better performance
-            "options": {
-                "temperature": self.config.temperature,
-                "num_predict": self.config.max_tokens,
-                "stop": ["```", "\n"]  # Stop on code block end or newline
-            },
-            "system": (
-                "You are a helpful coding assistant. Generate clean, well-documented Python code "
-                "that follows best practices. Include type hints, docstrings, and error handling "
-                "where appropriate. Only respond with the code, no explanations or additional text."
-            )
+            "prompt": prompt,
+            "stream": False
         }
         
-        # Log the request payload (without the full prompt to avoid cluttering logs)
-        log_payload = payload.copy()
-        log_payload["prompt"] = f"[PROMPT LENGTH: {len(formatted_prompt)} chars]"
-        logger.debug(f"Sending request to Ollama API: {json.dumps(log_payload, indent=2)}")
+        # Log the request payload
+        logger.debug(f"Sending request to Ollama API with model: {self.config.model}")
+        
+        # Send the request to the Ollama API
+        url = f"{self.config.base_url}/api/generate"
+        headers = {"Content-Type": "application/json"}
         
         try:
-            # Make the API request
-            url = f"{self.config.base_url}/api/generate"
-            headers = {"Content-Type": "application/json"}
-            
-            # Log the full URL and headers for debugging
             logger.debug(f"Sending POST request to: {url}")
-            logger.debug(f"Request headers: {headers}")
             
-            full_response = ""
-            raw_response_text = ""
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url,
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=self.config.timeout)
-                ) as response:
-                    # Log response status and headers
+            # Create a new session for this request
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload, headers=headers) as response:
+                    response_text = await response.text()
                     logger.debug(f"Received response status: {response.status}")
-                    logger.debug(f"Response headers: {dict(response.headers)}")
                     
                     if response.status != 200:
-                        error_text = await response.text()
-                        logger.error(f"Ollama API error: {response.status} - {error_text}")
+                        error_msg = f"Ollama API request failed with status {response.status}"
+                        logger.error(f"{error_msg}. Response: {response_text}")
                         return {
                             "success": False,
-                            "error": f"Ollama API error: {response.status} - {error_text}",
+                            "error": error_msg,
                             "generated_code": "",
-                            "raw_response": error_text
+                            "raw_response": response_text
                         }
                     
-                    # Process streaming response
-                    async for line in response.content:
-                        if line:
-                            try:
-                                chunk = json.loads(line)
-                                if 'response' in chunk:
-                                    full_response += chunk['response']
-                                    
-                                # Check if this is the final chunk
-                                if chunk.get('done', False):
-                                    logger.debug("Received final chunk from streaming response")
-                                    break
-                                    
-                            except json.JSONDecodeError as e:
-                                logger.warning(f"Failed to parse chunk: {line}")
-                    
-            # Log the full response for debugging
-            logger.debug(f"Full response from Ollama API: {full_response}")
-            
-            if not full_response.strip():
-                error_msg = f"Empty response from Ollama API. Model: {self.config.model}, Prompt length: {len(formatted_prompt)}"
-                logger.warning(error_msg)
-                return {
-                    "success": False,
-                    "error": error_msg,
-                    "generated_code": "",
-                    "raw_response": full_response
-                }
-            
-            # Extract code from the response
-            extracted_code = self._extract_code_from_response(full_response)
-            
-            # If no code was extracted, try to clean up the response
-            if not extracted_code and full_response.strip():
-                logger.warning("No code blocks found in response, using full response as code")
-                extracted_code = full_response.strip()
-            
-            return {
-                "success": True,
-                "generated_code": extracted_code,
-                "raw_response": full_response,
-                "model": self.config.model
-            }
-            
+                    try:
+                        response_data = json.loads(response_text)
+                        generated_text = response_data.get("response", "")
+                        
+                        if not generated_text:
+                            error_msg = f"Empty response from Ollama API. Model: {self.config.model}"
+                            logger.warning(error_msg)
+                            logger.debug(f"Full response data: {response_data}")
+                            return {
+                                "success": False,
+                                "error": error_msg,
+                                "generated_code": "",
+                                "raw_response": response_text
+                            }
+                        
+                        # Log the response details
+                        logger.debug(f"Generated text (first 500 chars): {generated_text[:500]}...")
+                        
+                        # Clean up the response
+                        extracted_code = generated_text.strip()
+                        
+                        return {
+                            "success": True,
+                            "generated_code": extracted_code,
+                            "raw_response": generated_text,
+                            "model": self.config.model
+                        }
+                        
+                    except json.JSONDecodeError as e:
+                        error_msg = f"Failed to parse Ollama API response: {e}"
+                        logger.error(f"{error_msg}. Response: {response_text}")
+                        return {
+                            "success": False,
+                            "error": error_msg,
+                            "generated_code": "",
+                            "raw_response": response_text
+                        }
+        
         except asyncio.TimeoutError:
-            error_msg = f"Ollama API request timed out after {self.config.timeout} seconds"
+            error_msg = f"Ollama API request timed out after {timeout.total} seconds"
             logger.error(error_msg)
             return {
                 "success": False,
@@ -201,7 +159,6 @@ class OllamaAdapter:
                 "generated_code": "",
                 "raw_response": ""
             }
-            
         except Exception as e:
             error_msg = f"Unexpected error in generate_code: {str(e)}"
             logger.exception(error_msg)
@@ -209,18 +166,18 @@ class OllamaAdapter:
                 "success": False,
                 "error": error_msg,
                 "generated_code": "",
-                "raw_response": str(e)
+                "raw_response": ""
             }
     
     def _format_prompt_for_ollama(self, user_prompt: str, context: Dict[str, Any]) -> str:
-        """Formats the prompt for Ollama with goLLM context and explicit instructions.
+        """Formats the prompt for Ollama with minimal instructions.
         
         Args:
             user_prompt: The user's original prompt
             context: Additional context for the task
             
         Returns:
-            Formatted prompt string with clear instructions
+            Formatted prompt string
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -228,31 +185,14 @@ class OllamaAdapter:
         # Build context string if available
         context_str = ""
         if context:
-            context_str = "\n## Additional Context\n"
-            for key, value in context.items():
-                context_str += f"- {key}: {value}\n"
+            context_str = "\n" + "\n".join(f"# {k}: {v}" for k, v in context.items()) + "\n"
         
-        # Format the prompt with explicit instructions
-        # Using a list of lines to avoid string formatting issues
-        prompt_lines = [
-            "# PYTHON CODE ONLY - NO EXPLANATIONS, NO MARKDOWN, NO COMMENTS\n",
-            "# Your response will be directly executed as Python code.\n",
-            "# Only include valid Python code, nothing else.\n\n",
-            "# TASK:",
-            str(user_prompt),
-            str(context_str) if context_str else "",
-            "",
-            "# INSTRUCTIONS:",
-            "# 1. Write complete, working Python 3 code that solves the task",
-            "# 2. Include all necessary imports at the top",
-            "# 3. Add type hints for all function parameters and return values",
-            "# 4. Include docstrings using Google-style format",
-            "# 5. Add error handling with try/except blocks",
-            "# 6. Include example usage in a `if __name__ == '__main__':` block\n\n"
-        ]
-        
-        # Join the lines to create the final prompt
-        formatted_prompt = "\n".join(line for line in prompt_lines if line is not None)
+        # Simple prompt with just the task and context
+        formatted_prompt = f"""{context_str}
+# Task:
+{user_prompt}
+
+# Python code only:"""
         
         logger.debug(f"Formatted prompt (first 200 chars): {formatted_prompt[:200]}...")
         return formatted_prompt
