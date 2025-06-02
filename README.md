@@ -750,5 +750,6 @@ curl -X POST http://192.168.188.108:8081/api/chat \
        "stream": false
      }' | jq
      
-gollm generate "Write Hello World in Python"     
+gollm generate "Write Hello World in Python"
+gollm generate -v "Write Hello World in Python"
 ```

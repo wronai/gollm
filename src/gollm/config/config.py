@@ -41,6 +41,16 @@ class LLMIntegration:
         # Handle the case where providers might be passed from config
         if self.providers is None:
             self.providers = {}
+        elif isinstance(self.providers, dict):
+            # Ensure we don't keep any unexpected attributes in the providers dict
+            self.providers = {k: v for k, v in self.providers.items() if k in ['ollama', 'openai']}
+            
+            # Handle Ollama provider configuration
+            if 'ollama' in self.providers and isinstance(self.providers['ollama'], dict):
+                self.providers['ollama'] = {
+                    k: v for k, v in self.providers['ollama'].items()
+                    if k in ['enabled', 'model', 'base_url', 'temperature', 'max_tokens', 'timeout']
+                }
 
 @dataclass
 class GollmConfig:

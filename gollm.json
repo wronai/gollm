@@ -28,20 +28,15 @@
     "auto_fix_attempts": 2,
     "api_provider": "ollama",
     "providers": {
-      "openai": {
-        "enabled": false,
-        "api_key": "",
-        "organization": "",
-        "model": "gpt-4"
-      },
       "ollama": {
         "enabled": true,
-        "base_url": "http://localhost:11434",
+        "base_url": "http://192.168.188.108:8081",
         "model": "deepseek-coder:latest",
         "temperature": 0.1,
         "max_tokens": 1000,
         "timeout": 180
       }
     }
-  }
+  },
+  "project_root": "."
 }
