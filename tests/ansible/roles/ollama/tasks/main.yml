@@ -1,0 +1,40 @@
+---
+- name: Install Ollama
+  block:
+    - name: Download Ollama install script
+      get_url:
+        url: https://ollama.ai/install.sh
+        dest: /tmp/install_ollama.sh
+        mode: '0755'
+
+    - name: Run Ollama installer
+      command: /tmp/install_ollama.sh
+      args:
+        creates: /usr/local/bin/ollama
+
+    - name: Ensure Ollama service is running
+      systemd:
+        name: ollama
+        state: started
+        enabled: yes
+
+- name: Pull required Ollama models
+  command: ollama pull {{ item }}
+  loop: "{{ ollama_models }}"
+  register: pull_result
+  retries: 3
+  delay: 10
+  until: pull_result is succeeded
+  changed_when: false
+  notify: restart ollama
+
+- name: Verify Ollama service
+  uri:
+    url: "http://localhost:11434/api/tags"
+    method: GET
+    status_code: 200
+  register: ollama_check
+  retries: 6
+  delay: 10
+  until: ollama_check is succeeded
+  changed_when: false

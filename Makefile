@@ -1,5 +1,5 @@
 
-.PHONY: install dev test lint format clean build publish demo-interactive demo-script
+.PHONY: install dev test test-e2e test-health lint format clean build publish demo-interactive demo-script infra-setup infra-deploy check-env
 
 # Instalacja
 install:
@@ -11,9 +11,49 @@ dev:
 # Testowanie
 test:
 	pytest tests/ -v
-	
+
+# Run end-to-end tests (requires Ollama service running)
+test-e2e: check-ollama
+	pytest tests/e2e -v -m "not slow"
+
+# Run all tests including slow ones
+test-all: check-ollama
+	pytest tests/ -v
+
+# Run health check script
+test-health:
+	chmod +x tests/health_check.sh
+	./tests/health_check.sh
+
+# Check if Ollama service is running
+check-ollama:
+	@if ! curl -s http://localhost:11434/api/tags > /dev/null; then \
+		echo "Error: Ollama service is not running. Please start it first with 'make infra-start'" >&2; \
+		exit 1; \
+	fi
+
+# Run tests with coverage report
 test-coverage:
 	pytest tests/ --cov=src/gollm --cov-report=html --cov-report=term-missing
+
+# Start infrastructure (Ollama service)
+infra-start:
+	docker-compose -f tests/infrastructure/docker-compose.yml up -d
+
+# Stop infrastructure
+infra-stop:
+	docker-compose -f tests/infrastructure/docker-compose.yml down
+
+# Deploy infrastructure using Ansible
+infra-deploy: check-ansible
+	ansible-playbook -i tests/ansible/inventory.ini tests/ansible/playbook.yml
+
+# Check if Ansible is installed
+check-ansible:
+	@if ! command -v ansible > /dev/null; then \
+		echo "Error: Ansible is not installed. Please install it first." >&2; \
+		exit 1; \
+	fi
 
 # Jakość kodu
 lint:
@@ -37,8 +77,12 @@ clean:
 	rm -rf .pytest_cache/
 	rm -rf .coverage
 	rm -rf htmlcov/
+	rm -rf .mypy_cache/
 	find . -name "*.pyc" -delete || true
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -name "*.py,cover" -delete || true
+	find . -name "coverage.xml" -delete || true
+	find . -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 
 version:
 	@echo "Updating version in pyproject.toml"

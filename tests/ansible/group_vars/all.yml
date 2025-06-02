@@ -1,0 +1,36 @@
+---
+# Ollama configuration
+ollama_models:
+  - codellama:7b
+  - mistral:latest
+
+# gollm configuration
+gollm_repo_url: "https://github.com/wronai/gollm.git"
+gollm_version: "main"
+
+# System configuration
+system_packages:
+  - python3-pip
+  - python3-venv
+  - git
+  - curl
+  - build-essential
+  - python3-dev
+
+# Service configuration
+service_user: "gollm"
+service_group: "gollm"
+app_dir: "/opt/gollm"
+log_dir: "/var/log/gollm"
+
+# API configuration
+api_host: "0.0.0.0"
+api_port: 8000
+
+# Health check configuration
+health_check_endpoint: "/health"
+health_check_port: "{{ api_port }}"
+
+# Monitoring
+enable_monitoring: true
+monitoring_port: 9090

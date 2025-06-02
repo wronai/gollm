@@ -1,0 +1,60 @@
+---
+- name: Configure goLLM infrastructure
+  hosts: all
+  become: true
+  vars_files:
+    - group_vars/all.yml
+
+  roles:
+    - role: ollama
+      tags: [ollama]
+
+  tasks:
+    - name: Install system dependencies
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - python3-pip
+        - python3-venv
+        - git
+        - curl
+
+    - name: Create gollm user
+      user:
+        name: gollm
+        shell: /bin/bash
+        create_home: yes
+        system: no
+        state: present
+
+    - name: Create application directory
+      file:
+        path: /opt/gollm
+        state: directory
+        owner: gollm
+        group: gollm
+        mode: '0755'
+
+    - name: Clone repository
+      git:
+        repo: "{{ gollm_repo_url }}"
+        dest: /opt/gollm
+        version: "{{ gollm_version }}"
+      register: repo_clone
+      notify: install_requirements
+
+  handlers:
+    - name: install_requirements
+      command: pip install -e .[dev]
+      args:
+        chdir: /opt/gollm
+      become_user: gollm
+
+    - name: restart gollm
+      systemd:
+        name: gollm
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
