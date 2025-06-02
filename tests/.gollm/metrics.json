@@ -2,10 +2,10 @@
   "version": 1,
   "metrics": [
     {
-      "timestamp": "2025-06-02T08:20:47.205459",
+      "timestamp": "2025-06-02T08:22:20.519993",
       "quality_score": 75,
       "violations_count": 3,
-      "file": "/tmp/tmpzrbjdpuz.py"
+      "file": "/tmp/tmprx5uf31t.py"
     }
   ]
 }
