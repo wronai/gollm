@@ -143,13 +143,20 @@ class OllamaGenerator:
                 messages.insert(0, {"role": "system", "content": context['system_message']})
         
         # Build the request payload
+        max_tokens = context.get('max_tokens', self.token_limit)
+        # Increase token limit to ensure we get complete code responses
+        if context.get('is_code_generation', False):
+            # For code generation, use a higher token limit to avoid truncation
+            max_tokens = max(max_tokens, 2000)  # Ensure at least 2000 tokens for code
+            logger.info(f"Using increased token limit for code generation: {max_tokens}")
+            
         payload = {
             "model": context.get('model', self.model_name),
             "messages": messages,
             "stream": False,
             "options": {
                 "temperature": context.get('temperature', self.temperature),
-                "num_predict": context.get('max_tokens', self.token_limit)
+                "num_predict": max_tokens
             }
         }
         
@@ -188,6 +195,8 @@ class OllamaGenerator:
                     
                 result = await response.json()
                 logger.debug(f"Chat API raw response: {json.dumps(result, indent=2)}")
+                # Log the response in a more visible way for debugging
+                logger.info(f"OLLAMA RESPONSE: {json.dumps(result, indent=2)}")
                 
                 # Extract the response content - the API might return different formats
                 generated_text = ""
@@ -195,9 +204,19 @@ class OllamaGenerator:
                 # Try to extract from standard chat format first
                 if "message" in result and "content" in result["message"]:
                     generated_text = result["message"]["content"]
+                    logger.info(f"Extracted content from message.content: {generated_text[:200]}...")
                 # If not found, try to extract from response field (some Ollama versions)
                 elif "response" in result:
                     generated_text = result["response"]
+                    logger.info(f"Extracted content from response: {generated_text[:200]}...")
+                else:
+                    logger.warning(f"Could not find content in Ollama response. Keys: {list(result.keys())}")
+                    # Try to extract from any field that might contain text
+                    for key, value in result.items():
+                        if isinstance(value, str) and len(value) > 50:  # Likely to be content
+                            logger.info(f"Found potential content in key '{key}': {value[:200]}...")
+                            generated_text = value
+                            break
                 
                 logger.debug(f"Extracted chat text (length: {len(generated_text)}): {generated_text[:100]}...")
                 

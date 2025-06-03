@@ -73,11 +73,25 @@ class OllamaHttpClient:
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            **(self.config.headers or {})
         }
         
-        if self.config.api_key:
-            headers['Authorization'] = f'Bearer {self.config.api_key}'
+        # Handle headers from config (both dict and OllamaConfig)
+        config_headers = {}
+        if isinstance(self.config, dict) and 'headers' in self.config:
+            config_headers = self.config['headers'] or {}
+        elif hasattr(self.config, 'headers') and self.config.headers is not None:
+            config_headers = self.config.headers
+        headers.update(config_headers)
+        
+        # Handle API key (both dict and OllamaConfig)
+        api_key = None
+        if isinstance(self.config, dict) and 'api_key' in self.config:
+            api_key = self.config['api_key']
+        elif hasattr(self.config, 'api_key'):
+            api_key = self.config.api_key
+            
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
         
         # Use default timeout for session creation, we'll override per request
         self.session = aiohttp.ClientSession(

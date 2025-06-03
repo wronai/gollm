@@ -95,6 +95,12 @@ pip install -e .[dev]
    
    # Sprawdź status projektu
    gollm status
+   
+   # Pokaż metryki jakości kodu
+   gollm metrics
+   
+   # Pokaż trendy jakości kodu
+   gollm trend --period month
    ```
 
 3. **Generuj kod z LLM**
@@ -108,11 +114,11 @@ pip install -e .[dev]
    # Bezpośredni dostęp do API (bez walidacji)
    gollm direct generate "Stwórz klasę użytkownika"
    
-   # Użyj mniejszego modelu, jeśli masz problemy z timeoutem
-   gollm direct generate "Stwórz klasę użytkownika" --model deepseek-coder:1.3b
+   # Bezpośredni dostęp do API w trybie czatu
+   gollm direct chat "Jak zaimplementować klasę użytkownika?"
    
    # Użyj modularnego adaptera z obsługą streamingu dla lepszej wydajności
-   gollm generate "Stwórz klasę użytkownika" --adapter-type modular
+   gollm generate "Stwórz klasę użytkownika" --adapter-type modular --use-streaming
    ```
    
    > 📘 Pełna dokumentacja dostępna w [przewodniku wprowadzającym](./docs/guides/getting_started.md)
@@ -232,14 +238,16 @@ goLLM oferuje elastyczną konfigurację dopasowaną do potrzeb Twojego projektu.
 
 ### Integracja z narzędziami deweloperskimi
 
-#### Git Hooks
-```bash
-gollm install-hooks  # Automatyczna walidacja przed każdym commitem
-```
+#### Integracja z Narzędziami
 
-#### VS Code
+GoLLM można zintegrować z istniejącymi narzędziami deweloperskimi poprzez konfigurację w pliku `gollm.json`. Aby uzyskać więcej informacji, sprawdź dokumentację konfiguracji.
+
 ```bash
-gollm setup-ide vscode  # Instalacja rozszerzenia i konfiguracja
+# Sprawdź aktualną konfigurację
+gollm config list
+
+# Zmień ustawienia konfiguracji
+gollm config set <klucz> <wartość>
 ```
 
 #### CI/CD
@@ -264,29 +272,28 @@ jobs:
       run: gollm validate .
 ```
 
-## 📊 Raportowanie i analiza
+## 📊 Metryki i analiza
 
-goLLM dostarcza szczegółowych raportów i metryk, które pomagają śledzić jakość kodu w czasie.
+goLLM dostarcza szczegółowych metryk i analiz, które pomagają śledzić jakość kodu w czasie.
 
-### Podstawowe raporty
+### Dostępne komendy
 
-#### Podsumowanie jakości
+#### Metryki jakości kodu
 ```bash
-gollm report --summary
+# Pokaż aktualne metryki jakości kodu
+gollm metrics
 ```
 
-#### Trend jakości w czasie
+#### Trendy jakości w czasie
 ```bash
-gollm metrics trend --period month
+# Pokaż trendy jakości kodu w określonym okresie
+gollm trend --period month
 ```
 
-#### Eksport danych
+#### Status projektu
 ```bash
-# Do JSON
-gollm export --format json --output metrics.json
-
-# Do CSV
-gollm export --format csv --output metrics.csv
+# Sprawdź aktualny status projektu i zdrowia kodu
+gollm status
 ```
 
 ### Przykładowe metryki
@@ -591,37 +598,41 @@ gollm fix --auto
 }
 ```
 
-### Integracja z IDE
-```bash
-# VS Code
-gollm setup-ide --editor=vscode
+### Integracja z IDE i Narzędziami
 
-# Automatyczna konfiguracja:
-# - Real-time validation
-# - Auto-fix on save
-# - Block save on violations
-# - LLM suggestions
+GoLLM można zintegrować z IDE i narzędziami deweloperskimi poprzez konfigurację w pliku `gollm.json`.
+
+```bash
+# Sprawdź aktualną konfigurację
+gollm config list
+
+# Zmień ustawienia konfiguracji
+gollm config set <klucz> <wartość>
 ```
 
-### Git Hooks
-```bash
-# Automatyczna instalacja
-gollm install-hooks
-
-# Pre-commit: walidacja przed commitem
-# Post-commit: aktualizacja dokumentacji
-```
+Możliwe integracje:
+- Walidacja kodu w czasie rzeczywistym
+- Automatyczne poprawki przy zapisie
+- Sugestie LLM w edytorze
+- Integracja z systemem kontroli wersji
 
 ## 📊 Metryki i Raportowanie
 
 ```bash
-# Miesięczny raport
-gollm report --period month
+# Pokaż aktualne metryki jakości kodu
+gollm metrics
 
-# Wynik przykładowy:
-📈 goLLM MONTHLY REPORT - June 2025
-Quality Score Evolution: 65 → 89 (+24 points)
-TODO Completion Rate: 85%
+# Pokaż trendy jakości kodu w określonym okresie
+gollm trend --period month
+
+# Sprawdź status projektu i zdrowia kodu
+gollm status
+
+# Przykładowy wynik:
+Quality Score: 89/100
+Code Coverage: 78%
+Cyclomatic Complexity: 2.4 (Good)
+Technical Debt: 3.2 days
 Violations Fixed: 47
 LLM Iterations: 156 (avg 2.3 per request)
 ```

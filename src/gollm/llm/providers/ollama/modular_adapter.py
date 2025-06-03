@@ -328,7 +328,22 @@ class OllamaModularAdapter:
             
             # Use the generator component
             # For chat, we pass an empty prompt since messages are in context
-            result = await self.generator.generate_chat(context)
+            import logging
+            logger = logging.getLogger('gollm.ollama.adapter')
+            
+            logger.info(f"OllamaModularAdapter.chat_async called with context keys: {list(context.keys())}")
+            
+            # For code generation, ensure we set the flag for higher token limits
+            if 'is_code_generation' not in context and any(key in str(context).lower() for key in ['python', 'code', 'function', 'class']):
+                logger.info("Setting is_code_generation=True based on context")
+                context['is_code_generation'] = True
+                
+            # Ensure max_tokens is high enough for code generation
+            if 'max_tokens' not in context:
+                logger.info("Setting default max_tokens=2000 for generation")
+                context['max_tokens'] = 2000
+            
+            result = await self.generator.generate('', context)
             
             # Restore original API type
             self.generator.api_type = original_api_type

@@ -47,33 +47,96 @@ class ResponseValidator:
     
     def _extract_code_blocks(self, text: str) -> List[str]:
         """Wyodrębnia bloki kodu z odpowiedzi LLM"""
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Szukaj bloków ```python ... ```
-        python_pattern = r'```python\s*\n(.*?)\n```'
-        python_blocks = re.findall(python_pattern, text, re.DOTALL)
+        # Log the input text for debugging
+        logger.info(f"Extracting code blocks from text of length {len(text)}")
         
-        if python_blocks:
-            return [block.strip() for block in python_blocks]
+        # Try to extract markdown code blocks with various formats
+        # This handles both ```python and ``` formats, with optional language specifier
+        code_blocks = re.findall(r'```(?:\w*)?\n(.+?)(?:\n```|$)', text, re.DOTALL)
         
-        # Szukaj ogólnych bloków ``` ... ```
-        general_pattern = r'```\s*\n(.*?)\n```'
-        general_blocks = re.findall(general_pattern, text, re.DOTALL)
+        # Log how many blocks were found
+        logger.info(f"Found {len(code_blocks)} code blocks using markdown pattern")
         
-        if general_blocks:
-            # Filtruj bloki które wyglądają jak Python
-            python_like = []
-            for block in general_blocks:
-                if self._looks_like_python(block):
-                    python_like.append(block.strip())
-            return python_like
+        # If we found code blocks, clean them up
+        if code_blocks:
+            # Clean up each code block
+            cleaned_blocks = []
+            for block in code_blocks:
+                # Remove trailing whitespace and ensure it ends with a newline
+                cleaned = block.rstrip() + '\n'
+                cleaned_blocks.append(cleaned)
+            return cleaned_blocks
         
+        # If no code blocks found with markdown, try to extract code directly
+        logger.info("No markdown code blocks found, trying to extract Python code directly")
+        
+        # Check if the text looks like Python code
+        if self._looks_like_python(text):
+            logger.info("Text appears to be Python code, using as-is")
+            # Clean the text to make it more likely to be valid Python
+            cleaned_text = self._clean_text_for_python(text)
+            if cleaned_text:
+                return [cleaned_text]
+            
+        # As a last resort, try to find Python-like patterns in the text
+        logger.info("Attempting to find Python-like patterns in text")
+        
+        # Look for common Python patterns like class/def declarations
+        python_patterns = re.findall(r'(?:class|def)\s+\w+\s*\([^)]*\):\s*(?:\n\s+.+)+', text, re.DOTALL)
+        if python_patterns:
+            logger.info(f"Found {len(python_patterns)} Python-like patterns")
+            return python_patterns
+            
+        # If all else fails, log the issue and return an empty list
+        logger.warning(f"Could not extract any code blocks from text: {text[:100]}...")
         return []
     
     def _looks_like_python(self, code: str) -> bool:
         """Sprawdza czy kod wygląda jak Python"""
-        python_keywords = ['def ', 'class ', 'import ', 'from ', 'if ', 'for ', 'while ']
+        import logging
+        logger = logging.getLogger(__name__)
         
-        return any(keyword in code for keyword in python_keywords)
+        if not code or not code.strip():
+            logger.warning("Empty code provided to _looks_like_python")
+            return False
+            
+        # More comprehensive list of Python keywords and patterns
+        python_keywords = [
+            'def ', 'class ', 'import ', 'from ', 'if ', 'for ', 'while ', 'return ',
+            'with ', 'try:', 'except:', 'finally:', 'as ', 'in ', 'is ', 'not ', 'and ', 'or ',
+            'print(', 'self.', '__init__', 'lambda ', 'async ', 'await ', 'yield ',
+            # Common Python patterns
+            ' = ', '==', '!=', '>=', '<=', '+=', '-=', '*=', '/=',
+            # Common Python libraries
+            'import os', 'import sys', 'import re', 'import json', 'import time',
+            'import numpy', 'import pandas', 'import matplotlib', 'import requests'
+        ]
+        
+        # Check for Python keywords
+        has_keywords = any(keyword in code for keyword in python_keywords)
+        
+        # Check for Python indentation patterns (spaces at beginning of lines)
+        indentation_pattern = re.search(r'\n\s{2,}\S', code)
+        has_indentation = bool(indentation_pattern)
+        
+        # Check for Python docstrings
+        docstring_pattern = re.search(r'""".*?"""', code, re.DOTALL)
+        has_docstring = bool(docstring_pattern)
+        
+        # Check for Python function or class definitions
+        definition_pattern = re.search(r'(def|class)\s+\w+\s*\(', code)
+        has_definition = bool(definition_pattern)
+        
+        # Log the detection results
+        if has_keywords or has_indentation or has_docstring or has_definition:
+            logger.debug(f"Code looks like Python: keywords={has_keywords}, indentation={has_indentation}, docstring={has_docstring}, definition={has_definition}")
+            return True
+        else:
+            logger.debug("Code does not appear to be Python")
+            return False
     
     def _validate_syntax(self, code: str) -> Dict[str, Any]:
         """Sprawdza składnię Python"""
@@ -85,6 +148,66 @@ class ResponseValidator:
         except Exception as e:
             return {"valid": False, "error": f"Parse error: {str(e)}"}
     
+    def _clean_text_for_python(self, text: str) -> str:
+        """Attempts to clean up text to make it valid Python code"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Remove common non-code elements
+        # Remove markdown headers
+        cleaned = re.sub(r'^#+\s+.*$', '', text, flags=re.MULTILINE)
+        # Remove bullet points
+        cleaned = re.sub(r'^\s*[-*]\s+', '', cleaned, flags=re.MULTILINE)
+        # Remove numbered lists
+        cleaned = re.sub(r'^\s*\d+\.\s+', '', cleaned, flags=re.MULTILINE)
+        # Remove HTML-like tags
+        cleaned = re.sub(r'<.*?>', '', cleaned)
+        
+        # Try to validate if it's Python code
+        try:
+            ast.parse(cleaned)
+            logger.info("Successfully cleaned and parsed text as Python code")
+            return cleaned.strip()
+        except SyntaxError:
+            # If full text doesn't parse, try to extract just the parts that look like code
+            lines = cleaned.split('\n')
+            code_lines = []
+            current_block = []
+            in_code_block = False
+            
+            for line in lines:
+                stripped = line.strip()
+                # Skip empty lines and obvious non-code lines
+                if not stripped or stripped.startswith('#') or ':' in stripped and not any(kw in stripped for kw in ['if', 'else', 'elif', 'def', 'class', 'for', 'while', 'try', 'except']):
+                    if in_code_block and current_block:
+                        # End of a code block
+                        code_lines.extend(current_block)
+                        current_block = []
+                        in_code_block = False
+                    continue
+                
+                # Lines that look like code
+                if any(kw in stripped for kw in ['def ', 'class ', 'import ', 'from ', 'if ', 'for ', 'while ', 'return ']):
+                    in_code_block = True
+                
+                if in_code_block:
+                    current_block.append(line)
+            
+            # Add any remaining code block
+            if current_block:
+                code_lines.extend(current_block)
+            
+            if code_lines:
+                result = '\n'.join(code_lines)
+                logger.info(f"Extracted {len(code_lines)} lines of potential Python code")
+                return result.strip()
+            
+            logger.warning("Could not extract valid Python code from text")
+            return ''
+        except Exception as e:
+            logger.warning(f"Error cleaning text for Python: {str(e)}")
+            return ''
+
     def _extract_explanation(self, text: str) -> str:
         """Wyodrębnia wyjaśnienie z odpowiedzi LLM"""
         

@@ -121,7 +121,11 @@ class LLMOrchestrator:
         logger = logging.getLogger(__name__)
         
         logger.info(f"Starting LLM request processing for: {request.user_request[:100]}...")
-        logger.debug(f"Request context: {request.context}")
+        logger.info(f"Request details: adapter_type={request.adapter_type}, use_streaming={use_streaming}, fast_mode={request.fast_mode}")
+        logger.info(f"Context keys: {list(request.context.keys()) if request.context else 'None'}")
+        
+        # Przygotuj kontekst
+        context = request.context or {}
         
         # 1. Przygotuj pełny kontekst
         # In fast mode, use minimal context building
@@ -161,6 +165,9 @@ class LLMOrchestrator:
             logger.info("Calling LLM...")
             llm_output = await self._simulate_llm_call(prompt, stream=use_streaming)
             logger.debug(f"LLM output (first 500 chars): {str(llm_output)[:500]}...")
+            
+            # Log the full LLM output for debugging
+            logger.info(f"Raw LLM output (first 500 chars): {str(llm_output)[:500]}...")
             
             # Waliduj odpowiedź - simplified in fast mode
             logger.info("Validating LLM response...")
