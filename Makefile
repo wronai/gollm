@@ -1,10 +1,30 @@
 
-.PHONY: install dev test test-e2e test-health lint format clean build publish demo-interactive demo-script infra-setup infra-deploy check-env
+.PHONY: help install dev test test-e2e test-coverage test-health lint format clean build publish demo-interactive demo-script infra-setup infra-deploy check-env setup docs
 
-# Instalacja
+# Help target to show available commands
+help:
+	@echo "\nAvailable targets:"
+	@echo "  help        - Show this help message"
+	@echo "  install     - Install the package in development mode"
+	@echo "  dev         - Install development dependencies"
+	@echo "  setup       - Set up development environment"
+	@echo "  test        - Run tests"
+	@echo "  test-coverage - Run tests with coverage report"
+	@echo "  test-e2e    - Run end-to-end tests"
+	@echo "  test-health - Run health check script"
+	@echo "  lint        - Run linters"
+	@echo "  format      - Format code"
+	@echo "  clean       - Clean build artifacts"
+	@echo "  build       - Build package"
+	@echo "  publish     - Publish to PyPI"
+	@echo "  docs        - Build documentation"
+	@echo "  demo        - Run demo"
+
+# Installation
 install:
 	pip install -e .
 
+# Development environment
 dev:
 	pip install -e .[dev]
 
@@ -39,6 +59,7 @@ check-ollama:
 # Run tests with coverage report
 test-coverage:
 	pytest tests/ --cov=src/gollm --cov-report=html --cov-report=term-missing
+	@echo "\nCoverage report generated in htmlcov/index.html"
 
 # Start infrastructure (Ollama service)
 infra-start:
@@ -111,18 +132,27 @@ build: clean
 	python -m build
 
 
-# Publikacja
+# Build documentation
+docs:
+	@echo "Building documentation..."
+	sphinx-build -b html docs/source docs/build
+	@echo "\nDocumentation built in docs/build/index.html"
+
+# Publish to PyPI
 publish-test: build
 	python -m twine upload --repository testpypi dist/*
 
 publish: version build
 	python -m twine upload dist/*
 
-# Rozwój
-dev-setup: dev
+# Setup development environment
+setup: dev
+	@echo "Setting up development environment..."
+	python -m pip install --upgrade pip
+	pip install -e .[dev]
 	python scripts/install_hooks.py
 	python scripts/setup_ide.py vscode
-	echo "🎉 Development environment ready!"
+	@echo "🎉 Development environment ready!"
 
 # Demo
 demo:

@@ -1,8 +1,7 @@
 import sys
 
 def print_hello_world():
-    """Print 'Hello, World!' to standard output."""
-    print("Hello, World!")
+    """Print 'hello world' message."""
+    print("hello world")
 
-if __name__ == "__main__":
-    print_hello_world()
+sys.stdout.write(print_hello_world())
