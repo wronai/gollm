@@ -1,0 +1,101 @@
+---
+- name: Test Makefile commands
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    project_dir: "/home/tom/github/wronai/gollm"
+  tasks:
+    - name: Test help command
+      ansible.builtin.command: make help
+      args:
+        chdir: "{{ project_dir }}"
+      register: help_output
+      changed_when: false
+      tags: [help]
+
+    - name: Show help output
+      ansible.builtin.debug:
+        var: help_output.stdout_lines
+      when: help_output is defined
+      tags: [help]
+
+    - name: Test setup
+      ansible.builtin.command: make setup
+      args:
+        chdir: "{{ project_dir }}"
+      register: setup_output
+      changed_when: false
+      tags: [setup]
+
+    - name: Test test
+      ansible.builtin.command: make test
+      args:
+        chdir: "{{ project_dir }}"
+      register: test_output
+      changed_when: false
+      tags: [test]
+
+    - name: Test test-coverage
+      ansible.builtin.command: make test-coverage
+      args:
+        chdir: "{{ project_dir }}"
+      register: test_coverage_output
+      changed_when: false
+      tags: [test-coverage]
+
+    - name: Test lint
+      ansible.builtin.command: make lint
+      args:
+        chdir: "{{ project_dir }}"
+      register: lint_output
+      changed_when: false
+      ignore_errors: true
+      tags: [lint]
+
+    - name: Test format
+      ansible.builtin.command: make format
+      args:
+        chdir: "{{ project_dir }}"
+      register: format_output
+      changed_when: false
+      tags: [format]
+
+    - name: Test build
+      ansible.builtin.command: make build
+      args:
+        chdir: "{{ project_dir }}"
+      register: build_output
+      changed_when: false
+      tags: [build]
+
+    - name: Test docs
+      ansible.builtin.command: make docs
+      args:
+        chdir: "{{ project_dir }}"
+      register: docs_output
+      changed_when: false
+      ignore_errors: true
+      tags: [docs]
+
+    - name: Test clean
+      ansible.builtin.command: make clean
+      args:
+        chdir: "{{ project_dir }}"
+      register: clean_output
+      changed_when: false
+      tags: [clean]
+
+    - name: Show all outputs
+      ansible.builtin.debug:
+        msg: |
+          ===== OUTPUTS =====
+          HELP: {{ help_output is defined }}
+          SETUP: {{ setup_output is defined }}
+          TEST: {{ test_output is defined }}
+          TEST_COVERAGE: {{ test_coverage_output is defined }}
+          LINT: {{ lint_output is defined }}
+          FORMAT: {{ format_output is defined }}
+          BUILD: {{ build_output is defined }}
+          DOCS: {{ docs_output is defined }}
+          CLEAN: {{ clean_output is defined }}
