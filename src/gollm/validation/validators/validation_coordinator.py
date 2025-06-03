@@ -1,4 +1,4 @@
-"""Main validation module.
+"""Validation coordinator module.
 
 This module coordinates the validation process for different types of code.
 """
@@ -6,13 +6,13 @@ This module coordinates the validation process for different types of code.
 import logging
 from typing import Dict, Any, Tuple, List, Optional, Union
 
-from .common import CodeValidationResult
-from .validators.text_analyzer import extract_code_blocks
-from .validators.escape_handler import format_code_with_escape_sequences
-from .validators.python_validator import is_valid_python
-from .validators.text_analyzer import looks_like_prompt
+from ..common import CodeValidationResult
+from .text_analyzer import extract_code_blocks, looks_like_prompt
+from .escape_handler import format_code_with_escape_sequences
+from .python_validator import is_valid_python
+from .code_fixer import attempt_syntax_fix
 
-logger = logging.getLogger('gollm.validation.main')
+logger = logging.getLogger('gollm.validation.coordinator')
 
 
 def validate_and_extract_code(content: str, file_extension: str, options: Dict[str, bool] = None) -> Tuple[bool, str, List[str]]:

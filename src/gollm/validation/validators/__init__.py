@@ -11,6 +11,7 @@ from .text_analyzer import extract_code_blocks, looks_like_prompt
 from .code_fixer import attempt_syntax_fix
 from .quality_checker import check_code_quality
 from .escape_handler import format_code_with_escape_sequences, detect_escape_sequences
+from .validation_coordinator import validate_and_extract_code
 
 __all__ = [
     'CodeValidator',
@@ -19,6 +20,7 @@ __all__ = [
     'is_valid_python',
     'extract_code_blocks',
     'looks_like_prompt',
+    'validate_and_extract_code',
     'attempt_syntax_fix',
     'check_code_quality',
     'format_code_with_escape_sequences',
