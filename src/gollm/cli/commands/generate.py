@@ -41,6 +41,11 @@ logger = logging.getLogger("gollm.commands.generate")
     is_flag=True,
     help="Use gRPC for faster communication with Ollama (deprecated, use --adapter-type grpc)",
 )
+@click.option(
+    "--no-tests",
+    is_flag=True,
+    help="Disable automatic test generation",
+)
 @click.pass_context
 def generate_command(
     ctx,
@@ -53,6 +58,7 @@ def generate_command(
     adapter_type,
     use_streaming,
     use_grpc,
+    no_tests,
 ):
     """Generate code using LLM with quality validation.
 
@@ -80,6 +86,7 @@ def generate_command(
         "adapter_type": adapter_type,
         "use_streaming": use_streaming,
         "use_grpc": use_grpc,
+        "generate_tests": not no_tests,  # Enable test generation by default
     }
 
     # Set environment variables for adapter type and streaming
@@ -137,6 +144,27 @@ def generate_command(
                 output_path,
                 context.get("validation_options", {}),
             )
+            
+            # If test code was generated, save it as a separate file
+            test_files = []
+            if hasattr(result, 'test_code') and result.test_code:
+                # Determine the test file path
+                if output_path.suffix == '.py':
+                    # For Python files, use test_filename.py naming convention
+                    test_file_path = output_path.with_name(f"test_{output_path.stem}.py")
+                else:
+                    # For other files, append _test to the filename
+                    test_file_path = output_path.with_name(f"{output_path.stem}_test{output_path.suffix}")
+                
+                # Save the test code
+                test_files = await save_generated_files(
+                    result.test_code,
+                    test_file_path,
+                    context.get("validation_options", {}),
+                )
+                
+                # Add test files to the list of saved files
+                saved_files.extend(test_files)
 
             # Show results
             quality_score = format_quality_score(result.quality_score)

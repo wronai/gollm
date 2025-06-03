@@ -27,6 +27,7 @@ class LLMResponse:
     validation_result: Dict[str, Any]
     iterations_used: int
     quality_score: int
+    test_code: Optional[str] = None
 
 
 class LLMOrchestrator:
@@ -47,6 +48,9 @@ class LLMOrchestrator:
         """Główny punkt wejścia dla generowania kodu przez LLM"""
         if context is None:
             context = {}
+            
+        # Check if we should generate tests automatically
+        generate_tests = context.get("generate_tests", False)
 
         # Extract parameters from context
         max_iterations = context.get("max_iterations", 3)
@@ -90,9 +94,34 @@ class LLMOrchestrator:
         )
 
         try:
+            # Process the main code generation request
             response = await self._process_llm_request(
                 request, use_streaming=use_streaming
             )
+            
+            # If test generation is enabled, generate tests for the code
+            if generate_tests and response.generated_code:
+                # Create a new request for test generation
+                test_request = f"Write unit tests for the following code:\n\n```python\n{response.generated_code}\n```"
+                
+                # Create a test request object
+                test_llm_request = LLMRequest(
+                    user_request=test_request,
+                    context=context,
+                    session_id=request.session_id + "-test",
+                    max_iterations=1,  # Tests usually need fewer iterations
+                    fast_mode=request.fast_mode,
+                )
+                
+                # Process the test generation request
+                test_response = await self._process_llm_request(
+                    test_llm_request, use_streaming=use_streaming
+                )
+                
+                # Store the test code in the response
+                response.test_code = test_response.generated_code
+            else:
+                response.test_code = None
 
             # Update task with results if successful
             if self.todo_manager and self.current_task_id:
@@ -100,6 +129,7 @@ class LLMOrchestrator:
                     self.current_task_id,
                     {
                         "generated_code": response.generated_code,
+                        "test_code": getattr(response, "test_code", None),
                         "quality_score": response.quality_score,
                         "violations": response.validation_result.get("violations", []),
                         "output_file": context.get("output_file", "unknown.py"),

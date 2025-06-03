@@ -875,4 +875,5 @@ gollm -v generate "Write Hello World in Python"
 gollm generate "Write Hello World in Python" --fast
 gollm generate "Stwórz klasę użytkownika"
 gollm generate "Stwórz klasę użytkownika" --adapter-type modular
+gollm generate "hack my pc"
 ```
