@@ -15,11 +15,6 @@
 
 goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modelami językowymi (LLM), który przekształca proces programowania w płynne doświadczenie, gdzie jakość kodu jest gwarantowana od pierwszego znaku.
 
-### Kluczowe wartości:
-- **Nauka przez praktykę** - Automatyczne sugestie i wyjaśnienia poprawiające Twój kod
-- **Przywództwo w jakości** - Ustanawiamy najwyższe standardy w projektach
-- **Mistrzostwo w automatyzacji** - Inteligentne narzędzia, które pracują dla Ciebie
-
 ## 💫 Funkcje
 
 - 🔥 **Generowanie kodu z LLM** - Tworzenie kodu na podstawie opisu w języku naturalnym
@@ -29,26 +24,6 @@ goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modela
 - 💬 **Wyjaśnienia kodu** - Zrozumiałe komentarze i dokumentacja
 - 👷 **Automatyczne naprawy** - Inteligentne poprawki błędów i problemów
 - 🚀 **Streaming odpowiedzi** - Szybsze generowanie kodu z modularnym adapterem Ollama
-
-## 📚 Dokumentacja
-
-### 📖 Przewodniki
-- [Wprowadzenie](./docs/guides/getting_started.md) - Pierwsze kroki z goLLM
-- [Konfiguracja projektu](./docs/configuration/README.md) - Szczegóły konfiguracji
-- [Integracja z Ollama](./docs/guides/ollama_setup.md) - Jak używać lokalnych modeli LLM
-- [Generowanie wielu plików](./docs/guides/multi_file_generation.md) - Zarządzanie złożonymi projektami
-- [Streaming odpowiedzi](./docs/guides/streaming.md) - Szybsze generowanie kodu z modularnym adapterem
-
-### 🛠️ API
-- [Podstawowe funkcje](./docs/api/core.md) - Główne komponenty goLLM
-- [Rozszerzenia](./docs/api/extensions.md) - Jak rozszerzać funkcjonalność
-- [Interfejs wiersza poleceń](./docs/api/cli.md) - Pełna dokumentacja CLI
-
-### ⚙️ Konfiguracja
-- [Zaawansowane opcje](./docs/configuration/advanced.md) - Szczegółowa konfiguracja
-- [Reguły walidacji](./docs/configuration/validation_rules.md) - Dostosowywanie zasad jakości kodu
-- [Integracja z LLM](./docs/configuration/llm_integration.md) - Konfiguracja modeli językowych
-- [Zarządzanie projektem](./docs/configuration/project_management.md) - Automatyzacja zadań
 
 ## 🚀 Szybki start
 
@@ -82,8 +57,6 @@ pip install -e .[dev]
    # Zainicjuj konfigurację (tworzy plik gollm.json)
    gollm init
    ```
-   
-   > ℹufe0f Więcej o konfiguracji: [Dokumentacja konfiguracji](./docs/configuration/README.md)
 
 2. **Uruchom analizę kodu**
    ```bash
@@ -95,12 +68,6 @@ pip install -e .[dev]
    
    # Sprawdź status projektu
    gollm status
-   
-   # Pokaż metryki jakości kodu
-   gollm metrics
-   
-   # Pokaż trendy jakości kodu
-   gollm trend --period month
    ```
 
 3. **Generuj kod z LLM**
@@ -113,51 +80,67 @@ pip install -e .[dev]
    
    # Bezpośredni dostęp do API (bez walidacji)
    gollm direct generate "Stwórz klasę użytkownika"
-   
-   # Bezpośredni dostęp do API w trybie czatu
-   gollm direct chat "Jak zaimplementować klasę użytkownika?"
-   
-   # Użyj modularnego adaptera z obsługą streamingu dla lepszej wydajności
-   gollm generate "Stwórz klasę użytkownika" --adapter-type modular --use-streaming
    ```
-   
-   > 📘 Pełna dokumentacja dostępna w [przewodniku wprowadzającym](./docs/guides/getting_started.md)
 
-## 🎯 Przykład w działaniu
+## 📚 Dokumentacja
 
-Poniżej przedstawiamy prosty przykład, jak goLLM może pomóc w ulepszeniu jakości kodu. Więcej przykładów i szczegółów znajdziesz w [dokumentacji API](./docs/api/core.md).
+Pełna dokumentacja dostępna jest w [dokumentacji online](https://gollm.readthedocs.io).
 
-```python
-# Przed użyciem goLLM
-def process_data(x):
-    # ... złożona logika bez dokumentacji ...
-    pass
+### 📖 Przewodniki
+- [Wprowadzenie](./docs/guides/getting_started.md) - Pierwsze kroki z goLLM
+- [Konfiguracja projektu](./docs/configuration/README.md) - Szczegóły konfiguracji
+- [Integracja z Ollama](./docs/guides/ollama_setup.md) - Jak używać lokalnych modeli LLM
+- [Generowanie wielu plików](./docs/guides/multi_file_generation.md) - Zarządzanie złożonymi projektami
+- [Streaming odpowiedzi](./docs/guides/streaming.md) - Szybsze generowanie kodu z modularnym adapterem
 
-# Po użyciu goLLM
-def process_data(data: List[Dict]) -> Dict[str, Any]:
-    """Przetwarza dane wejściowe zgodnie z wymaganiami biznesowymi.
-    
-    Args:
-        data: Lista słowników zawierających dane do przetworzenia
-        
-    Returns:
-        Słownik zawierający wyniki przetwarzania
-        
-    Raises:
-        ValueError: Gdy dane wejściowe są nieprawidłowe
-    """
-    # ... czytelna i udokumentowana implementacja ...
-    pass
+### 🛠️ API
+- [Podstawowe funkcje](./docs/api/core.md) - Główne komponenty goLLM
+- [Rozszerzenia](./docs/api/extensions.md) - Jak rozszerzać funkcjonalność
+- [Interfejs wiersza poleceń](./docs/api/cli.md) - Pełna dokumentacja CLI
+
+## 🛠️ Rozwój
+
+### Konfiguracja środowiska deweloperskiego
+
+1. Sklonuj repozytorium:
+   ```bash
+   git clone https://github.com/wronai/gollm.git
+   cd gollm
+   ```
+
+2. Utwórz i aktywuj środowisko wirtualne:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/MacOS
+   # lub
+   .\venv\Scripts\activate  # Windows
+   ```
+
+3. Zainstaluj zależności deweloperskie:
+   ```bash
+   pip install -e .[dev]
+   ```
+
+### Uruchamianie testów
+
+```bash
+# Uruchom wszystkie testy
+pytest
+
+# Uruchom testy z pokryciem kodu
+pytest --cov=src tests/
+
+# Wygeneruj raport HTML z pokryciem
+pytest --cov=src --cov-report=html tests/
 ```
 
-> 📘 Zobacz więcej przykładów w [przewodniku wprowadzającym](./docs/guides/getting_started.md#przykłady) i [dokumentacji API](./docs/api/README.md).
-            bool(user_data.preferences)
-        )
-    
-    def _process_user_data(self, user_data: UserData) -> None:
-        """Wykonuje właściwe przetwarzanie danych użytkownika."""
-        # Tutaj następuje logika przetwarzania
-        pass
+## 🤝 Współpraca
+
+Wszelkie wkłady są mile widziane! Zobacz [przewodnik dla współpracowników](CONTRIBUTING.md), aby dowiedzieć się, jak możesz pomóc w rozwoju projektu.
+
+## 📄 Licencja
+
+Projekt jest dostępny na licencji [Apache 2.0](LICENSE).
 ```
 
 ## 📊 Korzyści z używania goLLM
