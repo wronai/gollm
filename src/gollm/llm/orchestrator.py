@@ -28,6 +28,16 @@ class LLMResponse:
     iterations_used: int
     quality_score: int
     test_code: Optional[str] = None
+    has_incomplete_functions: bool = False
+    incomplete_functions: List[Dict[str, str]] = None
+    has_completed_functions: bool = False
+    still_has_incomplete_functions: bool = False
+    still_incomplete_functions: List[Dict[str, str]] = None
+    execution_tested: bool = False
+    execution_successful: bool = False
+    execution_errors: List[str] = None
+    execution_fixed: bool = False
+    execution_fix_attempts: int = 0
 
 
 class LLMOrchestrator:
@@ -98,6 +108,125 @@ class LLMOrchestrator:
             response = await self._process_llm_request(
                 request, use_streaming=use_streaming
             )
+            
+            # Check for incomplete functions in the generated code
+            from gollm.validation.validators.validation_coordinator import check_for_incomplete_functions
+            from gollm.validation.validators.incomplete_function_detector import format_for_completion, extract_completed_functions
+            
+            has_incomplete_functions, incomplete_functions = check_for_incomplete_functions(response.generated_code)
+            
+            # If incomplete functions are found and auto-completion is enabled, complete them
+            auto_complete = context.get("auto_complete_functions", True)  # Enable by default
+            
+            if has_incomplete_functions and auto_complete:
+                logger.info(f"Found {len(incomplete_functions)} incomplete functions. Triggering auto-completion...")
+                
+                # Format the code for completion
+                completion_prompt = format_for_completion(incomplete_functions, response.generated_code)
+                
+                # Create a completion request
+                completion_request = LLMRequest(
+                    user_request=completion_prompt,
+                    context=context,
+                    session_id=request.session_id + "-completion",
+                    max_iterations=1,
+                    fast_mode=request.fast_mode,
+                )
+                
+                # Process the completion request
+                completion_response = await self._process_llm_request(
+                    completion_request, use_streaming=use_streaming
+                )
+                
+                # Merge the completed functions with the original code
+                merged_code = extract_completed_functions(response.generated_code, completion_response.generated_code)
+                
+                # Update the response with the completed code
+                response.generated_code = merged_code
+                response.has_completed_functions = True
+                
+                # Check if there are still incomplete functions after the completion attempt
+                still_has_incomplete, still_incomplete = check_for_incomplete_functions(merged_code)
+                if still_has_incomplete:
+                    logger.warning(f"Still found {len(still_incomplete)} incomplete functions after auto-completion.")
+                    response.still_has_incomplete_functions = True
+                    response.still_incomplete_functions = still_incomplete
+                else:
+                    logger.info("Successfully completed all incomplete functions.")
+                    response.still_has_incomplete_functions = False
+            elif has_incomplete_functions:
+                logger.info(f"Found {len(incomplete_functions)} incomplete functions, but auto-completion is disabled.")
+                response.has_incomplete_functions = True
+                response.incomplete_functions = incomplete_functions
+            else:
+                response.has_incomplete_functions = False
+            
+            # Test code execution and fix errors if needed
+            from gollm.validation.validators.code_executor import execute_python_code
+            
+            # Check if execution testing is enabled
+            execute_test = context.get("execute_test", True)  # Enable by default
+            auto_fix_execution = context.get("auto_fix_execution", True)  # Enable by default
+            max_fix_attempts = context.get("max_fix_attempts", 3)  # Default to 3 attempts
+            
+            if execute_test and response.generated_code and response.generated_code.strip():
+                # Only test Python code for now
+                if response.generated_code.strip().startswith("#!/usr/bin/env python") or "def " in response.generated_code or "import " in response.generated_code:
+                    logger.info("Testing code execution...")
+                    response.execution_tested = True
+                    
+                    # Execute the code
+                    success, error = execute_python_code(response.generated_code)
+                    response.execution_successful = success
+                    response.execution_errors = [error] if error else []
+                    
+                    # If execution failed and auto-fix is enabled, try to fix it
+                    if not success and auto_fix_execution:
+                        logger.info(f"Code execution failed with error: {error}. Attempting to fix...")
+                        current_code = response.generated_code
+                        
+                        for attempt in range(max_fix_attempts):
+                            response.execution_fix_attempts += 1
+                            
+                            # Format the error for LLM completion
+                            fix_request = f"The following Python code has errors when executed:\n\n```python\n{current_code}\n```\n\nWhen executed, it produced the following error:\n\n```\n{error}\n```\n\nPlease fix the code to make it run without errors. Provide the complete fixed code without explanations."
+                            
+                            # Create a fix request object
+                            fix_llm_request = LLMRequest(
+                                user_request=fix_request,
+                                context=context,
+                                session_id=request.session_id + f"-fix-{attempt+1}",
+                                max_iterations=1,
+                                fast_mode=request.fast_mode,
+                            )
+                            
+                            # Process the fix request
+                            fix_response = await self._process_llm_request(
+                                fix_llm_request, use_streaming=use_streaming
+                            )
+                            
+                            # Update the code with the fixed version
+                            current_code = fix_response.generated_code
+                            
+                            # Test the fixed code
+                            success, error = execute_python_code(current_code)
+                            if success:
+                                logger.info(f"Successfully fixed code execution errors after {attempt+1} attempts")
+                                response.execution_successful = True
+                                response.execution_fixed = True
+                                response.generated_code = current_code  # Update with fixed code
+                                break
+                            else:
+                                logger.warning(f"Fix attempt {attempt+1} failed: {error}")
+                                response.execution_errors.append(error)
+                        
+                        if not response.execution_successful:
+                            logger.error(f"Failed to fix code execution errors after {max_fix_attempts} attempts")
+                    
+                    elif success:
+                        logger.info("Code execution successful on first attempt")
+                else:
+                    logger.info("Skipping execution test for non-Python code")
             
             # If test generation is enabled, generate tests for the code
             if generate_tests and response.generated_code:

@@ -15,15 +15,44 @@
 
 goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modelami językowymi (LLM), który przekształca proces programowania w płynne doświadczenie, gdzie jakość kodu jest gwarantowana od pierwszego znaku.
 
-## 💫 Funkcje
+## 📚 Documentation
 
-- 🔥 **Generowanie kodu z LLM** - Tworzenie kodu na podstawie opisu w języku naturalnym
-- 🔍 **Walidacja kodu** - Automatyczne sprawdzanie jakości i poprawności kodu
-- 📈 **Metryki jakości** - Śledzenie postępów i trendów jakości kodu
-- 📝 **Zarządzanie TODO** - Automatyczne śledzenie zadań i problemów
-- 💬 **Wyjaśnienia kodu** - Zrozumiałe komentarze i dokumentacja
-- 👷 **Automatyczne naprawy** - Inteligentne poprawki błędów i problemów
-- 🚀 **Streaming odpowiedzi** - Szybsze generowanie kodu z modularnym adapterem Ollama
+For comprehensive documentation, please visit our [documentation site](https://gollm.readthedocs.io) or explore the following sections:
+
+- [Getting Started](/docs/getting-started/installation.md) - Installation and quick start guide
+- [Features](/docs/features/overview.md) - Overview of goLLM features
+- [Usage](/docs/features/usage.md) - How to use goLLM
+- [API Reference](/docs/api/reference.md) - API documentation
+- [Examples](/docs/examples/README.md) - Code examples and use cases
+- [Development](/docs/development/contributing.md) - Contributing to goLLM
+
+## 💫 Key Features
+
+- 🔥 **Code Generation with LLM** - Generate code from natural language descriptions
+- 🔍 **Code Validation** - Automatic code quality and correctness checks
+- 📈 **Quality Metrics** - Track code quality trends and improvements
+- 📝 **TODO Management** - Automatic task and issue tracking
+- 💬 **Code Explanations** - Generate understandable comments and documentation
+- 👷 **Automatic Fixes** - Intelligent error and issue resolution
+- 🚀 **Response Streaming** - Faster code generation with modular Ollama adapter
+
+## Quick Start
+
+```bash
+# Install goLLM
+pip install gollm[llm]
+
+# Generate your first code
+gollm generate "Create a Python function to calculate factorial"
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](/docs/development/contributing.md) to get started.
+
+## 📝 License
+
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 ## 🚀 Getting Started
 
@@ -830,50 +859,4 @@ gollm fix --llm plik.py  # Napraw kod z pomocą AI
 
 # Więcej informacji
 gollm --help              # Wyświetl dostępne komendy
-```
-
-> 📘 Pełna dokumentacja dostępna w [przewodniku użytkownika](./docs/guides/getting_started.md) i [dokumentacji API](./docs/api/README.md).
-
-
-```
-curl -X POST http://localhost:11434/api/generate -d '{"model": "codellama:7b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
-```
-
-
-```
-curl -X POST http://192.168.188.108:8081/api/generate -d '{"model": "qwen2.5:7b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
-
-curl http://192.168.188.108:8081/api/tags | jq
-curl -X POST http://192.168.188.108:8081/api/generate -d '{"model": "deepseek-coder:1.3b", "prompt": "Write a Python function that adds two numbers", "stream": false}'
-
-curl -X POST http://192.168.188.108:8081/api/chat \
-     -H 'Content-Type: application/json' \
-     -d '{
-       "model": "deepseek-coder:1.3b",
-       "messages": [ {"role": "user", "content": "Write Animation in shell in Python"} ],
-       "stream": false
-     }' | jq
-
-curl -X POST http://rock:8081/api/chat \
-     -H 'Content-Type: application/json' \
-     -d '{
-       "model": "deepseek-coder:1.3b",
-       "messages": [ {"role": "user", "content": "Write Hello World in Python"} ],
-       "stream": false
-     }' | jq
-     
-curl -X POST http://192.168.188.212:11434/api/chat \
-     -H 'Content-Type: application/json' \
-     -d '{
-       "model": "mistral",
-       "messages": [ {"role": "user", "content": "Stwórz klasę użytkownika"} ],
-       "stream": false
-     }' | jq
-          
-gollm generate "Write Hello World in Python"
-gollm -v generate "Write Hello World in Python"
-gollm generate "Write Hello World in Python" --fast
-gollm generate "Stwórz klasę użytkownika"
-gollm generate "Stwórz klasę użytkownika" --adapter-type modular
-gollm generate "hack my pc"
 ```

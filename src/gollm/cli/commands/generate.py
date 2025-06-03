@@ -46,6 +46,27 @@ logger = logging.getLogger("gollm.commands.generate")
     is_flag=True,
     help="Disable automatic test generation",
 )
+@click.option(
+    "--no-auto-complete",
+    is_flag=True,
+    help="Disable automatic completion of incomplete functions",
+)
+@click.option(
+    "--no-execute-test",
+    is_flag=True,
+    help="Disable automatic execution testing of generated code",
+)
+@click.option(
+    "--no-auto-fix",
+    is_flag=True,
+    help="Disable automatic fixing of execution errors",
+)
+@click.option(
+    "--max-fix-attempts",
+    type=int,
+    default=3,
+    help="Maximum number of attempts to fix execution errors (default: 3)",
+)
 @click.pass_context
 def generate_command(
     ctx,
@@ -59,6 +80,10 @@ def generate_command(
     use_streaming,
     use_grpc,
     no_tests,
+    no_auto_complete,
+    no_execute_test,
+    no_auto_fix,
+    max_fix_attempts,
 ):
     """Generate code using LLM with quality validation.
 
@@ -87,6 +112,10 @@ def generate_command(
         "use_streaming": use_streaming,
         "use_grpc": use_grpc,
         "generate_tests": not no_tests,  # Enable test generation by default
+        "auto_complete_functions": not no_auto_complete,  # Enable auto-completion by default
+        "execute_test": not no_execute_test,  # Enable execution testing by default
+        "auto_fix_execution": not no_auto_fix,  # Enable auto-fixing by default
+        "max_fix_attempts": max_fix_attempts,  # Maximum fix attempts
     }
 
     # Set environment variables for adapter type and streaming
@@ -221,6 +250,41 @@ def generate_command(
                 click.echo("\n🔍 Found the following issues:")
                 for issue in validation_issues:
                     click.echo(f"  - {issue}")
+            
+            # Show information about incomplete functions and their completion status
+            if hasattr(result, "has_incomplete_functions") and result.has_incomplete_functions:
+                if hasattr(result, "has_completed_functions") and result.has_completed_functions:
+                    click.echo("\n🔄 Detected and automatically completed incomplete functions!")
+                    if hasattr(result, "still_has_incomplete_functions") and result.still_has_incomplete_functions:
+                        click.echo(f"⚠️ Still found {len(result.still_incomplete_functions)} functions that couldn't be fully completed.")
+                        for func in result.still_incomplete_functions:
+                            click.echo(f"  - {func['name']}")
+                    else:
+                        click.echo("✅ All functions were successfully completed.")
+                else:
+                    click.echo("\n⚠️ Detected incomplete functions but auto-completion was disabled:")
+                    for func in result.incomplete_functions:
+                        click.echo(f"  - {func['name']}")
+                    click.echo("💡 Run with auto-completion enabled to complete these functions automatically.")
+            
+            # Show information about code execution testing and fixing
+            if hasattr(result, "execution_tested") and result.execution_tested:
+                if hasattr(result, "execution_successful") and result.execution_successful:
+                    if hasattr(result, "execution_fixed") and result.execution_fixed:
+                        click.echo(f"\n👍 Successfully fixed code execution errors after {result.execution_fix_attempts} attempts!")
+                    else:
+                        click.echo("\n✅ Code executed successfully on first attempt!")
+                else:
+                    click.echo("\n⛔ Code execution failed with errors:")
+                    for i, error in enumerate(result.execution_errors):
+                        if i < 3:  # Show at most 3 errors to avoid cluttering the output
+                            click.echo(f"  - Attempt {i+1}: {error}")
+                    if len(result.execution_errors) > 3:
+                        click.echo(f"  ... and {len(result.execution_errors) - 3} more errors")
+                    
+                    if hasattr(result, "execution_fix_attempts") and result.execution_fix_attempts > 0:
+                        click.echo(f"🔧 Made {result.execution_fix_attempts} attempts to fix the code, but errors persist.")
+                        click.echo("💡 You may need to manually fix the code or try again with different options.")
 
             # If we had to extract code from a prompt-like response, notify the user
             if (
