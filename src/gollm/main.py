@@ -101,5 +101,27 @@ class GollmCore:
     
     def record_change(self, change_type: str, details: dict):
         """Zapisuje zmianę do CHANGELOG"""
-        return self.changelog_manager.record_change(change_type, details)
-
+        self.changelog_manager.record_change(change_type, details)
+        
+    def get_code_metrics(self) -> dict:
+        """Retrieve code quality metrics for the project.
+        
+        Returns:
+            A dictionary containing code quality metrics
+        """
+        # Get the latest metrics from the metrics tracker
+        metrics = self.metrics_tracker.get_metrics(period="week")
+        
+        # If we have metrics, return the most recent one
+        if metrics and len(metrics) > 0:
+            return metrics[-1]
+            
+        # If no metrics are available, return a default structure
+        return {
+            "overall_score": 0,
+            "complexity": 0,
+            "maintainability": 0,
+            "documentation": 0,
+            "test_coverage": 0,
+            "issues": []
+        }
