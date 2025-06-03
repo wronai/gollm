@@ -104,11 +104,34 @@ def generate_command(ctx, request, output, critical, no_todo, fast, iterations, 
                 click.echo("  $ pip install -r requirements.txt")
                 click.echo("  $ python app.py")
             
-            # Show validation issues if any
+            # Show validation issues from code quality
+            validation_issues = []
             if result.validation_result.get('code_quality', {}).get('violations'):
-                click.echo("\n🔍 Found the following issues:")
                 for v in result.validation_result['code_quality']['violations']:
-                    click.echo(f"  - {v['type']}: {v['message']}")
+                    validation_issues.append(f"{v.type}: {v.message}")
+            
+            # Show code validation issues from our validator
+            if hasattr(result, 'code_validation_issues') and result.code_validation_issues:
+                validation_issues.extend(result.code_validation_issues)
+            
+            # Display all validation issues
+            if validation_issues:
+                click.echo("\n🔍 Found the following issues:")
+                for issue in validation_issues:
+                    click.echo(f"  - {issue}")
+                
+            # If we had to extract code from a prompt-like response, notify the user
+            if hasattr(result, 'extracted_from_prompt') and result.extracted_from_prompt:
+                click.echo("\n⚠️ Note: The generated content appeared to contain non-code text.")
+                click.echo("    Code was automatically extracted from the response.")
+                click.echo("    Please verify the generated code is correct.")
+                
+            # If we had to fix syntax errors, notify the user
+            if hasattr(result, 'fixed_syntax') and result.fixed_syntax:
+                click.echo("\n⚠️ Note: Syntax errors were automatically fixed in the generated code.")
+                click.echo("    Please verify the generated code is correct.")
+                click.echo("    You may want to regenerate if the code doesn't work as expected.")
+
                     
             # Show adapter type information if using gRPC
             if use_grpc:
@@ -116,6 +139,17 @@ def generate_command(ctx, request, output, critical, no_todo, fast, iterations, 
                 
         except Exception as e:
             click.echo(f"\n❌ Error during generation: {str(e)}")
+            
+            # Check if this is a result from a timeout with additional information
+            if hasattr(e, '__dict__') and isinstance(getattr(e, '__dict__', None), dict):
+                error_dict = e.__dict__
+                if error_dict.get('timeout') and 'suggestions' in error_dict:
+                    click.echo("\n⏱️ Request timed out - Troubleshooting suggestions:")
+                    for suggestion in error_dict['suggestions']:
+                        click.echo(f"  • {suggestion}")
+                    if 'details' in error_dict:
+                        click.echo(f"\nDetails: {error_dict['details']}")
+            
             logger.exception("Generation failed")
     
     asyncio.run(run_generation())

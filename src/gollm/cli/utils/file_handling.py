@@ -6,6 +6,15 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 
 
+import logging
+import os
+from pathlib import Path
+
+# Import code validator
+from ...validation.code_validator import validate_and_extract_code
+
+logger = logging.getLogger('gollm.cli.file_handling')
+
 async def save_generated_files(generated_code: str, base_path: Path) -> List[str]:
     """Save generated code to appropriate files, handling multi-file output.
     
@@ -30,18 +39,40 @@ async def save_generated_files(generated_code: str, base_path: Path) -> List[str
             file_path = base_path / file_header.strip()
             file_content = '\n'.join(file_content).strip()
             
+            # Validate code before saving
+            file_extension = file_path.suffix.lstrip('.')
+            is_valid, validated_content, issues = validate_and_extract_code(file_content, file_extension)
+            
+            if not is_valid:
+                logger.warning(f"Invalid code detected for {file_path}: {', '.join(issues)}")
+                logger.warning("Attempting to extract valid code from content...")
+                
+            if issues:
+                logger.info(f"Code validation issues for {file_path}: {', '.join(issues)}")
+            
             # Ensure parent directory exists
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Save the file
+            # Save the validated content
             with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(file_content)
+                f.write(validated_content)
             saved_files.append(str(file_path))
     else:
-        # Single file output
+        # Single file output - validate code first
+        file_extension = base_path.suffix.lstrip('.')
+        is_valid, validated_content, issues = validate_and_extract_code(generated_code, file_extension)
+        
+        if not is_valid:
+            logger.warning(f"Invalid code detected for {base_path}: {', '.join(issues)}")
+            logger.warning("Attempting to extract valid code from content...")
+            
+        if issues:
+            logger.info(f"Code validation issues for {base_path}: {', '.join(issues)}")
+        
+        # Save the validated content
         base_path.parent.mkdir(parents=True, exist_ok=True)
         with open(base_path, 'w', encoding='utf-8') as f:
-            f.write(generated_code)
+            f.write(validated_content)
         saved_files.append(str(base_path))
         
     return saved_files

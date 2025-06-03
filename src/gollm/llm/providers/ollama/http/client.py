@@ -73,6 +73,7 @@ class OllamaHttpClient:
         if self.config.api_key:
             headers['Authorization'] = f'Bearer {self.config.api_key}'
         
+        # Use default timeout for session creation, we'll override per request
         self.session = aiohttp.ClientSession(
             base_url=self.config.base_url,
             timeout=aiohttp.ClientTimeout(total=self.config.timeout),
@@ -102,9 +103,29 @@ class OllamaHttpClient:
         logger.debug("Making %s request to %s", method, url)
         if 'json' in kwargs:
             logger.debug("Request payload: %s", json.dumps(kwargs['json'], indent=2))
+            
+        # Calculate adaptive timeout based on request type and payload
+        timeout = self.config.timeout
+        if self.config.adaptive_timeout and 'json' in kwargs:
+            payload = kwargs['json']
+            prompt_length = 0
+            
+            # Extract prompt length from different request types
+            if endpoint == '/api/generate' and 'prompt' in payload:
+                prompt_length = len(payload['prompt'])
+            elif endpoint == '/api/chat' and 'messages' in payload:
+                # Sum up all message content lengths
+                prompt_length = sum(len(msg.get('content', '')) for msg in payload.get('messages', []))
+                
+            # Get adjusted timeout based on model and prompt length
+            timeout = self.config.get_adjusted_timeout(prompt_length)
+            logger.debug(f"Using adaptive timeout of {timeout}s for request (prompt length: {prompt_length})")
+        
+        # Create a timeout just for this request
+        request_timeout = aiohttp.ClientTimeout(total=timeout)
         
         try:
-            async with self.session.request(method, url, **kwargs) as response:
+            async with self.session.request(method, url, timeout=request_timeout, **kwargs) as response:
                 response.raise_for_status()
                 
                 # Log response status
@@ -145,12 +166,25 @@ class OllamaHttpClient:
                 'error': error_msg
             }
         except asyncio.TimeoutError:
-            error_msg = f"Request timed out after {self.config.timeout}s"
+            error_msg = f"Request timed out after {timeout}s"
             logger.error(error_msg)
+            
+            # Provide more detailed error message with troubleshooting suggestions
+            model_info = f" with model {self.config.model}" if hasattr(self.config, 'model') else ""
+            suggestions = [
+                f"Try increasing the timeout in your configuration (current: {timeout}s)",
+                "Check if the Ollama server is under heavy load",
+                "Consider using a smaller model if available",
+                "Reduce the prompt length or complexity"
+            ]
+            
             return {
                 'success': False,
                 'error': error_msg,
-                'timeout': True
+                'timeout': True,
+                'model': getattr(self.config, 'model', None),
+                'suggestions': suggestions,
+                'details': f"The request to {endpoint}{model_info} timed out. This could be due to server load, model size, or prompt complexity."
             }
     
     async def list_models(self) -> Dict[str, Any]:

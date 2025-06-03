@@ -5,6 +5,7 @@ from typing import Optional, Union, Dict, Any
 
 from .config import OllamaConfig
 from .http import OllamaHttpAdapter
+from .modular_adapter import OllamaModularAdapter
 
 # Conditionally import gRPC adapter if available
 try:
@@ -18,16 +19,17 @@ class AdapterType:
     """Enum-like class for adapter types."""
     HTTP = "http"
     GRPC = "grpc"
+    MODULAR = "modular"
 
 def create_adapter(
     config: OllamaConfig,
     adapter_type: Optional[str] = None
-) -> Union[OllamaHttpAdapter, 'OllamaGrpcAdapter']:
+) -> Union[OllamaHttpAdapter, 'OllamaGrpcAdapter', OllamaModularAdapter]:
     """Create an appropriate Ollama adapter based on configuration.
     
     Args:
         config: Ollama configuration
-        adapter_type: Type of adapter to create (http or grpc)
+        adapter_type: Type of adapter to create (http, grpc, or modular)
         
     Returns:
         An initialized adapter instance
@@ -46,6 +48,9 @@ def create_adapter(
     if adapter_type == AdapterType.HTTP:
         logger.debug("Creating HTTP adapter")
         return OllamaHttpAdapter(config)
+    elif adapter_type == AdapterType.MODULAR:
+        logger.debug("Creating modular adapter with enhanced logging and performance")
+        return OllamaModularAdapter(config)
     elif adapter_type == AdapterType.GRPC:
         if not GRPC_AVAILABLE:
             logger.warning(
@@ -60,10 +65,11 @@ def create_adapter(
     else:
         raise ValueError(f"Invalid adapter type: {adapter_type}")
 
-def get_best_available_adapter(config: OllamaConfig) -> Union[OllamaHttpAdapter, 'OllamaGrpcAdapter']:
+def get_best_available_adapter(config: OllamaConfig) -> Union[OllamaHttpAdapter, 'OllamaGrpcAdapter', OllamaModularAdapter]:
     """Get the best available adapter based on installed dependencies.
     
-    This will prefer gRPC if available, otherwise fall back to HTTP.
+    This will prefer the modular adapter for enhanced logging and performance,
+    then gRPC if available, otherwise fall back to HTTP.
     
     Args:
         config: Ollama configuration
@@ -71,9 +77,15 @@ def get_best_available_adapter(config: OllamaConfig) -> Union[OllamaHttpAdapter,
     Returns:
         An initialized adapter instance
     """
-    if GRPC_AVAILABLE:
+    # Check if we should use the modular adapter (default to True)
+    use_modular = getattr(config, 'use_modular_adapter', True)
+    
+    if use_modular:
+        logger.info("Using modular adapter for enhanced logging and performance")
+        return create_adapter(config, AdapterType.MODULAR)
+    elif GRPC_AVAILABLE:
         logger.info("Using gRPC adapter for better performance")
         return create_adapter(config, AdapterType.GRPC)
     else:
-        logger.info("Using HTTP adapter (gRPC not available)")
+        logger.info("Using HTTP adapter")
         return create_adapter(config, AdapterType.HTTP)

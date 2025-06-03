@@ -4,9 +4,10 @@ import logging
 import os
 import re
 import tempfile
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 
 from gollm.validation.validators import CodeValidator
+from gollm.validation.code_validator import validate_and_extract_code, looks_like_prompt
 
 logger = logging.getLogger('gollm.orchestrator.validator')
 
