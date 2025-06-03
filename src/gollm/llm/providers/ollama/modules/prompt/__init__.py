@@ -6,9 +6,11 @@ This module handles all prompt-related operations including:
 - Processing and validating prompts
 - Handling prompt templates
 - Logging prompt details
+- Specialized code generation prompts
 """
 
 from .formatter import PromptFormatter
 from .logger import PromptLogger
+from .code_formatter import CodePromptFormatter
 
-__all__ = ['PromptFormatter', 'PromptLogger']
+__all__ = ['PromptFormatter', 'PromptLogger', 'CodePromptFormatter']

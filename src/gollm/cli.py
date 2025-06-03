@@ -80,8 +80,10 @@ def validate_project(ctx):
 @click.option('--strict-validation', is_flag=True, help='Use strict validation mode (no auto-fixing)')
 @click.option('--allow-prompt-text', is_flag=True, help='Allow prompt-like text in generated code')
 @click.option('--skip-validation', is_flag=True, help='Skip code validation entirely (not recommended)')
+@click.option('--adapter-type', type=click.Choice(['http', 'grpc', 'modular']), help='Adapter type for Ollama communication')
+@click.option('--use-streaming', is_flag=True, help='Use streaming API for faster response times')
 @click.pass_context
-def generate(ctx, request, output, critical, no_todo, fast, iterations, strict_validation, allow_prompt_text, skip_validation):
+def generate(ctx, request, output, critical, no_todo, fast, iterations, strict_validation, allow_prompt_text, skip_validation, adapter_type, use_streaming):
     """Generate code using LLM with quality validation
     
     For website projects, specify a directory as output to generate multiple files.
@@ -100,8 +102,20 @@ def generate(ctx, request, output, critical, no_todo, fast, iterations, strict_v
             'strict_validation': strict_validation,
             'allow_prompt_text': allow_prompt_text,
             'skip_validation': skip_validation
-        }
+        },
+        # Use streaming if specified or default to True for better performance
+        'use_streaming': use_streaming if use_streaming is not None else True,
+        # Use specified adapter type or default to modular for better streaming support
+        'adapter_type': adapter_type if adapter_type else 'modular'
     }
+    
+    # Set environment variables for adapter type and streaming
+    if adapter_type:
+        import os
+        os.environ['OLLAMA_ADAPTER_TYPE'] = adapter_type
+        logging.info(f"Using {adapter_type} adapter for Ollama communication")
+    else:
+        logging.info(f"Using modular adapter for Ollama communication")
     
     if no_todo:
         context['skip_todo'] = True
@@ -185,7 +199,21 @@ def generate(ctx, request, output, critical, no_todo, fast, iterations, strict_v
                     'static': 'static/'
                 }
             
-            result = await gollm.handle_code_generation(request, context=context)
+            # Extract parameters from context
+            max_iterations = context.get('max_iterations', 3)
+            validation_mode = 'strict' if context.get('validation_options', {}).get('strict_validation', False) else 'standard'
+            skip_validation = context.get('validation_options', {}).get('skip_validation', False)
+            use_streaming = context.get('use_streaming', True)
+            
+            # Call with explicit parameters for better control
+            result = await gollm.handle_code_generation(
+                request, 
+                context=context,
+                max_iterations=max_iterations,
+                validation_mode=validation_mode,
+                skip_validation=skip_validation,
+                use_streaming=use_streaming
+            )
             
             # Save all generated files
             saved_files = await save_generated_files(

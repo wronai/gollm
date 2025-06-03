@@ -21,6 +21,7 @@ class OllamaConfig:
     show_response: bool = False
     show_metadata: bool = False
     adaptive_timeout: bool = True
+    adapter_type: str = "http"  # Options: "http", "grpc", "modular"
     
     def get_adjusted_timeout(self, prompt_length: int) -> int:
         """Calculate an adaptive timeout based on prompt length.
@@ -110,6 +111,28 @@ class ConfigManager:
         # Use chat API
         if 'OLLAMA_USE_CHAT' in os.environ:
             config.use_chat = os.environ['OLLAMA_USE_CHAT'].lower() in ['true', '1', 'yes']
+            
+        # Adapter type (support both OLLAMA_ADAPTER_TYPE and GOLLM_ADAPTER_TYPE)
+        if 'GOLLM_ADAPTER_TYPE' in os.environ:
+            adapter_type = os.environ['GOLLM_ADAPTER_TYPE'].lower()
+            if adapter_type in ['http', 'grpc', 'modular']:
+                config.adapter_type = adapter_type
+                logger.info(f"Using adapter type from GOLLM_ADAPTER_TYPE: {adapter_type}")
+            else:
+                logger.warning(f"Invalid GOLLM_ADAPTER_TYPE value: {adapter_type}")
+        
+        # OLLAMA_ADAPTER_TYPE takes precedence if both are set
+        if 'OLLAMA_ADAPTER_TYPE' in os.environ:
+            adapter_type = os.environ['OLLAMA_ADAPTER_TYPE'].lower()
+            if adapter_type in ['http', 'grpc', 'modular']:
+                config.adapter_type = adapter_type
+                logger.info(f"Using adapter type from OLLAMA_ADAPTER_TYPE: {adapter_type}")
+            else:
+                logger.warning(f"Invalid OLLAMA_ADAPTER_TYPE value: {adapter_type}")
+                
+        # Adaptive timeout
+        if 'OLLAMA_ADAPTIVE_TIMEOUT' in os.environ:
+            config.adaptive_timeout = os.environ['OLLAMA_ADAPTIVE_TIMEOUT'].lower() in ['true', '1', 'yes']
     
     def _apply_config_dict(self, config: OllamaConfig, config_dict: Dict[str, Any]) -> None:
         """Apply configuration from dictionary.

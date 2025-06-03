@@ -1,0 +1,159 @@
+---
+# Ansible playbook to test GoLLM with shell queries
+# This playbook tests the GoLLM CLI with various shell commands and code generation tasks
+
+- name: Test GoLLM Shell Queries
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    gollm_path: "{{ playbook_dir }}"
+    output_dir: "{{ playbook_dir }}/test_results"
+    test_timestamp: "{{ ansible_date_time.iso8601 }}"
+    adapter_type: "modular"  # Use our improved modular adapter
+  
+  tasks:
+    - name: Create output directory
+      file:
+        path: "{{ output_dir }}"
+        state: directory
+        mode: '0755'
+    
+    - name: Set environment variables for GoLLM
+      set_fact:
+        gollm_env:
+          GOLLM_ADAPTER_TYPE: "{{ adapter_type }}"
+          GOLLM_LOG_LEVEL: "DEBUG"
+          PYTHONPATH: "{{ gollm_path }}/src:{{ ansible_env.PYTHONPATH | default('') }}"
+    
+    - name: Test basic system commands
+      block:
+        - name: Test system info commands
+          shell: |
+            cd {{ gollm_path }} && \
+            python -m gollm generate "Write a shell command to show system information including CPU, memory, and disk usage" -o system_info.sh
+          environment: "{{ gollm_env }}"
+          register: system_info_result
+          ignore_errors: yes
+        
+        - name: Execute generated system info script if it exists
+          shell: "bash {{ gollm_path }}/system_info.sh"
+          register: system_info_output
+          ignore_errors: yes
+          when: system_info_result.rc == 0
+        
+        - name: Save system info results
+          copy:
+            content: |
+              === GOLLM GENERATION ===
+              {{ system_info_result.stdout }}
+              
+              === EXECUTION OUTPUT ===
+              {{ system_info_output.stdout | default('Script execution failed or not attempted') }}
+            dest: "{{ output_dir }}/system_info_test.log"
+          when: system_info_result is defined
+    
+    - name: Test file manipulation commands
+      block:
+        - name: Test file search and manipulation
+          shell: |
+            cd {{ gollm_path }} && \
+            python -m gollm generate "Write a shell script to find all Python files in the current directory, count the lines in each file, and sort them by line count" -o file_stats.sh
+          environment: "{{ gollm_env }}"
+          register: file_stats_result
+          ignore_errors: yes
+        
+        - name: Execute generated file stats script if it exists
+          shell: "bash {{ gollm_path }}/file_stats.sh"
+          register: file_stats_output
+          ignore_errors: yes
+          when: file_stats_result.rc == 0
+        
+        - name: Save file stats results
+          copy:
+            content: |
+              === GOLLM GENERATION ===
+              {{ file_stats_result.stdout }}
+              
+              === EXECUTION OUTPUT ===
+              {{ file_stats_output.stdout | default('Script execution failed or not attempted') }}
+            dest: "{{ output_dir }}/file_stats_test.log"
+          when: file_stats_result is defined
+    
+    - name: Test network commands
+      block:
+        - name: Test network diagnostics
+          shell: |
+            cd {{ gollm_path }} && \
+            python -m gollm generate "Write a shell script to check network connectivity, display active connections, and show listening ports" -o network_check.sh
+          environment: "{{ gollm_env }}"
+          register: network_check_result
+          ignore_errors: yes
+        
+        - name: Execute generated network check script if it exists
+          shell: "bash {{ gollm_path }}/network_check.sh"
+          register: network_check_output
+          ignore_errors: yes
+          when: network_check_result.rc == 0
+        
+        - name: Save network check results
+          copy:
+            content: |
+              === GOLLM GENERATION ===
+              {{ network_check_result.stdout }}
+              
+              === EXECUTION OUTPUT ===
+              {{ network_check_output.stdout | default('Script execution failed or not attempted') }}
+            dest: "{{ output_dir }}/network_check_test.log"
+          when: network_check_result is defined
+    
+    - name: Test Python code generation
+      block:
+        - name: Generate Python utility script
+          shell: |
+            cd {{ gollm_path }} && \
+            python -m gollm generate "Write a Python script that monitors system resources (CPU, memory, disk) and logs the data to a CSV file every 5 seconds" -o system_monitor.py
+          environment: "{{ gollm_env }}"
+          register: python_gen_result
+          ignore_errors: yes
+        
+        - name: Check Python syntax of generated code
+          shell: "cd {{ gollm_path }} && python -m py_compile system_monitor.py"
+          register: python_syntax_check
+          ignore_errors: yes
+          when: python_gen_result.rc == 0
+        
+        - name: Save Python generation results
+          copy:
+            content: |
+              === GOLLM GENERATION ===
+              {{ python_gen_result.stdout }}
+              
+              === SYNTAX CHECK ===
+              {{ 'Syntax check passed' if python_syntax_check.rc == 0 else 'Syntax check failed: ' + python_syntax_check.stderr | default('') }}
+            dest: "{{ output_dir }}/python_gen_test.log"
+          when: python_gen_result is defined
+    
+    - name: Generate test summary
+      template:
+        src: "{{ playbook_dir }}/test_summary_template.j2"
+        dest: "{{ output_dir }}/test_summary.md"
+      ignore_errors: yes
+      vars:
+        test_results:
+          - name: "System Info Commands"
+            success: "{{ system_info_result.rc == 0 if system_info_result is defined else false }}"
+            execution_success: "{{ system_info_output.rc == 0 if system_info_output is defined else false }}"
+          - name: "File Manipulation Commands"
+            success: "{{ file_stats_result.rc == 0 if file_stats_result is defined else false }}"
+            execution_success: "{{ file_stats_output.rc == 0 if file_stats_output is defined else false }}"
+          - name: "Network Commands"
+            success: "{{ network_check_result.rc == 0 if network_check_result is defined else false }}"
+            execution_success: "{{ network_check_output.rc == 0 if network_check_output is defined else false }}"
+          - name: "Python Code Generation"
+            success: "{{ python_gen_result.rc == 0 if python_gen_result is defined else false }}"
+            execution_success: "{{ python_syntax_check.rc == 0 if python_syntax_check is defined else false }}"
+      failed_when: false
+    
+    - name: Display test summary
+      debug:
+        msg: "Test summary has been generated at {{ output_dir }}/test_summary.md"

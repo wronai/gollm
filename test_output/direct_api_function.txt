@@ -1,0 +1,40 @@
+<think>
+Okay, the user wants a simple Python function to add two numbers. Let me think about how to approach this.
+
+First, I need to define a function. In Python, you use the def keyword. So maybe something like def add_numbers(a, b):. Then, the function should return the sum of a and b. So return a + b.
+
+Wait, but what types are these numbers? The problem says "two numbers", which could be integers or floats. But the function doesn't need to check that. Just add them as they are.
+
+So the function is straightforward. Let me test it in my mind. If I call add_numbers(3, 5), it should return 8. If I pass 2.5 and 3.5, it should return 6.0. That seems right.
+
+Do I need to handle any edge cases? The question says "simple", so probably not. Just a basic function that takes two parameters and returns their sum.
+
+So the code would be:
+
+def add_numbers(a, b):
+    return a + b
+
+That's it. Maybe the user wants it to take input from the user? But the question says "write a simple Python function", so probably just the function itself. Unless they want an example of how to use it. But the question is just to write the function.
+
+So the answer is the function definition. Let me make sure there's no mistake. Yes, that's correct.
+</think>
+
+Here's a simple Python function to add two numbers:
+
+```python
+def add_numbers(a, b):
+    return a + b
+```
+
+### How it works:
+- The function `add_numbers` takes two parameters, `a` and `b`.
+- It returns the sum of the two inputs.
+- This works for both integers and floating-point numbers.
+
+### Example usage:
+```python
+result = add_numbers(3, 5)
+print(result)  # Output: 8
+```
+
+This is a basic and efficient implementation for the task.

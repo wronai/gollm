@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from typing import Dict, Any, Optional, List, Union, AsyncIterator
+from typing import Dict, Any, Optional, List, Union, AsyncIterator, Tuple
 
 from ..base import BaseLLMProvider
 from .config import OllamaConfig
@@ -25,11 +25,15 @@ class OllamaLLMProvider(BaseLLMProvider):
         self.adapter = None
         self._model_available: Optional[bool] = None
         
-        # Determine adapter type from config
-        self.adapter_type = config.get('adapter_type', 'http')
+        # Determine adapter type from environment variables first, then config
+        import os
+        self.adapter_type = os.environ.get('OLLAMA_ADAPTER_TYPE') or \
+                           os.environ.get('GOLLM_ADAPTER_TYPE') or \
+                           config.get('adapter_type', 'modular')  # Default to modular adapter
         
         # Check if we should use gRPC for better performance
-        self.use_grpc = config.get('use_grpc', False)
+        self.use_grpc = config.get('use_grpc', False) or \
+                      os.environ.get('GOLLM_USE_GRPC', '').lower() == 'true'
         
         logger.info(
             f"Ollama configuration - URL: {self.config.base_url}, "
@@ -497,6 +501,263 @@ class OllamaLLMProvider(BaseLLMProvider):
         try:
             return asyncio.get_event_loop().run_until_complete(
                 self.health_check()
-            )['status']
+            )["status"]
         except Exception:
             return False
+            
+    async def generate_response_stream(
+        self, 
+        prompt: str, 
+        context: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
+        """Generate a streaming response using the Ollama API.
+        
+        Args:
+            prompt: The prompt to generate a response for
+            context: Additional context for the generation
+            **kwargs: Additional generation parameters (temperature, max_tokens, etc.)
+                - temperature: Controls randomness (0.0 to 1.0)
+                - max_tokens: Maximum number of tokens to generate
+                - top_p: Nucleus sampling parameter (0.0 to 1.0)
+                - top_k: Limit next token selection to top K (1-100)
+                - repeat_penalty: Penalty for repeated tokens (1.0+)
+                - stop: List of strings to stop generation
+                - Any other Ollama API parameters
+                
+        Yields:
+            Tuples of (text_chunk, metadata) where:
+                - text_chunk: A chunk of the generated text
+                - metadata: Dictionary with generation metadata
+        """
+        # Import the generation module
+        from .generation import extract_response_content
+        from .models import ensure_model_available
+        
+        # Ensure we have an adapter
+        if not self.adapter:
+            await self.__aenter__()
+            
+        # Ensure the model is available
+        model_available = await ensure_model_available(self.adapter, self.config.model)
+        if not model_available:
+            yield ("", {
+                "success": False,
+                "error": f"Model '{self.config.model}' is not available",
+                "generated_text": ""
+            })
+            return
+            
+        try:
+            # Default generation parameters - optimized for code generation
+            default_params = {
+                'temperature': 0.1,      # Very low for deterministic output
+                'max_tokens': 500,       # Increased to allow for longer code blocks
+                'top_p': 0.9,            # Focus on high probability tokens
+                'top_k': 40,             # Limit sampling pool
+                'repeat_penalty': 1.2,   # Penalize repetition more
+                'num_ctx': 4096,         # Increased context window for code generation
+                'stop': ['```', '\n\n', '\n#', '---', '===', '\n'],  # Stop on formatting
+            }
+        
+            # Update defaults with any provided kwargs, filtering out None values
+            generation_params = {**default_params, **{k: v for k, v in kwargs.items() if v is not None}}
+            
+            # Ensure temperature is within valid range
+            if 'temperature' in generation_params:
+                generation_params['temperature'] = max(0.0, min(1.0, float(generation_params['temperature'])))
+            
+            # Modify the prompt to be extremely explicit about the expected output format
+            if 'CODE_ONLY' not in prompt:
+                prompt = f"""
+                {prompt}
+                
+                RULES:
+                - Respond with ONLY the Python code, nothing else
+                - No explanations, no markdown, no additional text
+                - Just the raw Python code that can be executed directly
+                
+                Example of the ONLY acceptable response:
+                print("Hello, World!")
+                
+                CODE_ONLY: True
+                """.strip()
+                
+                # Add a system message to ensure the model understands the format
+                if context and 'messages' in context:
+                    # If we have a chat context, insert a system message
+                    context['messages'].insert(0, {
+                        'role': 'system',
+                        'content': 'You are a code generator. Respond with ONLY the requested code, no explanations, no markdown, just the raw code.'
+                    })
+            
+            # Get generation parameters with overrides
+            generation_params = self._prepare_generation_parameters(
+                model=self.config.model,
+                **kwargs
+            )
+            
+            # Force specific parameters for code generation
+            generation_params['temperature'] = 0.1
+            generation_params['top_p'] = 0.9
+            generation_params['top_k'] = 40
+            generation_params['repeat_penalty'] = 1.1
+            generation_params['num_ctx'] = 4096
+            generation_params['num_predict'] = 500  # Override to allow longer responses
+            
+            # Ensure consistent stop sequences
+            if 'stop' not in generation_params or not generation_params['stop']:
+                generation_params['stop'] = ['```', '\n```', '\n#', '---', '===']
+            
+            # Prepare the options dictionary with generation parameters
+            options = {}
+            
+            # Map common parameter names to Ollama's expected names
+            param_mapping = {
+                'max_tokens': 'num_predict',
+                'frequency_penalty': 'repeat_penalty',
+                'presence_penalty': 'repeat_penalty',
+                'stop': 'stop',
+            }
+            
+            # Add all generation parameters to options with proper mapping
+            for param, value in generation_params.items():
+                # Skip None values to use Ollama defaults
+                if value is None:
+                    continue
+                
+                # Special handling for stop sequences
+                if param == 'stop' and value:
+                    if not isinstance(value, list):
+                        value = [str(value)]
+                    options['stop'] = [str(s) for s in value]
+                    continue
+                
+                # Map parameter names if needed
+                mapped_param = param_mapping.get(param, param)
+                
+                # Ensure parameter values are within valid ranges
+                if mapped_param == 'temperature':
+                    value = max(0.0, min(1.0, float(value)))
+                elif mapped_param in ('top_p', 'top_k'):
+                    value = max(1, min(100, int(value)))
+                elif mapped_param == 'repeat_penalty':
+                    value = max(1.0, float(value))
+                elif mapped_param == 'num_predict':
+                    value = max(1, int(value))
+                
+                options[mapped_param] = value
+            
+            # Log the final options being sent to the API
+            logger.debug(f"Sending to Ollama API with options: {options}")
+            
+            # Prepare messages or prompt based on API type
+            full_text = ""
+            metadata = {
+                "success": True,
+                "model": self.config.model,
+                "usage": {
+                    "prompt_tokens": len(prompt.split()),
+                    "completion_tokens": 0,
+                    "total_tokens": len(prompt.split())
+                }
+            }
+            
+            if self.config.api_type == 'chat':
+                messages = [{"role": "user", "content": prompt}]
+                if context and 'messages' in context:
+                    messages = context['messages'] + messages
+                
+                logger.debug(f"Sending streaming chat request with messages: {messages}")
+                
+                # Use the adapter's streaming chat method
+                if hasattr(self.adapter, 'chat_stream'):
+                    async for chunk in self.adapter.chat_stream(
+                        messages=messages,
+                        model=self.config.model,
+                        options=options
+                    ):
+                        full_text += chunk
+                        metadata["usage"]["completion_tokens"] = len(full_text.split())
+                        metadata["usage"]["total_tokens"] = metadata["usage"]["prompt_tokens"] + metadata["usage"]["completion_tokens"]
+                        yield (chunk, metadata)
+                else:
+                    # Fallback to non-streaming if streaming not available
+                    response = await self.adapter.chat(
+                        messages=messages,
+                        model=self.config.model,
+                        options=options,
+                        stream=False
+                    )
+                    
+                    # Handle chat completion response format
+                    generated_text = response.get('message', {}).get('content', '')
+                    yield (generated_text, {
+                        "success": True,
+                        "model": response.get('model', self.config.model),
+                        "usage": {
+                            "prompt_tokens": response.get('prompt_eval_count', len(prompt.split())),
+                            "completion_tokens": response.get('eval_count', len(generated_text.split())),
+                            "total_tokens": response.get('prompt_eval_count', len(prompt.split())) + 
+                                               response.get('eval_count', len(generated_text.split()))
+                        }
+                    })
+            else:
+                # Use the adapter's streaming generate method
+                if hasattr(self.adapter, 'generate_stream'):
+                    async for chunk in self.adapter.generate_stream(
+                        prompt=prompt,
+                        model=self.config.model,
+                        options=options
+                    ):
+                        full_text += chunk
+                        metadata["usage"]["completion_tokens"] = len(full_text.split())
+                        metadata["usage"]["total_tokens"] = metadata["usage"]["prompt_tokens"] + metadata["usage"]["completion_tokens"]
+                        yield (chunk, metadata)
+                else:
+                    # Fallback to non-streaming if streaming not available
+                    response = await self.adapter.generate(
+                        prompt=prompt,
+                        model=self.config.model,
+                        options=options,
+                        stream=False
+                    )
+                    
+                    # Extract the generated text from different possible response formats
+                    generated_text = ''
+                    if isinstance(response, str):
+                        generated_text = response
+                    elif 'response' in response:
+                        generated_text = response['response']
+                    elif 'message' in response and isinstance(response['message'], dict) and 'content' in response['message']:
+                        generated_text = response['message']['content']
+                    elif 'choices' in response and len(response['choices']) > 0 and 'text' in response['choices'][0]:
+                        generated_text = response['choices'][0]['text']
+                    elif 'choices' in response and len(response['choices']) > 0 and 'message' in response['choices'][0]:
+                        generated_text = response['choices'][0]['message'].get('content', '')
+                    elif 'generated_text' in response:
+                        generated_text = response['generated_text']
+                    
+                    # Clean up the generated text
+                    if generated_text:
+                        # Remove any leading/trailing whitespace and newlines
+                        generated_text = generated_text.strip()
+                    
+                    yield (generated_text, {
+                        "success": True,
+                        "model": response.get('model', self.config.model),
+                        "usage": {
+                            "prompt_tokens": response.get('prompt_eval_count', len(prompt.split())),
+                            "completion_tokens": response.get('eval_count', len(generated_text.split())),
+                            "total_tokens": response.get('prompt_eval_count', len(prompt.split())) + 
+                                               response.get('eval_count', len(generated_text.split()))
+                        }
+                    })
+                    
+        except Exception as e:
+            logger.exception("Failed to generate streaming response")
+            yield ("", {
+                "success": False,
+                "error": f"Failed to generate streaming response: {str(e)}",
+                "generated_text": ""
+            })

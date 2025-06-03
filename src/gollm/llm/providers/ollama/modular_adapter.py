@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List, AsyncIterator
 
 from ..config import OllamaConfig
 from .http.client import OllamaHttpClient
-from .modules.prompt import PromptFormatter, PromptLogger
+from .modules.prompt import PromptFormatter, PromptLogger, CodePromptFormatter
 from .modules.health import HealthMonitor, DiagnosticsCollector
 from .modules.model import ModelManager, ModelInfo
 from .modules.generation.generator import OllamaGenerator
@@ -39,6 +39,7 @@ class OllamaModularAdapter:
         # Component instances (initialized in __aenter__)
         self.prompt_formatter = None
         self.prompt_logger = None
+        self.code_formatter = None  # New code-specific formatter
         self.health_monitor = None
         self.model_manager = None
         self.diagnostics = None
@@ -53,6 +54,7 @@ class OllamaModularAdapter:
         # Initialize components
         self.prompt_formatter = PromptFormatter(self.component_config)
         self.prompt_logger = PromptLogger(self.component_config)
+        self.code_formatter = CodePromptFormatter(self.component_config)
         self.health_monitor = HealthMonitor(self.client)
         self.model_manager = ModelManager(self.client)
         self.diagnostics = DiagnosticsCollector(self.component_config, self.client)
@@ -116,14 +118,40 @@ class OllamaModularAdapter:
             return {"success": False, "error": "Adapter not initialized"}
             
         try:
-            # Format the prompt
-            formatted_prompt = self.prompt_formatter.format_completion_prompt(
-                prompt, 
-                system_message=kwargs.get('system_message')
-            )
+            # Determine if this is a code generation task
+            is_code_task = kwargs.get('is_code_generation', False)
+            if not is_code_task:
+                # Use heuristics to detect code generation requests
+                code_keywords = ['code', 'function', 'class', 'implement', 'write', 'create a', 
+                                'develop', 'script', 'program', 'algorithm']
+                is_code_task = any(keyword in prompt.lower() for keyword in code_keywords)
+            
+            # Get the target programming language if specified
+            language = kwargs.get('language', 'python')
+            
+            # Format the prompt based on task type
+            if is_code_task:
+                # Use specialized code formatter
+                formatted_prompt = self.code_formatter.format_code_prompt(
+                    prompt,
+                    language=language,
+                    code_context=kwargs.get('code_context'),
+                    file_context=kwargs.get('file_context'),
+                    system_message=kwargs.get('system_message')
+                )
+                logger.info(f"Using code-optimized prompt for {language} generation")
+            else:
+                # Use standard formatter
+                formatted_prompt = self.prompt_formatter.format_completion_prompt(
+                    prompt, 
+                    system_message=kwargs.get('system_message')
+                )
             
             # Get prompt metadata
             prompt_metadata = self.prompt_formatter.get_prompt_metadata(formatted_prompt)
+            if is_code_task:
+                prompt_metadata['task_type'] = 'code_generation'
+                prompt_metadata['language'] = language
             
             # Log the request
             self.prompt_logger.log_request(
@@ -134,10 +162,11 @@ class OllamaModularAdapter:
             
             # Prepare context for generator
             context = {
-                'messages': formatted_messages,
                 'temperature': kwargs.get('temperature', self.config.temperature),
                 'max_tokens': kwargs.get('max_tokens', self.config.max_tokens),
-                'system_message': kwargs.get('system_message')
+                'system_message': kwargs.get('system_message'),
+                'is_code_generation': is_code_task,
+                'language': language
             }
             
             # Add any other generation parameters to context
@@ -155,6 +184,24 @@ class OllamaModularAdapter:
             # Add success flag if not present
             if 'success' not in result:
                 result['success'] = 'error' not in result
+            
+            # Post-process code generation results if needed
+            if context.get('is_code_generation', False) and 'text' in result:
+                # Extract clean code from the response
+                original_text = result['text']
+                clean_code = self.code_formatter.extract_code_from_response(
+                    original_text, 
+                    language=context.get('language', 'python')
+                )
+                
+                # Update the result with clean code
+                if clean_code != original_text:
+                    logger.debug(f"Cleaned up code response, removed {len(original_text) - len(clean_code)} characters")
+                    result['original_text'] = original_text
+                    result['text'] = clean_code
+                    # Also update the generated_text field for backward compatibility
+                    if 'generated_text' in result:
+                        result['generated_text'] = clean_code
             
             # Log the response
             self.prompt_logger.log_response(result, result.get('metadata', {}).get('duration', 0))
@@ -181,11 +228,50 @@ class OllamaModularAdapter:
             return {"success": False, "error": "Adapter not initialized"}
             
         try:
-            # Format the messages
-            formatted_messages = self.prompt_formatter.format_chat_messages(messages)
+            # Determine if this is a code generation task
+            is_code_task = kwargs.get('is_code_generation', False)
+            
+            # If not explicitly set, try to detect from the last user message
+            if not is_code_task and messages:
+                last_user_msg = next((msg for msg in reversed(messages) if msg.get('role') == 'user'), None)
+                if last_user_msg and 'content' in last_user_msg:
+                    # Use heuristics to detect code generation requests
+                    code_keywords = ['code', 'function', 'class', 'implement', 'write', 'create a', 
+                                    'develop', 'script', 'program', 'algorithm']
+                    is_code_task = any(keyword in last_user_msg['content'].lower() for keyword in code_keywords)
+            
+            # Get the target programming language if specified
+            language = kwargs.get('language', 'python')
+            
+            # Format the messages based on task type
+            if is_code_task:
+                # Extract the last user prompt from messages
+                last_user_msg = next((msg for msg in reversed(messages) if msg.get('role') == 'user'), None)
+                if last_user_msg and 'content' in last_user_msg:
+                    # Get previous messages for context
+                    prev_messages = [msg for msg in messages if msg != last_user_msg]
+                    
+                    # Use specialized code formatter for chat
+                    formatted_messages = self.code_formatter.format_code_chat_messages(
+                        last_user_msg['content'],
+                        language=language,
+                        code_context=kwargs.get('code_context'),
+                        file_context=kwargs.get('file_context'),
+                        chat_history=prev_messages
+                    )
+                    logger.info(f"Using code-optimized chat messages for {language} generation")
+                else:
+                    # Fallback to standard formatting if no user message found
+                    formatted_messages = self.prompt_formatter.format_chat_messages(messages)
+            else:
+                # Use standard formatter
+                formatted_messages = self.prompt_formatter.format_chat_messages(messages)
             
             # Get prompt metadata
             prompt_metadata = self.prompt_formatter.get_prompt_metadata(formatted_messages)
+            if is_code_task:
+                prompt_metadata['task_type'] = 'code_generation'
+                prompt_metadata['language'] = language
             
             # Log the request
             self.prompt_logger.log_request(
@@ -199,7 +285,9 @@ class OllamaModularAdapter:
                 'messages': formatted_messages,
                 'temperature': kwargs.get('temperature', self.config.temperature),
                 'max_tokens': kwargs.get('max_tokens', self.config.max_tokens),
-                'system_message': kwargs.get('system_message')
+                'system_message': kwargs.get('system_message'),
+                'is_code_generation': is_code_task,
+                'language': language
             }
             
             # Add any other generation parameters to context
@@ -217,7 +305,7 @@ class OllamaModularAdapter:
             
             # Use the generator component
             # For chat, we pass an empty prompt since messages are in context
-            result = await self.generator.generate("", context)
+            result = await self.generator.generate_chat(context)
             
             # Restore original API type
             self.generator.api_type = original_api_type
@@ -225,6 +313,24 @@ class OllamaModularAdapter:
             # Add success flag if not present
             if 'success' not in result:
                 result['success'] = 'error' not in result
+            
+            # Post-process code generation results if needed
+            if context.get('is_code_generation', False) and 'text' in result:
+                # Extract clean code from the response
+                original_text = result['text']
+                clean_code = self.code_formatter.extract_code_from_response(
+                    original_text, 
+                    language=context.get('language', 'python')
+                )
+                
+                # Update the result with clean code
+                if clean_code != original_text:
+                    logger.debug(f"Cleaned up code response, removed {len(original_text) - len(clean_code)} characters")
+                    result['original_text'] = original_text
+                    result['text'] = clean_code
+                    # Also update the generated_text field for backward compatibility
+                    if 'generated_text' in result:
+                        result['generated_text'] = clean_code
             
             # Log the response
             self.prompt_logger.log_response(result, result.get('metadata', {}).get('duration', 0))

@@ -20,6 +20,16 @@ goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modela
 - **Przywództwo w jakości** - Ustanawiamy najwyższe standardy w projektach
 - **Mistrzostwo w automatyzacji** - Inteligentne narzędzia, które pracują dla Ciebie
 
+## 💫 Funkcje
+
+- 🔥 **Generowanie kodu z LLM** - Tworzenie kodu na podstawie opisu w języku naturalnym
+- 🔍 **Walidacja kodu** - Automatyczne sprawdzanie jakości i poprawności kodu
+- 📈 **Metryki jakości** - Śledzenie postępów i trendów jakości kodu
+- 📝 **Zarządzanie TODO** - Automatyczne śledzenie zadań i problemów
+- 💬 **Wyjaśnienia kodu** - Zrozumiałe komentarze i dokumentacja
+- 👷 **Automatyczne naprawy** - Inteligentne poprawki błędów i problemów
+- 🚀 **Streaming odpowiedzi** - Szybsze generowanie kodu z modularnym adapterem Ollama
+
 ## 📚 Dokumentacja
 
 ### 📖 Przewodniki
@@ -27,6 +37,7 @@ goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modela
 - [Konfiguracja projektu](./docs/configuration/README.md) - Szczegóły konfiguracji
 - [Integracja z Ollama](./docs/guides/ollama_setup.md) - Jak używać lokalnych modeli LLM
 - [Generowanie wielu plików](./docs/guides/multi_file_generation.md) - Zarządzanie złożonymi projektami
+- [Streaming odpowiedzi](./docs/guides/streaming.md) - Szybsze generowanie kodu z modularnym adapterem
 
 ### 🛠️ API
 - [Podstawowe funkcje](./docs/api/core.md) - Główne komponenty goLLM
@@ -99,6 +110,9 @@ pip install -e .[dev]
    
    # Użyj mniejszego modelu, jeśli masz problemy z timeoutem
    gollm direct generate "Stwórz klasę użytkownika" --model deepseek-coder:1.3b
+   
+   # Użyj modularnego adaptera z obsługą streamingu dla lepszej wydajności
+   gollm generate "Stwórz klasę użytkownika" --adapter-type modular
    ```
    
    > 📘 Pełna dokumentacja dostępna w [przewodniku wprowadzającym](./docs/guides/getting_started.md)
@@ -766,10 +780,10 @@ curl -X POST http://rock:8081/api/chat \
        "stream": false
      }' | jq
      
-curl -X POST http://rock:8081/api/chat \
+curl -X POST http://192.168.188.212:11434/api/chat \
      -H 'Content-Type: application/json' \
      -d '{
-       "model": "qwen3:4b",
+       "model": "mistral",
        "messages": [ {"role": "user", "content": "Write Hello World in Python"} ],
        "stream": false
      }' | jq

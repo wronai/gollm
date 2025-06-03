@@ -37,10 +37,20 @@ class LLMOrchestrator:
         self.todo_manager = todo_manager
         self.current_task_id = None
     
-    async def handle_code_generation_request(self, user_request: str, context: Dict[str, Any] = None) -> LLMResponse:
+    async def handle_code_generation_request(
+        self, 
+        user_request: str, 
+        context: Dict[str, Any] = None
+    ) -> LLMResponse:
         """Główny punkt wejścia dla generowania kodu przez LLM"""
         if context is None:
             context = {}
+            
+        # Extract parameters from context
+        max_iterations = context.get('max_iterations', 3)
+        validation_mode = context.get('validation_mode', "strict")
+        skip_validation = context.get('skip_validation', False)
+        use_streaming = context.get('use_streaming', True)
         
         # Create a task in the todo manager
         if self.todo_manager:
@@ -72,7 +82,7 @@ class LLMOrchestrator:
         )
         
         try:
-            response = await self._process_llm_request(request)
+            response = await self._process_llm_request(request, use_streaming=use_streaming)
             
             # Update task with results if successful
             if self.todo_manager and self.current_task_id:
@@ -97,8 +107,16 @@ class LLMOrchestrator:
                 )
             raise
     
-    async def _process_llm_request(self, request: LLMRequest) -> LLMResponse:
-        """Przetwarza żądanie LLM z iteracjami i walidacją"""
+    async def _process_llm_request(self, request: LLMRequest, use_streaming: bool = True) -> LLMResponse:
+        """Przetwarza żądanie LLM z iteracjami i walidacją
+        
+        Args:
+            request: The LLM request to process
+            use_streaming: Whether to use streaming API when available
+        
+        Returns:
+            LLMResponse with the generated code and validation results
+        """
         import logging
         logger = logging.getLogger(__name__)
         
@@ -141,7 +159,7 @@ class LLMOrchestrator:
             
             # Make the actual LLM call
             logger.info("Calling LLM...")
-            llm_output = await self._simulate_llm_call(prompt)
+            llm_output = await self._simulate_llm_call(prompt, stream=use_streaming)
             logger.debug(f"LLM output (first 500 chars): {str(llm_output)[:500]}...")
             
             # Waliduj odpowiedź - simplified in fast mode
@@ -252,8 +270,16 @@ class LLMOrchestrator:
             quality_score=best_score
         )
     
-    async def _simulate_llm_call(self, prompt: str) -> str:
-        """Makes an actual LLM call using the configured provider."""
+    async def _simulate_llm_call(self, prompt: str, stream: bool = False) -> str:
+        """Makes an actual LLM call using the configured provider.
+        
+        Args:
+            prompt: The prompt to send to the LLM
+            stream: Whether to use streaming API (if available)
+            
+        Returns:
+            The generated text response
+        """
         import logging
         logger = logging.getLogger(__name__)
         
@@ -269,20 +295,37 @@ class LLMOrchestrator:
                 # Pass the full config to ensure all settings are available
                 provider = OllamaLLMProvider(self.config)
                 
-                # Generate response using the Ollama provider
-                logger.debug("Sending prompt to Ollama provider...")
-                response = await provider.generate_response(prompt)
-                logger.debug(f"Received response from Ollama: {response}")
-                
-                if response.get("success", False):
-                    generated_code = response.get("generated_code", "")
-                    if not generated_code.strip():
-                        logger.warning("Received empty generated code from Ollama")
-                    return generated_code
+                # Check if we should use streaming
+                if stream and hasattr(provider, 'generate_response_stream'):
+                    # Generate streaming response using the Ollama provider
+                    logger.debug("Sending prompt to Ollama provider using streaming API...")
+                    full_text = ""
+                    try:
+                        async for chunk, metadata in provider.generate_response_stream(prompt):
+                            full_text += chunk
+                        
+                        if not full_text.strip():
+                            logger.warning("Received empty generated code from Ollama streaming")
+                        return full_text
+                    except Exception as e:
+                        logger.error(f"LLM streaming generation failed: {str(e)}")
+                        # Fall back to non-streaming if streaming fails
+                        logger.info("Falling back to non-streaming API")
                 else:
-                    error = response.get("error", "Unknown error from Ollama")
-                    logger.error(f"LLM generation failed: {error}")
-                    raise Exception(f"LLM generation failed: {error}")
+                    # Generate response using the Ollama provider (non-streaming)
+                    logger.debug("Sending prompt to Ollama provider...")
+                    response = await provider.generate_response(prompt)
+                    logger.debug(f"Received response from Ollama: {response}")
+                    
+                    if response.get("success", False):
+                        generated_code = response.get("generated_code", "")
+                        if not generated_code.strip():
+                            logger.warning("Received empty generated code from Ollama")
+                        return generated_code
+                    else:
+                        error = response.get("error", "Unknown error from Ollama")
+                        logger.error(f"LLM generation failed: {error}")
+                        raise Exception(f"LLM generation failed: {error}")
                     
             else:
                 # Default to OpenAI if configured

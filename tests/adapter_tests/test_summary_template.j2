@@ -1,0 +1,35 @@
+# GoLLM Shell Query Test Summary
+
+**Test Run:** {{ test_timestamp }}
+**Adapter Type:** {{ adapter_type }}
+
+## Test Results
+
+| Test | Generation | Execution |
+|------|------------|----------|
+{% for result in test_results %}
+| {{ result.name }} | {{ '✅ Success' if result.success else '❌ Failed' }} | {{ '✅ Success' if result.execution_success else '❌ Failed' }} |
+{% endfor %}
+
+## Environment Information
+
+- **OS:** {{ ansible_distribution }} {{ ansible_distribution_version }}
+- **Python Version:** {{ ansible_python.version.major }}.{{ ansible_python.version.minor }}.{{ ansible_python.version.micro }}
+- **Ansible Version:** {{ ansible_version.full }}
+
+## Test Details
+
+Detailed logs for each test can be found in the `{{ output_dir }}` directory.
+
+### Files Generated
+
+- `system_info.sh`: Shell script for system information
+- `file_stats.sh`: Shell script for file statistics
+- `network_check.sh`: Shell script for network diagnostics
+- `system_monitor.py`: Python script for system monitoring
+
+## Notes
+
+- Tests were run with the `{{ adapter_type }}` adapter type
+- Debug logs were enabled during testing
+- Python syntax checking was performed on generated Python code

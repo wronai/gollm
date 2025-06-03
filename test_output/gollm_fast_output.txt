@@ -1,0 +1,40 @@
+WARNING:root:gRPC dependencies not available. Some features will be disabled.
+2025-06-03 13:47:34,185 - root - INFO - Using fast mode with minimal validation
+2025-06-03 13:47:34,185 - root - INFO - Using http adapter for Ollama communication
+2025-06-03 13:47:34,185 - gollm.orchestrator - INFO - Starting LLM request processing for: Write a Python function to add two numbers...
+2025-06-03 13:47:34,188 - gollm.orchestrator - INFO - 
+--- Starting iteration 1 ---
+2025-06-03 13:47:34,188 - gollm.ollama.provider - INFO - Ollama configuration - URL: http://rock:8081, Model: qwen3:4b, Adapter: http, Timeout: 60
+2025-06-03 13:47:34,188 - gollm.orchestrator.llm_client - INFO - Initialized LLM provider: ollama
+2025-06-03 13:48:34,773 - gollm.ollama.http - ERROR - Request timed out after 60s
+2025-06-03 13:48:34,773 - gollm.orchestrator.validator - ERROR - Failed to extract valid code from LLM response
+2025-06-03 13:48:34,773 - gollm.orchestrator - INFO - --- End of iteration 1 ---
+
+2025-06-03 13:48:34,773 - gollm.orchestrator - INFO - 
+--- Starting iteration 2 ---
+2025-06-03 13:48:34,773 - gollm.ollama.provider - INFO - Ollama configuration - URL: http://rock:8081, Model: qwen3:4b, Adapter: http, Timeout: 60
+2025-06-03 13:48:34,774 - gollm.orchestrator.llm_client - INFO - Initialized LLM provider: ollama
+2025-06-03 13:48:41,460 - gollm.orchestrator.validator - ERROR - Failed to extract valid code from LLM response
+2025-06-03 13:48:41,461 - gollm.orchestrator - INFO - --- End of iteration 2 ---
+
+2025-06-03 13:48:41,461 - gollm.orchestrator - INFO - 
+--- Starting iteration 3 ---
+2025-06-03 13:48:41,461 - gollm.ollama.provider - INFO - Ollama configuration - URL: http://rock:8081, Model: qwen3:4b, Adapter: http, Timeout: 60
+2025-06-03 13:48:41,461 - gollm.orchestrator.llm_client - INFO - Initialized LLM provider: ollama
+2025-06-03 13:48:47,931 - gollm.orchestrator.validator - ERROR - Failed to extract valid code from LLM response
+2025-06-03 13:48:47,931 - gollm.orchestrator - INFO - --- End of iteration 3 ---
+
+2025-06-03 13:48:47,931 - gollm.orchestrator - ERROR - No valid response was generated after all iterations
+2025-06-03 13:48:47,931 - gollm.cli.file_handling - WARNING - Invalid code detected for write_a_python_function_to_add_two_numbers.py: Empty or whitespace-only content
+2025-06-03 13:48:47,932 - gollm.cli.file_handling - WARNING - Attempting to extract valid code from content...
+2025-06-03 13:48:47,932 - gollm.cli.file_handling - ERROR - Not saving file write_a_python_function_to_add_two_numbers.py: Could not extract any valid code
+
+⚠️ No files were saved! ⚠️ 0.0/100
+  The generated content could not be validated as code.
+  Try providing a more specific request or check the logs for details.
+
+💡 Suggestions to improve results:
+  1. Be more specific in your request
+  2. Include programming language in your request
+  3. Break down complex requests into smaller parts
+  4. Check if the LLM is in thinking mode rather than code generation mode

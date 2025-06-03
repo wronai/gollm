@@ -16,6 +16,10 @@ test:
 test-e2e: check-ollama
 	pytest tests/e2e -v -m "not slow"
 
+# Run streaming tests (requires Ollama service with modular adapter)
+test-streaming: check-ollama
+	OLLAMA_ADAPTER_TYPE=modular pytest tests/e2e/test_streaming.py -v
+
 # Run all tests including slow ones
 test-all: check-ollama
 	pytest tests/ -v
