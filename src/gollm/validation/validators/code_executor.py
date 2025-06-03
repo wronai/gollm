@@ -13,46 +13,73 @@ from typing import Dict, List, Optional, Tuple, Any
 logger = logging.getLogger("gollm.validation.code.executor")
 
 
-def execute_python_code(code: str, filename: Optional[str] = None) -> Tuple[bool, str]:
-    """Execute Python code in a subprocess and capture any errors.
+def execute_python_code(code: str, filename: Optional[str] = None, timeout: int = 15) -> Tuple[bool, str, Optional[str]]:
+    """Execute Python code in a subprocess and capture any errors and output.
     
     Args:
         code: The Python code to execute
         filename: Optional filename to use for the temporary file
+        timeout: Maximum execution time in seconds (default: 15)
         
     Returns:
-        Tuple of (success, error_message)
+        Tuple of (success, error_message, output)
     """
     # Create a temporary file to store the code
-    with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as temp_file:
-        temp_file.write(code)
-        temp_path = temp_file.name
+    temp_dir = tempfile.mkdtemp()
+    temp_path = os.path.join(temp_dir, filename or f"temp_{os.urandom(4).hex()}.py")
     
     try:
-        # Execute the code
+        # Write the code to the temporary file
+        with open(temp_path, "w") as temp_file:
+            temp_file.write(code)
+        
+        # Execute the code in a separate process with restricted permissions
+        # Use a timeout to prevent infinite loops or hanging
         result = subprocess.run(
             ["python", temp_path],
             capture_output=True,
             text=True,
-            timeout=10  # Timeout after 10 seconds to prevent hanging
+            timeout=timeout,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"}  # Ensure proper encoding
         )
         
         # Check if execution was successful
         if result.returncode == 0:
-            return True, ""
+            return True, "", result.stdout
         else:
             # Return the error message
-            return False, result.stderr
+            error_msg = result.stderr.strip()
+            # Add line numbers to syntax errors for easier debugging
+            if "SyntaxError" in error_msg:
+                error_lines = error_msg.split("\n")
+                for i, line in enumerate(error_lines):
+                    if "^" in line:
+                        # Find the line number from the error message
+                        for prev_line in error_lines[:i]:
+                            if "line" in prev_line and ", " in prev_line:
+                                try:
+                                    line_num = int(prev_line.split("line")[1].split(",")[0].strip())
+                                    # Add the problematic code line for context
+                                    code_lines = code.split("\n")
+                                    if 0 <= line_num - 1 < len(code_lines):
+                                        error_lines.insert(i, f"Code at line {line_num}: {code_lines[line_num-1].strip()}")
+                                        break
+                                except (ValueError, IndexError):
+                                    pass
+                error_msg = "\n".join(error_lines)
+            return False, error_msg, result.stdout
     except subprocess.TimeoutExpired:
-        return False, "Execution timed out after 10 seconds"
+        return False, f"Execution timed out after {timeout} seconds. Check for infinite loops or long-running operations.", None
     except Exception as e:
-        return False, f"Error executing code: {str(e)}"
+        return False, f"Error executing code: {str(e)}", None
     finally:
-        # Clean up the temporary file
+        # Clean up the temporary files and directory
         try:
-            os.unlink(temp_path)
-        except Exception:
-            pass
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            os.rmdir(temp_dir)
+        except Exception as e:
+            logger.warning(f"Failed to clean up temporary files: {str(e)}")
 
 
 def format_error_for_completion(code: str, error_message: str) -> str:

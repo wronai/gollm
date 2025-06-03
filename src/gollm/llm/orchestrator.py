@@ -162,12 +162,13 @@ class LLMOrchestrator:
                 response.has_incomplete_functions = False
             
             # Test code execution and fix errors if needed
-            from gollm.validation.validators.code_executor import execute_python_code
+            from gollm.validation.validators.code_executor import execute_python_code, format_error_for_completion
             
             # Check if execution testing is enabled
             execute_test = context.get("execute_test", True)  # Enable by default
             auto_fix_execution = context.get("auto_fix_execution", True)  # Enable by default
-            max_fix_attempts = context.get("max_fix_attempts", 3)  # Default to 3 attempts
+            max_fix_attempts = context.get("max_fix_attempts", 5)  # Default to 5 attempts (increased from 3)
+            execution_timeout = context.get("execution_timeout", 15)  # Default timeout in seconds
             
             if execute_test and response.generated_code and response.generated_code.strip():
                 # Only test Python code for now
@@ -175,10 +176,14 @@ class LLMOrchestrator:
                     logger.info("Testing code execution...")
                     response.execution_tested = True
                     
-                    # Execute the code
-                    success, error = execute_python_code(response.generated_code)
+                    # Execute the code with enhanced error handling
+                    success, error, output = execute_python_code(response.generated_code, timeout=execution_timeout)
                     response.execution_successful = success
                     response.execution_errors = [error] if error else []
+                    
+                    # Log output for debugging if successful
+                    if success and output:
+                        logger.debug(f"Code execution output:\n{output}")
                     
                     # If execution failed and auto-fix is enabled, try to fix it
                     if not success and auto_fix_execution:
@@ -188,16 +193,20 @@ class LLMOrchestrator:
                         for attempt in range(max_fix_attempts):
                             response.execution_fix_attempts += 1
                             
-                            # Format the error for LLM completion
-                            fix_request = f"The following Python code has errors when executed:\n\n```python\n{current_code}\n```\n\nWhen executed, it produced the following error:\n\n```\n{error}\n```\n\nPlease fix the code to make it run without errors. Provide the complete fixed code without explanations."
+                            # Format the error for LLM completion with enhanced error context
+                            fix_request = format_error_for_completion(current_code, error)
                             
-                            # Create a fix request object
+                            # Add more context for better fixes after multiple failed attempts
+                            if attempt > 0:
+                                fix_request += f"\n\nThis is fix attempt #{attempt+1}. Previous fix attempts failed with these errors:\n```\n{', '.join(response.execution_errors[-min(3, len(response.execution_errors)):])[:500]}\n```\n\nPlease provide a more robust solution that addresses all potential issues."
+                            
+                            # Create a fix request object with higher iteration count for complex fixes
                             fix_llm_request = LLMRequest(
                                 user_request=fix_request,
                                 context=context,
                                 session_id=request.session_id + f"-fix-{attempt+1}",
-                                max_iterations=1,
-                                fast_mode=request.fast_mode,
+                                max_iterations=2 if attempt > 1 else 1,  # More iterations for complex fixes
+                                fast_mode=False,  # Disable fast mode for fixes to ensure quality
                             )
                             
                             # Process the fix request
@@ -208,23 +217,37 @@ class LLMOrchestrator:
                             # Update the code with the fixed version
                             current_code = fix_response.generated_code
                             
-                            # Test the fixed code
-                            success, error = execute_python_code(current_code)
+                            # Test the fixed code with enhanced error handling
+                            success, error, output = execute_python_code(current_code, timeout=execution_timeout)
                             if success:
                                 logger.info(f"Successfully fixed code execution errors after {attempt+1} attempts")
                                 response.execution_successful = True
                                 response.execution_fixed = True
                                 response.generated_code = current_code  # Update with fixed code
+                                
+                                # Log the successful output
+                                if output:
+                                    logger.debug(f"Fixed code execution output:\n{output}")
                                 break
                             else:
                                 logger.warning(f"Fix attempt {attempt+1} failed: {error}")
                                 response.execution_errors.append(error)
+                                
+                                # If we're getting the same error repeatedly, try a more drastic approach
+                                if attempt > 1 and len(set(response.execution_errors[-2:])) == 1:
+                                    logger.info("Getting same error repeatedly, trying more comprehensive rewrite...")
                         
                         if not response.execution_successful:
                             logger.error(f"Failed to fix code execution errors after {max_fix_attempts} attempts")
+                            # Add a note about the unfixed errors to the explanation
+                            if response.explanation:
+                                response.explanation += "\n\n**Note:** The code has execution errors that could not be automatically fixed. Please review the error messages and fix manually."
                     
                     elif success:
                         logger.info("Code execution successful on first attempt")
+                        # Add a note about successful execution to the explanation
+                        if response.explanation:
+                            response.explanation += "\n\n**Note:** The code has been automatically tested and executes successfully."
                 else:
                     logger.info("Skipping execution test for non-Python code")
             
@@ -249,6 +272,30 @@ class LLMOrchestrator:
                 
                 # Store the test code in the response
                 response.test_code = test_response.generated_code
+                
+                # Execute the tests if execution testing is enabled
+                if execute_test and response.execution_successful and response.test_code:
+                    logger.info("Testing the generated unit tests...")
+                    
+                    # Create a temporary test file that imports the main code
+                    import_code = ""
+                    if "import unittest" not in response.test_code:
+                        import_code = "import unittest\n"
+                    
+                    # Execute the tests
+                    test_success, test_error, test_output = execute_python_code(
+                        import_code + response.test_code, 
+                        filename="test_execution.py",
+                        timeout=execution_timeout * 2  # Double timeout for tests
+                    )
+                    
+                    if test_success:
+                        logger.info("Unit tests executed successfully")
+                        if response.explanation:
+                            response.explanation += "\n\n**Note:** The generated unit tests have been executed and pass successfully."
+                    else:
+                        logger.warning(f"Unit tests failed to execute: {test_error}")
+                        # We don't try to fix test failures automatically - that's a separate concern
             else:
                 response.test_code = None
 

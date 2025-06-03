@@ -22,7 +22,7 @@ logger = logging.getLogger("gollm.commands.generate")
     "--fast", "-f", is_flag=True, help="Use fast mode with minimal validation"
 )
 @click.option(
-    "--iterations", "-i", default=3, type=int, help="Number of generation iterations"
+    "--iterations", "-i", default=6, type=int, help="Number of generation iterations"
 )
 @click.option(
     "--adapter-type",
