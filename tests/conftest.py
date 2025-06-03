@@ -2,10 +2,12 @@
 Pytest configuration and shared fixtures for goLLM tests
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
+
+import pytest
+
 
 @pytest.fixture
 def temp_project():
@@ -14,7 +16,8 @@ def temp_project():
     yield Path(temp_dir)
     shutil.rmtree(temp_dir)
 
-@pytest.fixture  
+
+@pytest.fixture
 def sample_python_code():
     """Sample Python code for testing"""
     return '''
@@ -46,10 +49,11 @@ class SampleClass:
         return self.value
 '''
 
+
 @pytest.fixture
 def bad_python_code():
     """Bad Python code with violations for testing"""
-    return '''
+    return """
 def bad_function(a, b, c, d, e, f):  # Too many parameters
     print("This is bad")  # Print statement
     # No docstring
@@ -58,4 +62,4 @@ def bad_function(a, b, c, d, e, f):  # Too many parameters
             if c > 0:  # High complexity
                 return a + b + c + d + e + f
     return 0
-'''
+"""
