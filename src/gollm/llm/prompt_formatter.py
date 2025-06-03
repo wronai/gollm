@@ -1,47 +1,62 @@
-
 # src/gollm/llm/prompt_formatter.py
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 
 class PromptFormatter:
     """Formats prompts for LLM with project context"""
-    
+
     def __init__(self, config):
         self.config = config
-    
-    def create_prompt(self, user_request: str, context: Dict[str, Any], 
-                     iteration: int = 0, previous_attempt: Optional[Dict] = None) -> str:
+
+    def create_prompt(
+        self,
+        user_request: str,
+        context: Dict[str, Any],
+        iteration: int = 0,
+        previous_attempt: Optional[Dict] = None,
+    ) -> str:
         """Creates a formatted prompt for the LLM"""
-        
+
         base_prompt = self._build_base_prompt(user_request, context)
-        
+
         if iteration > 0 and previous_attempt:
-            iteration_prompt = self._build_iteration_prompt(previous_attempt, iteration)
-            return f"{base_prompt}\n\n{iteration_prompt}"
-        
+            # Check if we need to complete incomplete functions
+            if previous_attempt.get("validation_result", {}).get("has_incomplete_functions", False):
+                incomplete_prompt = self._build_incomplete_functions_prompt(previous_attempt)
+                return incomplete_prompt
+            else:
+                # Regular iteration prompt for other issues
+                iteration_prompt = self._build_iteration_prompt(previous_attempt, iteration)
+                return f"{base_prompt}\n\n{iteration_prompt}"
+
         return base_prompt
-    
+
     def _build_base_prompt(self, user_request: str, context: Dict[str, Any]) -> str:
         """Builds the base prompt"""
-        
+
         # Check if this is a website project
-        is_website = context.get('is_website_project', False)
-        project_structure = context.get('project_structure', {})
-        
+        is_website = context.get("is_website_project", False)
+        project_structure = context.get("project_structure", {})
+
         # Project context
         project_context = self._format_project_context(context)
-        
+
         # Execution context
-        execution_context = self._format_execution_context(context.get('execution_context', {}))
-        
+        execution_context = self._format_execution_context(
+            context.get("execution_context", {})
+        )
+
         # TODO items
-        todo_context = self._format_todo_context(context.get('todo_context', {}))
-        
+        todo_context = self._format_todo_context(context.get("todo_context", {}))
+
         # Quality rules
         quality_rules = self._format_quality_rules()
-        
+
         # Multi-file generation instructions
-        file_format_instructions = self._get_file_format_instructions(is_website, project_structure)
-        
+        file_format_instructions = self._get_file_format_instructions(
+            is_website, project_structure
+        )
+
         prompt = f"""goLLM CODE GENERATION REQUEST
 
 # TASK
@@ -86,10 +101,12 @@ print("Hello, World!")
 ## YOUR RESPONSE MUST BE ONLY THE CODE - NOTHING ELSE
 # IMPORTANT: If you include ANYTHING other than the raw Python code, it will cause an error
 """
-        
+
         return prompt
-    
-    def _get_file_format_instructions(self, is_website: bool, project_structure: Dict[str, Any]) -> str:
+
+    def _get_file_format_instructions(
+        self, is_website: bool, project_structure: Dict[str, Any]
+    ) -> str:
         """Returns instructions for file formatting based on project type"""
         if not is_website:
             return """OUTPUT FORMAT:
@@ -97,7 +114,7 @@ Provide your response as a single code block with markdown syntax highlighting:
 ```python
 # Your code here
 ```"""
-        
+
         # Website project structure
         return f"""OUTPUT FORMAT FOR WEBSITE PROJECT:
 
@@ -150,27 +167,29 @@ flask==2.0.1
 
     def _format_project_context(self, context: Dict[str, Any]) -> str:
         """Formats the project context"""
-        config_ctx = context.get('project_config', {})
-        is_website = context.get('is_website_project', False)
-        
+        config_ctx = context.get("project_config", {})
+        is_website = context.get("is_website_project", False)
+
         project_info = f"""PROJECT CONTEXT:
 - Project Root: {context.get('project_root', '.')}
 - Project Type: {'Website' if is_website else 'General'}
 - Configuration Files: {len(config_ctx.get('config_files', []))} found
 - Quality Score: {config_ctx.get('current_quality_score', 'Unknown')}
 """
-        
+
         if is_website:
-            project_info += "- This is a website project. Please generate all necessary files.\n"
-            
+            project_info += (
+                "- This is a website project. Please generate all necessary files.\n"
+            )
+
         return project_info
-    
+
     def _format_execution_context(self, exec_ctx: Dict[str, Any]) -> str:
         """Formats the execution context"""
         if not exec_ctx:
             return "EXECUTION CONTEXT: No recent execution data"
-        
-        last_error = exec_ctx.get('last_error')
+
+        last_error = exec_ctx.get("last_error")
         if last_error:
             return f"""EXECUTION CONTEXT:
 🚨 RECENT ERROR DETECTED:
@@ -181,14 +200,14 @@ flask==2.0.1
 
 Please ensure your solution addresses this error if relevant.
 """
-        
+
         return "EXECUTION CONTEXT: No recent errors detected"
-    
+
     def _format_todo_context(self, todo_ctx: Dict[str, Any]) -> str:
         """Formats the TODO context"""
-        next_task = todo_ctx.get('next_task')
-        stats = todo_ctx.get('stats', {})
-        
+        next_task = todo_ctx.get("next_task")
+        stats = todo_ctx.get("stats", {})
+
         if next_task:
             return f"""TODO CONTEXT:
 📋 NEXT PRIORITY TASK:
@@ -204,18 +223,18 @@ Please ensure your solution addresses this error if relevant.
 
 Consider addressing the priority task if your code generation can help resolve it.
 """
-        
+
         return f"""TODO CONTEXT:
 📊 TODO STATS:
 - Total Tasks: {stats.get('total', 0)}
 - High Priority: {stats.get('high_priority', 0)}
 - Pending: {stats.get('pending', 0)}
 """
-    
+
     def _format_quality_rules(self) -> str:
         """Formats the quality rules"""
         rules = self.config.validation_rules
-        
+
         return f"""QUALITY STANDARDS:
 ✅ Code Quality Rules:
 - Max function lines: {rules.max_function_lines}
@@ -227,16 +246,24 @@ Consider addressing the priority task if your code generation can help resolve i
 - Docstrings required: {rules.require_docstrings}
 - Naming convention: {rules.naming_convention}
 """
-    
-    def _build_iteration_prompt(self, previous_attempt: Dict[str, Any], iteration: int) -> str:
+
+    def _build_iteration_prompt(
+        self, previous_attempt: Dict[str, Any], iteration: int
+    ) -> str:
         """Buduje prompt dla iteracji"""
-        
-        validation_issues = previous_attempt.get('validation_result', {}).get('violations', [])
-        
+
+        validation_issues = previous_attempt.get("validation_result", {}).get(
+            "violations", []
+        )
+
         if validation_issues:
-            issues_text = "\n".join([f"- {issue.get('message', 'Unknown issue')}" 
-                                   for issue in validation_issues[:5]])
-            
+            issues_text = "\n".join(
+                [
+                    f"- {issue.get('message', 'Unknown issue')}"
+                    for issue in validation_issues[:5]
+                ]
+            )
+
             return f"""ITERATION {iteration} - IMPROVEMENT NEEDED:
 
 The previous code had the following issues:
@@ -244,7 +271,49 @@ The previous code had the following issues:
 
 Please provide an improved version that addresses these specific problems while maintaining functionality.
 """
-        
+
         return f"""ITERATION {iteration}:
 The previous attempt was acceptable but please try to improve code quality further if possible.
 """
+
+    def _build_incomplete_functions_prompt(self, previous_attempt: Dict) -> str:
+        """Builds a prompt specifically for completing incomplete functions"""
+        
+        # Extract information from previous attempt
+        code = previous_attempt.get("generated_code", "")
+        validation_result = previous_attempt.get("validation_result", {})
+        incomplete_functions = validation_result.get("incomplete_functions", [])
+        
+        # Use the incomplete function detector to format the code for completion
+        from gollm.validation.validators.incomplete_function_detector import format_for_completion
+        formatted_code = format_for_completion(incomplete_functions, code)
+        
+        # Build the completion prompt
+        prompt = """# FUNCTION COMPLETION REQUEST
+
+## INCOMPLETE FUNCTIONS DETECTED
+
+The following code contains functions that are incomplete or contain placeholder implementations.
+Please complete these functions with proper implementations based on:
+1. The function name and signature
+2. The docstring (if present)
+3. The context of the surrounding code
+
+Incomplete functions are marked with TODO comments.
+
+## CODE WITH INCOMPLETE FUNCTIONS
+
+```python
+{}
+```
+
+## INSTRUCTIONS
+1. Complete ALL functions marked with TODO comments
+2. Maintain the function signatures (parameters and return types)
+3. Implement the functionality described in docstrings
+4. Return the COMPLETE code with all functions implemented
+5. Do not add any explanations or markdown outside the code
+6. Ensure the code is syntactically correct and follows best practices
+""".format(formatted_code)
+        
+        return prompt

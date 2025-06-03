@@ -1,0 +1,17 @@
+{
+  "python.linting.enabled": true,
+  "python.linting.gollmEnabled": true,
+  "python.linting.gollmPath": "gollm",
+  "python.linting.gollmArgs": [
+    "validate"
+  ],
+  "files.saveFormat": "gollm-format",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true,
+    "source.fixAll.gollm": true
+  },
+  "gollm.realTimeValidation": true,
+  "gollm.blockSaveOnViolations": true,
+  "gollm.autoFixOnSave": true
+}

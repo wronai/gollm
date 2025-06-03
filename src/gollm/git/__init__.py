@@ -8,11 +8,7 @@ This module provides Git repository integration including:
 - Git hooks management
 """
 
-from .analyzer import GitAnalyzer, CommitInfo
+from .analyzer import CommitInfo, GitAnalyzer
 from .hooks import GitHooks
 
-__all__ = [
-    "GitAnalyzer",
-    "CommitInfo",
-    "GitHooks"
-]
+__all__ = ["GitAnalyzer", "CommitInfo", "GitHooks"]

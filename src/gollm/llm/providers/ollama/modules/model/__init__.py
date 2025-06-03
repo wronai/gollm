@@ -8,7 +8,7 @@ This module handles all model-related operations including:
 - Model selection and configuration
 """
 
-from .manager import ModelManager
 from .info import ModelInfo
+from .manager import ModelManager
 
-__all__ = ['ModelManager', 'ModelInfo']
+__all__ = ["ModelManager", "ModelInfo"]

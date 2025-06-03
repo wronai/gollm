@@ -2,4 +2,4 @@
 
 from .generator import OllamaGenerator
 
-__all__ = ['OllamaGenerator']
+__all__ = ["OllamaGenerator"]

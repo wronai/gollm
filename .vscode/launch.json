@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "goLLM: Debug Validation",
+      "type": "python",
+      "request": "launch",
+      "module": "gollm.cli",
+      "args": [
+        "validate-project",
+        "--debug"
+      ],
+      "console": "integratedTerminal"
+    }
+  ]
+}

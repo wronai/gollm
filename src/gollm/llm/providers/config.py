@@ -1,13 +1,13 @@
 """Configuration classes for LLM providers."""
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class BaseProviderConfig:
     """Base configuration for LLM providers."""
-    
+
     provider_name: str
     timeout_seconds: int = 60
     max_retries: int = 3
@@ -18,7 +18,7 @@ class BaseProviderConfig:
 @dataclass
 class OllamaConfig(BaseProviderConfig):
     """Configuration for Ollama provider."""
-    
+
     provider_name: str = "ollama"
     host: str = "localhost"
     port: int = 11434
@@ -32,7 +32,7 @@ class OllamaConfig(BaseProviderConfig):
     system_prompt: Optional[str] = None
     adapter_type: str = "modular"  # "modular" or "legacy"
     use_streaming: bool = True
-    
+
     def __post_init__(self):
         """Set base_url if not provided."""
         if not self.base_url:
@@ -42,7 +42,7 @@ class OllamaConfig(BaseProviderConfig):
 @dataclass
 class OpenAIConfig(BaseProviderConfig):
     """Configuration for OpenAI provider."""
-    
+
     provider_name: str = "openai"
     api_key: str = ""
     model: str = "gpt-4"
@@ -56,7 +56,7 @@ class OpenAIConfig(BaseProviderConfig):
 @dataclass
 class AnthropicConfig(BaseProviderConfig):
     """Configuration for Anthropic provider."""
-    
+
     provider_name: str = "anthropic"
     api_key: str = ""
     model: str = "claude-3-opus-20240229"
@@ -67,13 +67,15 @@ class AnthropicConfig(BaseProviderConfig):
     system_prompt: Optional[str] = None
 
 
-def create_provider_config(provider_name: str, config_dict: Dict[str, Any]) -> BaseProviderConfig:
+def create_provider_config(
+    provider_name: str, config_dict: Dict[str, Any]
+) -> BaseProviderConfig:
     """Create a provider configuration from a dictionary.
-    
+
     Args:
         provider_name: Name of the provider
         config_dict: Dictionary with configuration values
-        
+
     Returns:
         Provider configuration object
     """

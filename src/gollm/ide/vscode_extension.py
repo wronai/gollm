@@ -2,30 +2,31 @@
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 
 class VSCodeExtension:
     """Integracja z Visual Studio Code"""
-    
+
     def __init__(self, project_root: str = "."):
         self.project_root = Path(project_root)
         self.vscode_dir = self.project_root / ".vscode"
-    
+
     def setup_integration(self) -> bool:
         """Konfiguruje integrację z VS Code"""
         try:
             self.vscode_dir.mkdir(exist_ok=True)
-            
+
             # Utwórz wszystkie pliki konfiguracyjne
             self._create_settings()
             self._create_tasks()
             self._create_launch_config()
             self._create_extensions_recommendations()
-            
+
             return True
         except Exception:
             return False
-    
+
     def _create_settings(self):
         """Tworzy settings.json dla VS Code"""
         settings = {
@@ -39,24 +40,22 @@ class VSCodeExtension:
             "editor.formatOnSave": True,
             "editor.codeActionsOnSave": {
                 "source.organizeImports": True,
-                "source.fixAll": True
+                "source.fixAll": True,
             },
-            "files.associations": {
-                "gollm.json": "jsonc"
-            },
+            "files.associations": {"gollm.json": "jsonc"},
             "gollm.enabled": True,
             "gollm.validateOnSave": True,
             "gollm.validateOnType": True,
             "gollm.blockSaveOnViolations": True,
             "gollm.autoFixOnSave": True,
             "gollm.showQualityScore": True,
-            "gollm.llmIntegration": True
+            "gollm.llmIntegration": True,
         }
-        
+
         settings_file = self.vscode_dir / "settings.json"
-        with open(settings_file, 'w') as f:
+        with open(settings_file, "w") as f:
             json.dump(settings, f, indent=2)
-    
+
     def _create_tasks(self):
         """Tworzy tasks.json dla VS Code"""
         tasks = {
@@ -67,19 +66,16 @@ class VSCodeExtension:
                     "type": "shell",
                     "command": "${workspaceFolder}/venv/bin/python",
                     "args": ["-m", "gollm", "validate-project"],
-                    "group": {
-                        "kind": "build",
-                        "isDefault": True
-                    },
+                    "group": {"kind": "build", "isDefault": True},
                     "presentation": {
                         "echo": True,
                         "reveal": "always",
                         "focus": False,
                         "panel": "shared",
                         "showReuseMessage": True,
-                        "clear": False
+                        "clear": False,
                     },
-                    "problemMatcher": []
+                    "problemMatcher": [],
                 },
                 {
                     "label": "goLLM: Show Status",
@@ -91,8 +87,8 @@ class VSCodeExtension:
                         "echo": True,
                         "reveal": "always",
                         "focus": true,
-                        "panel": "shared"
-                    }
+                        "panel": "shared",
+                    },
                 },
                 {
                     "label": "goLLM: Auto Fix",
@@ -104,38 +100,38 @@ class VSCodeExtension:
                         "echo": True,
                         "reveal": "always",
                         "focus": true,
-                        "panel": "shared"
-                    }
+                        "panel": "shared",
+                    },
                 },
                 {
                     "label": "goLLM: Next Task",
                     "type": "shell",
                     "command": "${workspaceFolder}/venv/bin/python",
                     "args": ["-m", "gollm", "next-task"],
-                    "group": "build"
+                    "group": "build",
                 },
                 {
                     "label": "goLLM: Generate Code",
                     "type": "shell",
                     "command": "${workspaceFolder}/venv/bin/python",
                     "args": ["-m", "gollm", "generate", "${input:promptText}"],
-                    "group": "build"
-                }
+                    "group": "build",
+                },
             ],
             "inputs": [
                 {
                     "id": "promptText",
                     "description": "Enter your code generation prompt",
                     "default": "Create a function to...",
-                    "type": "promptString"
+                    "type": "promptString",
                 }
-            ]
+            ],
         }
-        
+
         tasks_file = self.vscode_dir / "tasks.json"
-        with open(tasks_file, 'w') as f:
+        with open(tasks_file, "w") as f:
             json.dump(tasks, f, indent=2)
-    
+
     def _create_launch_config(self):
         """Tworzy launch.json dla debugowania"""
         launch = {
@@ -149,21 +145,17 @@ class VSCodeExtension:
                     "args": ["validate-project", "--debug"],
                     "console": "integratedTerminal",
                     "cwd": "${workspaceFolder}",
-                    "env": {
-                        "PYTHONPATH": "${workspaceFolder}/src"
-                    }
+                    "env": {"PYTHONPATH": "${workspaceFolder}/src"},
                 },
                 {
                     "name": "goLLM: Debug LLM",
                     "type": "python",
-                    "request": "launch", 
+                    "request": "launch",
                     "module": "gollm.cli",
                     "args": ["generate", "test function"],
                     "console": "integratedTerminal",
                     "cwd": "${workspaceFolder}",
-                    "env": {
-                        "PYTHONPATH": "${workspaceFolder}/src"
-                    }
+                    "env": {"PYTHONPATH": "${workspaceFolder}/src"},
                 },
                 {
                     "name": "Python: Current File",
@@ -171,15 +163,15 @@ class VSCodeExtension:
                     "request": "launch",
                     "program": "${file}",
                     "console": "integratedTerminal",
-                    "cwd": "${workspaceFolder}"
-                }
-            ]
+                    "cwd": "${workspaceFolder}",
+                },
+            ],
         }
-        
+
         launch_file = self.vscode_dir / "launch.json"
-        with open(launch_file, 'w') as f:
+        with open(launch_file, "w") as f:
             json.dump(launch, f, indent=2)
-    
+
     def _create_extensions_recommendations(self):
         """Tworzy rekomendacje rozszerzeń"""
         extensions = {
@@ -192,10 +184,10 @@ class VSCodeExtension:
                 "ms-vscode.vscode-json",
                 "redhat.vscode-yaml",
                 "eamodio.gitlens",
-                "github.copilot"
+                "github.copilot",
             ]
         }
-        
+
         extensions_file = self.vscode_dir / "extensions.json"
-        with open(extensions_file, 'w') as f:
+        with open(extensions_file, "w") as f:
             json.dump(extensions, f, indent=2)

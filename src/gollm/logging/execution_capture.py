@@ -1,11 +1,12 @@
-
 # src/gollm/logging/execution_capture.py
+import os
 import subprocess
 import time
-import psutil
-import os
-from typing import Optional
 from dataclasses import dataclass
+from typing import Optional
+
+import psutil
+
 
 @dataclass
 class ExecutionResult:
@@ -15,15 +16,18 @@ class ExecutionResult:
     execution_time: float
     memory_peak: Optional[int] = None
 
+
 class ExecutionCapture:
     """Przechwytuje wykonanie procesów z metrykami"""
-    
-    def run_command(self, command: str, working_dir: str = ".", timeout: int = 60) -> ExecutionResult:
+
+    def run_command(
+        self, command: str, working_dir: str = ".", timeout: int = 60
+    ) -> ExecutionResult:
         """Uruchamia komendę i przechwytuje wszystkie metryki"""
-        
+
         start_time = time.time()
         memory_peak = 0
-        
+
         try:
             # Uruchom proces
             process = subprocess.Popen(
@@ -31,9 +35,9 @@ class ExecutionCapture:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=working_dir
+                cwd=working_dir,
             )
-            
+
             # Monitoruj wykorzystanie pamięci
             try:
                 psutil_process = psutil.Process(process.pid)
@@ -46,7 +50,7 @@ class ExecutionCapture:
                         break
             except Exception:
                 pass  # Ignoruj błędy monitorowania pamięci
-            
+
             # Czekaj na zakończenie
             try:
                 stdout, stderr = process.communicate(timeout=timeout)
@@ -56,22 +60,22 @@ class ExecutionCapture:
                 stdout, stderr = process.communicate()
                 exit_code = -1
                 stderr += f"\nProcess killed due to timeout ({timeout}s)"
-            
+
             execution_time = time.time() - start_time
-            
+
             return ExecutionResult(
                 exit_code=exit_code,
                 stdout=stdout,
                 stderr=stderr,
                 execution_time=execution_time,
-                memory_peak=memory_peak if memory_peak > 0 else None
+                memory_peak=memory_peak if memory_peak > 0 else None,
             )
-            
+
         except Exception as e:
             execution_time = time.time() - start_time
             return ExecutionResult(
                 exit_code=1,
                 stdout="",
                 stderr=f"Execution failed: {str(e)}",
-                execution_time=execution_time
+                execution_time=execution_time,
             )

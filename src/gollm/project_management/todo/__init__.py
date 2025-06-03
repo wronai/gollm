@@ -8,4 +8,4 @@ task completion.
 from .manager import TodoManager
 from .models import Task, TaskPriority, TaskStatus
 
-__all__ = ['TodoManager', 'Task', 'TaskPriority', 'TaskStatus']
+__all__ = ["TodoManager", "Task", "TaskPriority", "TaskStatus"]

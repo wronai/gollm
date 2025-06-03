@@ -2,4 +2,4 @@
 
 from .provider import AnthropicLLMProvider
 
-__all__ = ['AnthropicLLMProvider']
+__all__ = ["AnthropicLLMProvider"]

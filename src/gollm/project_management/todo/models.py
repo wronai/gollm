@@ -1,13 +1,14 @@
 """Data models for todo management."""
 
 from dataclasses import dataclass, field
-from enum import Enum
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class TaskPriority(str, Enum):
     """Priority levels for tasks."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -15,6 +16,7 @@ class TaskPriority(str, Enum):
 
 class TaskStatus(str, Enum):
     """Status values for tasks."""
+
     PENDING = "PENDING"
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
@@ -24,11 +26,12 @@ class TaskStatus(str, Enum):
 @dataclass
 class Task:
     """Represents a task in the todo list.
-    
+
     A task can be created from code violations, user requests, or manually.
     It includes metadata about the task, related files, and suggestions for
     approaching the task.
     """
+
     id: str
     title: str
     description: str
@@ -42,10 +45,10 @@ class Task:
     completed_at: Optional[datetime] = None
     source: str = "manual"
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary representation.
-        
+
         Returns:
             Dictionary representation of the task
         """
@@ -60,30 +63,44 @@ class Task:
             "estimated_effort": self.estimated_effort,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
             "source": self.source,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Task':
+    def from_dict(cls, data: Dict[str, Any]) -> "Task":
         """Create a task from dictionary representation.
-        
+
         Args:
             data: Dictionary representation of the task
-            
+
         Returns:
             Task instance
         """
         # Convert string representations to enum values
         priority = TaskPriority(data.get("priority", TaskPriority.MEDIUM.value))
         status = TaskStatus(data.get("status", TaskStatus.PENDING.value))
-        
+
         # Parse datetime strings
-        created_at = datetime.fromisoformat(data.get("created_at")) if data.get("created_at") else datetime.now()
-        updated_at = datetime.fromisoformat(data.get("updated_at")) if data.get("updated_at") else None
-        completed_at = datetime.fromisoformat(data.get("completed_at")) if data.get("completed_at") else None
-        
+        created_at = (
+            datetime.fromisoformat(data.get("created_at"))
+            if data.get("created_at")
+            else datetime.now()
+        )
+        updated_at = (
+            datetime.fromisoformat(data.get("updated_at"))
+            if data.get("updated_at")
+            else None
+        )
+        completed_at = (
+            datetime.fromisoformat(data.get("completed_at"))
+            if data.get("completed_at")
+            else None
+        )
+
         return cls(
             id=data.get("id", ""),
             title=data.get("title", ""),
@@ -97,5 +114,5 @@ class Task:
             updated_at=updated_at,
             completed_at=completed_at,
             source=data.get("source", "manual"),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
         )
