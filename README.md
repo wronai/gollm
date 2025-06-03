@@ -45,6 +45,90 @@ pip install gollm[llm]
 gollm generate "Napisz funkcję w Pythonie, która oblicza silnię"
 ```
 
+## ⚙️ Użycie z parametrami (Usage with Parameters)
+
+`gollm` oferuje szereg parametrów, które pozwalają dostosować proces generowania kodu do Twoich potrzeb.
+
+### Podstawowe parametry generowania
+
+-   **`--output-path <ścieżka>` lub `-o <ścieżka>`**: Określa ścieżkę, gdzie mają być zapisane wygenerowane pliki. Domyślnie tworzony jest katalog na podstawie Twojego zapytania.
+    ```bash
+    gollm generate "Stwórz klasę User" -o ./my_user_class
+    ```
+
+-   **`--iterations <liczba>` lub `-i <liczba>`**: Ustawia liczbę iteracji dla procesu generowania i poprawiania kodu. Wyższa liczba może prowadzić do lepszej jakości kodu, ale wydłuża czas generowania. Domyślnie: 6.
+    ```bash
+    gollm generate "Zaimplementuj algorytm sortowania bąbelkowego" -i 10
+    ```
+
+-   **`--fast`**: Tryb szybki. Używa minimalnej liczby iteracji (1) i uproszczonej walidacji, aby szybko uzyskać wynik. Przydatne do prostych zadań.
+    ```bash
+    gollm generate "Prosta funkcja dodająca dwie liczby" --fast
+    ```
+
+### Kontrola testów
+
+-   **`--tests` / `--no-tests`**: Włącza lub wyłącza automatyczne generowanie testów jednostkowych dla wygenerowanego kodu. Domyślnie włączone (`--tests`).
+    ```bash
+    gollm generate "Klasa Kalkulator z podstawowymi operacjami" --no-tests
+    ```
+
+### Automatyczne uzupełnianie i poprawki
+
+-   **`--auto-complete` / `--no-auto-complete`**: Włącza lub wyłącza automatyczne uzupełnianie niekompletnych funkcji. Domyślnie włączone (`--auto-complete`).
+    ```bash
+    gollm generate "Stwórz szkielet klasy do obsługi API" --no-auto-complete
+    ```
+
+-   **`--execute-test` / `--no-execute-test`**: Włącza lub wyłącza automatyczne testowanie wykonania wygenerowanego kodu. Domyślnie włączone (`--execute-test`).
+    ```bash
+    gollm generate "Skrypt przetwarzający pliki tekstowe" --no-execute-test
+    ```
+
+-   **`--auto-fix` / `--no-auto-fix`**: Włącza lub wyłącza automatyczne próby naprawy błędów wykrytych podczas testowania wykonania. Domyślnie włączone (`--auto-fix`).
+    ```bash
+    gollm generate "Funkcja operująca na listach, która może rzucać wyjątki" --no-auto-fix
+    ```
+
+-   **`--max-fix-attempts <liczba>`**: Maksymalna liczba prób automatycznej naprawy błędów wykonania. Domyślnie: 5.
+    ```bash
+    gollm generate "Skomplikowany algorytm z potencjalnymi błędami" --max-fix-attempts 10
+    ```
+
+### Konfiguracja modelu LLM
+
+-   **`--adapter-type <typ>`**: Wybiera typ adaptera LLM (np. `ollama`, `openai`, `http`, `modular`). Domyślnie skonfigurowany w ustawieniach globalnych.
+    ```bash
+    gollm generate "Funkcja w JavaScript" --adapter-type openai
+    ```
+
+-   **`--model <nazwa_modelu>`**: Określa konkretny model LLM do użycia (np. `gpt-4`, `llama3`). Domyślnie skonfigurowany w ustawieniach globalnych lub adaptera.
+    ```bash
+    gollm generate "Stwórz wyrażenie regularne" --adapter-type ollama --model llama3:latest
+    ```
+
+-   **`--temperature <wartość>`**: Ustawia temperaturę dla generowania kodu (wpływa na kreatywność odpowiedzi). Wartość od 0.0 do 2.0.
+    ```bash
+    gollm generate "Napisz wiersz o programowaniu" --temperature 1.2
+    ```
+
+### Inne przydatne parametry
+
+-   **`--context-files <plik1> <plik2> ...` lub `-c <plik1> <plik2> ...`**: Dołącza zawartość podanych plików jako kontekst do zapytania LLM.
+    ```bash
+    gollm generate "Dodaj nową metodę do istniejącej klasy" -c existing_class.py
+    ```
+
+-   **`--verbose` lub `-v`**: Włącza tryb szczegółowy, wyświetlając więcej informacji o procesie generowania.
+    ```bash
+    gollm generate "Debuguj ten fragment kodu" -v
+    ```
+
+Aby zobaczyć pełną listę dostępnych opcji, użyj polecenia:
+```bash
+gollm generate --help
+```
+
 ## 🤝 Współtworzenie
 
 Zapraszamy do współtworzenia projektu! Szczegóły znajdziesz w [przewodniku dla współtwórców](/docs/development/contributing.md).
