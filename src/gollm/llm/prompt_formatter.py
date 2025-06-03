@@ -65,7 +65,7 @@ Please generate code for the following request:
 
 {file_format_instructions}
 
-# INSTRUCTIONS - READ CAREFULLY
+# EXAMPLE of INSTRUCTIONS and EXPECTED OUTPUT:
 
 ## YOUR TASK:
 Write a Python program that prints "Hello, World!" to the console.

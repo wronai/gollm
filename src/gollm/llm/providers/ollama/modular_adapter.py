@@ -9,19 +9,23 @@ from .http.client import OllamaHttpClient
 from .modules.prompt import PromptFormatter, PromptLogger
 from .modules.health import HealthMonitor, DiagnosticsCollector
 from .modules.model import ModelManager, ModelInfo
+from .modules.generation.generator import OllamaGenerator
+from .modules.config.manager import ConfigManager
 
 logger = logging.getLogger('gollm.ollama.adapter')
 
 class OllamaModularAdapter:
     """Modular adapter for Ollama API with optimized components."""
     
-    def __init__(self, config: OllamaConfig):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the Ollama modular adapter.
         
         Args:
-            config: Ollama configuration
+            config: Optional configuration dictionary
         """
-        self.config = config
+        # Initialize configuration manager and load config
+        self.config_manager = ConfigManager()
+        self.config = self.config_manager.load_config(config)
         self.client: Optional[OllamaHttpClient] = None
         
         # Component configuration
@@ -38,6 +42,7 @@ class OllamaModularAdapter:
         self.health_monitor = None
         self.model_manager = None
         self.diagnostics = None
+        self.generator = None
     
     async def __aenter__(self):
         """Async context manager entry."""
@@ -51,6 +56,14 @@ class OllamaModularAdapter:
         self.health_monitor = HealthMonitor(self.client)
         self.model_manager = ModelManager(self.client)
         self.diagnostics = DiagnosticsCollector(self.component_config, self.client)
+        self.generator = OllamaGenerator(self.client.session, {
+            'base_url': self.config.base_url,
+            'model': self.config.model,
+            'timeout': self.config.timeout,
+            'max_tokens': self.config.max_tokens,
+            'temperature': self.config.temperature,
+            'api_type': 'chat' if hasattr(self.config, 'use_chat') and self.config.use_chat else 'completion'
+        })
         
         # Log initialization
         logger.info(f"Initialized Ollama modular adapter with URL: {self.config.base_url}")
@@ -99,7 +112,7 @@ class OllamaModularAdapter:
         Returns:
             Dictionary containing the generated text and metadata
         """
-        if not self.client:
+        if not self.client or not self.generator:
             return {"success": False, "error": "Adapter not initialized"}
             
         try:
@@ -119,46 +132,32 @@ class OllamaModularAdapter:
                 metadata=prompt_metadata
             )
             
-            # Extract options from kwargs
-            options = kwargs.pop('options', {})
-            
-            # Set default options if not provided
-            if 'temperature' not in options:
-                options['temperature'] = self.config.temperature
-            if 'num_predict' not in options and 'max_tokens' in kwargs:
-                options['num_predict'] = kwargs.pop('max_tokens')
-            elif 'num_predict' not in options:
-                options['num_predict'] = self.config.max_tokens
-                
-            # Add any other generation parameters to options
-            for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
-                if param in kwargs and param not in options:
-                    options[param] = kwargs.pop(param)
-            
-            data = {
-                "model": model or self.config.model,
-                "prompt": formatted_prompt,
-                "options": options,
-                **kwargs  # Include any remaining kwargs at the top level
+            # Prepare context for generator
+            context = {
+                'messages': formatted_messages,
+                'temperature': kwargs.get('temperature', self.config.temperature),
+                'max_tokens': kwargs.get('max_tokens', self.config.max_tokens),
+                'system_message': kwargs.get('system_message')
             }
             
-            # Calculate adaptive timeout if needed
-            if self.config.adaptive_timeout:
-                timeout = self.config.get_adjusted_timeout(len(formatted_prompt))
-                logger.debug(f"Using adaptive timeout of {timeout}s for generation request")
+            # Add any other generation parameters to context
+            for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
+                if param in kwargs:
+                    context[param] = kwargs[param]
             
-            # Send the request
-            start_time = time.time()
-            result = await self.client._request('POST', '/api/generate', json=data)
-            duration = time.time() - start_time
+            # Override model if specified
+            if model:
+                self.generator.model_name = model
             
-            # Add performance metrics
+            # Use the generator component
+            result = await self.generator.generate(formatted_prompt, context)
+            
+            # Add success flag if not present
             if 'success' not in result:
                 result['success'] = 'error' not in result
-            result['duration_seconds'] = duration
             
             # Log the response
-            self.prompt_logger.log_response(result, duration)
+            self.prompt_logger.log_response(result, result.get('metadata', {}).get('duration', 0))
             
             return result
             
@@ -178,7 +177,7 @@ class OllamaModularAdapter:
         Returns:
             Dictionary containing the generated response and metadata
         """
-        if not self.client:
+        if not self.client or not self.generator:
             return {"success": False, "error": "Adapter not initialized"}
             
         try:
@@ -195,49 +194,40 @@ class OllamaModularAdapter:
                 metadata=prompt_metadata
             )
             
-            # Extract options from kwargs
-            options = kwargs.pop('options', {})
-            
-            # Set default options if not provided
-            if 'temperature' not in options:
-                options['temperature'] = self.config.temperature
-            
-            # Handle max_tokens/num_predict
-            if 'num_predict' not in options and 'max_tokens' in kwargs:
-                options['num_predict'] = kwargs.pop('max_tokens')
-            elif 'num_predict' not in options:
-                options['num_predict'] = self.config.max_tokens
-                
-            # Add any other generation parameters to options
-            for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
-                if param in kwargs and param not in options:
-                    options[param] = kwargs.pop(param)
-                    
-            data = {
-                "model": model or self.config.model,
-                "messages": formatted_messages,
-                "options": options,
-                **kwargs  # Include any remaining kwargs at the top level
+            # Prepare context for generator
+            context = {
+                'messages': formatted_messages,
+                'temperature': kwargs.get('temperature', self.config.temperature),
+                'max_tokens': kwargs.get('max_tokens', self.config.max_tokens),
+                'system_message': kwargs.get('system_message')
             }
             
-            # Calculate adaptive timeout if needed
-            if self.config.adaptive_timeout:
-                total_length = sum(len(msg.get('content', '')) for msg in formatted_messages)
-                timeout = self.config.get_adjusted_timeout(total_length)
-                logger.debug(f"Using adaptive timeout of {timeout}s for chat request")
+            # Add any other generation parameters to context
+            for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
+                if param in kwargs:
+                    context[param] = kwargs[param]
             
-            # Send the request
-            start_time = time.time()
-            result = await self.client._request('POST', '/api/chat', json=data)
-            duration = time.time() - start_time
+            # Override model if specified
+            if model:
+                self.generator.model_name = model
+                
+            # Temporarily switch to chat API type
+            original_api_type = self.generator.api_type
+            self.generator.api_type = 'chat'
             
-            # Add performance metrics
+            # Use the generator component
+            # For chat, we pass an empty prompt since messages are in context
+            result = await self.generator.generate("", context)
+            
+            # Restore original API type
+            self.generator.api_type = original_api_type
+            
+            # Add success flag if not present
             if 'success' not in result:
                 result['success'] = 'error' not in result
-            result['duration_seconds'] = duration
             
             # Log the response
-            self.prompt_logger.log_response(result, duration)
+            self.prompt_logger.log_response(result, result.get('metadata', {}).get('duration', 0))
             
             return result
             
@@ -272,3 +262,123 @@ class OllamaModularAdapter:
             Dictionary containing model information
         """
         return await self.model_manager.get_model_info(model_name)
+        
+    async def generate_stream(self, prompt: str, model: Optional[str] = None, **kwargs) -> AsyncIterator[str]:
+        """Generate text using the completion endpoint with streaming.
+        
+        Args:
+            prompt: The prompt to generate from
+            model: Model to use (defaults to config model)
+            **kwargs: Additional generation parameters
+                
+        Yields:
+            Text chunks as they are generated
+        """
+        if not self.client or not self.generator:
+            yield "[Error: Adapter not initialized]"
+            return
+            
+        try:
+            # Format the prompt
+            formatted_prompt = self.prompt_formatter.format_completion_prompt(
+                prompt, 
+                system_message=kwargs.get('system_message')
+            )
+            
+            # Get prompt metadata
+            prompt_metadata = self.prompt_formatter.get_prompt_metadata(formatted_prompt)
+            
+            # Log the request
+            self.prompt_logger.log_request(
+                formatted_prompt, 
+                model or self.config.model,
+                metadata=prompt_metadata
+            )
+            
+            # Prepare context for generator
+            context = {
+                'temperature': kwargs.get('temperature', self.config.temperature),
+                'max_tokens': kwargs.get('max_tokens', self.config.max_tokens),
+                'system_message': kwargs.get('system_message')
+            }
+            
+            # Add any other generation parameters to context
+            for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
+                if param in kwargs:
+                    context[param] = kwargs[param]
+            
+            # Override model if specified
+            if model:
+                self.generator.model_name = model
+            
+            # Use the generator component for streaming
+            async for chunk in self.generator.generate_stream(formatted_prompt, context):
+                yield chunk
+                
+        except Exception as e:
+            logger.exception(f"Error in generate_stream: {str(e)}")
+            self.prompt_logger.log_error(e, prompt, model)
+            yield f"[Error: {str(e)}]"
+            
+    async def chat_stream(self, messages: List[Dict[str, str]], model: Optional[str] = None, **kwargs) -> AsyncIterator[str]:
+        """Generate chat completion with streaming.
+        
+        Args:
+            messages: List of message dictionaries with 'role' and 'content' keys
+            model: Model to use for generation (defaults to config model)
+            **kwargs: Additional generation parameters
+                
+        Yields:
+            Text chunks as they are generated
+        """
+        if not self.client or not self.generator:
+            yield "[Error: Adapter not initialized]"
+            return
+            
+        try:
+            # Format the messages
+            formatted_messages = self.prompt_formatter.format_chat_messages(messages)
+            
+            # Get prompt metadata
+            prompt_metadata = self.prompt_formatter.get_prompt_metadata(formatted_messages)
+            
+            # Log the request
+            self.prompt_logger.log_request(
+                formatted_messages, 
+                model or self.config.model,
+                metadata=prompt_metadata
+            )
+            
+            # Prepare context for generator
+            context = {
+                'messages': formatted_messages,
+                'temperature': kwargs.get('temperature', self.config.temperature),
+                'max_tokens': kwargs.get('max_tokens', self.config.max_tokens),
+                'system_message': kwargs.get('system_message')
+            }
+            
+            # Add any other generation parameters to context
+            for param in ['top_p', 'top_k', 'repeat_penalty', 'stop']:
+                if param in kwargs:
+                    context[param] = kwargs[param]
+            
+            # Override model if specified
+            if model:
+                self.generator.model_name = model
+                
+            # Temporarily switch to chat API type
+            original_api_type = self.generator.api_type
+            self.generator.api_type = 'chat'
+            
+            # Use the generator component for streaming
+            # For chat, we pass an empty prompt since messages are in context
+            async for chunk in self.generator.generate_stream("", context):
+                yield chunk
+                
+            # Restore original API type
+            self.generator.api_type = original_api_type
+                
+        except Exception as e:
+            logger.exception(f"Error in chat_stream: {str(e)}")
+            self.prompt_logger.log_error(e, messages, model)
+            yield f"[Error: {str(e)}]"
