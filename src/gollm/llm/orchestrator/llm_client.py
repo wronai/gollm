@@ -52,22 +52,32 @@ class LLMClient(AsyncContextManager):
         provider_config = self.config.llm_integration.providers.get(self.provider_name, {})
         return {**base_config, **provider_config}
     
-    async def generate(
-        self,
-        prompt: str,
-        context: Optional[Dict[str, Any]] = None,
-        generation_config: Optional[LLMGenerationConfig] = None
-    ) -> Dict[str, Any]:
-        """Generate a response using the configured LLM provider.
+    async def generate(self, prompt: str, context: Optional[Dict[str, Any]] = None, generation_config: Optional[LLMGenerationConfig] = None) -> str:
+        """Generate a response from the LLM provider.
         
         Args:
-            prompt: The prompt to generate a response for
-            context: Additional context for the generation
-            generation_config: Configuration for the generation
+            prompt: The prompt to send to the LLM
+            context: Optional context to include with the request
+            generation_config: Optional configuration for generation
             
         Returns:
-            Dictionary containing the generated response and metadata
+            The generated response
         """
+        logger = logging.getLogger(__name__)
+        logger.info(f"===== LLM CLIENT GENERATE =====")
+        logger.info(f"Provider: {self.provider_name}")
+        logger.info(f"Prompt length: {len(prompt)}")
+        logger.debug(f"Prompt first 200 chars: {prompt[:200]}...")
+        logger.info(f"Context keys: {list(context.keys()) if context else []}")
+        
+        # Log provider-specific configuration
+        if hasattr(self.provider, 'config'):
+            provider_config = getattr(self.provider, 'config', {})
+            if isinstance(provider_config, dict):
+                logger.info(f"Provider config: {provider_config}")
+            else:
+                logger.info(f"Provider has config object: {type(provider_config).__name__}")
+        
         if not self.provider:
             raise RuntimeError("LLM provider not initialized. Use 'async with' context manager.")
         
@@ -82,7 +92,7 @@ class LLMClient(AsyncContextManager):
             'top_k': 40,         # Limit sampling pool
             'repeat_penalty': 1.1,  # Penalize repetition
             'stop': ['```', '\n\n', '\n#', '---', '==='],  # Stop on formatting markers
-            'echo': False,       # Don't include the prompt in the output
+            'echo': False,       # Don't include the prompt in the output,
         }
         
         # Update with any generation config overrides

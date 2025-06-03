@@ -2,9 +2,10 @@
 
 import asyncio
 import logging
-import tempfile
 import os
-from typing import Dict, Any, Optional, List, Tuple
+import tempfile
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
     LLMRequest,
@@ -109,7 +110,7 @@ class LLMOrchestrator:
                 request.user_request,
                 full_context,
                 iteration=iteration,
-                previous_attempt=best_result.dict() if best_result else None
+                previous_attempt=vars(best_result) if best_result else None
             )
             
             # Generate and validate response
@@ -160,16 +161,32 @@ class LLMOrchestrator:
             duration = end_time - start_time
             
             logger.info(f"Received LLM response in {duration:.2f}s")
+            
+            # Convert llm_output to string if it's not already
+            if not isinstance(llm_output, str):
+                logger.warning(f"LLM output is not a string, but {type(llm_output).__name__}. Converting to string.")
+                llm_output = str(llm_output)
+                
             logger.info(f"Response length: {len(llm_output)}")
             logger.debug(f"Response first 200 chars: {llm_output[:200]}...")
             logger.debug(f"Response last 200 chars: {llm_output[-200:] if len(llm_output) > 200 else llm_output}")
             
             # Validate response
             logger.info("Starting response validation")
+            logger.info(f"Sending response of length {len(llm_output)} to validator")
+            logger.debug(f"Response preview: {llm_output[:100]}...")
+            
             validation_result = await self.response_validator.validate_response(
                 llm_output,
                 context
             )
+            
+            logger.info(f"Validation result: {validation_result['success']}")
+            if 'code_blocks' in validation_result:
+                logger.info(f"Found {len(validation_result['code_blocks'])} code blocks")
+                for i, block in enumerate(validation_result['code_blocks']):
+                    logger.info(f"Code block {i+1} length: {len(block)}")
+                    logger.debug(f"Code block {i+1} preview: {block[:100]}...")
             
             # Calculate score
             score = self.response_validator._calculate_quality_score(validation_result)
@@ -188,25 +205,43 @@ class LLMOrchestrator:
         context: Dict[str, Any]
     ) -> LLMRequest:
         """Create an LLMRequest from user input."""
+        import logging
+        logger = logging.getLogger('gollm.orchestrator')
+        logger.info(f"Creating LLM request for: {user_request[:100]}...")
+        
+        # Generate a unique session ID
+        import uuid
+        session_id = str(uuid.uuid4())
+        
+        # Get max iterations from config or use default
+        max_iterations = getattr(self.config, 'max_iterations', 3)
+        
+        # Create and return the request object
+        return LLMRequest(
+            user_request=user_request,
+            context=context,
+            session_id=session_id,
+            max_iterations=max_iterations
+        )
+        
     def _create_final_response(
         self,
         best_result: Optional[LLMIterationResult],
-        request: CodeGenerationRequest
-    ) -> CodeGenerationResponse:
+        request: LLMRequest
+    ) -> LLMResponse:
         """Create a final response from the best result."""
         if not best_result:
             error_msg = "No valid response was generated after all iterations"
             logger.error(error_msg)
-            return CodeGenerationResponse(
-                success=False,
-                error_message=error_msg,
-                generated_code=None,
-                explanation=None
+            return LLMResponse(
+                generated_code="",
+                explanation=error_msg,
+                validation_result={"error": error_msg, "success": False},
+                iterations_used=request.max_iterations,
+                quality_score=0
             )
         
-        return CodeGenerationResponse(
-            success=True,
-            error_message=None,
+        return LLMResponse(
             generated_code=best_result.generated_code,
             explanation=best_result.explanation,
             validation_result=best_result.validation_result,

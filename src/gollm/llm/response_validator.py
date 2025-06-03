@@ -1,4 +1,3 @@
-
 # src/gollm/llm/response_validator.py
 import re
 import ast
@@ -20,28 +19,30 @@ class ResponseValidator:
             "explanation": "",
             "code_blocks_found": 0,
             "syntax_valid": False,
-            "violations": []
+            "error_message": None
         }
         
-        # 1. Wyodrębnij bloki kodu
+        # Extract code blocks from the LLM output
         code_blocks = self._extract_code_blocks(llm_output)
         validation_result["code_blocks_found"] = len(code_blocks)
         
         if code_blocks:
+            # Use the first code block for now
+            # TODO: Consider combining code blocks or selecting the best one
+            extracted_code = code_blocks[0]
+            validation_result["extracted_code"] = extracted_code
             validation_result["code_extracted"] = True
-            validation_result["extracted_code"] = code_blocks[0]  # Pierwszy blok
             
-            # 2. Sprawdź składnię
-            syntax_check = self._validate_syntax(code_blocks[0])
-            validation_result["syntax_valid"] = syntax_check["valid"]
-            if not syntax_check["valid"]:
-                validation_result["violations"].append({
-                    "type": "syntax_error",
-                    "message": syntax_check["error"]
-                })
+            # Validate Python syntax if the code looks like Python
+            if self._looks_like_python(extracted_code):
+                syntax_result = self._validate_syntax(extracted_code)
+                validation_result.update(syntax_result)
+            else:
+                # If it doesn't look like Python, we'll assume it's valid for now
+                validation_result["syntax_valid"] = True
         
-        # 3. Wyodrębnij wyjaśnienie
-        validation_result["explanation"] = self._extract_explanation(llm_output)
+        # Extract explanation (text outside of code blocks)
+        # TODO: Implement better explanation extraction
         
         return validation_result
     
@@ -56,8 +57,19 @@ class ResponseValidator:
         logger.debug(f"Text first 200 chars: {text[:200]}...")
         logger.debug(f"Text last 200 chars: {text[-200:] if len(text) > 200 else text}")
         
-        # Try to extract markdown code blocks with various formats
+        # First try the step-by-step extraction approach
+        logger.info("Trying step-by-step extraction approach")
+        step_by_step_blocks = self._extract_code_step_by_step(text)
+        if step_by_step_blocks:
+            logger.info(f"Found {len(step_by_step_blocks)} code blocks using step-by-step approach")
+            for i, block in enumerate(step_by_step_blocks):
+                logger.info(f"Step-by-step block {i+1} length: {len(block)}")
+                logger.debug(f"Step-by-step block {i+1} first 100 chars: {block[:100]}...")
+            return step_by_step_blocks
+        
+        # If step-by-step failed, try to extract markdown code blocks with various formats
         # This handles both ```python and ``` formats, with optional language specifier
+        logger.info("Trying markdown pattern extraction")
         code_blocks = re.findall(r'```(?:\w*)?\n(.+?)(?:\n```|$)', text, re.DOTALL)
         
         # Log how many blocks were found
@@ -103,6 +115,132 @@ class ResponseValidator:
         logger.warning(f"Could not extract any code blocks from text: {text[:100]}...")
         return []
     
+    def _extract_code_step_by_step(self, text: str) -> List[str]:
+        """Extract code blocks using a step-by-step approach that separates text from code.
+        
+        This method tries multiple strategies to identify code sections:
+        1. Look for sections separated by numbered steps or headings
+        2. Identify code-like sections based on indentation and Python syntax
+        3. Extract sections between explanatory text
+        """
+        import logging
+        logger = logging.getLogger('gollm.validator')
+        
+        # If the text is empty or too short, return empty list
+        if not text or len(text) < 10:
+            logger.warning("Text is too short for step-by-step extraction")
+            return []
+        
+        # Strategy 1: Split by numbered steps or headings
+        logger.info("Trying to split by numbered steps or headings")
+        step_patterns = [
+            r'\n\s*\d+\.\s+',  # Numbered steps like "1. Step one"
+            r'\n\s*Step\s+\d+[:\s]',  # "Step 1: Do something"
+            r'\n\s*#+\s+',  # Markdown headings like "# Step 1"
+            r'\n\s*---+\s*\n'  # Horizontal rules as section separators
+        ]
+        
+        sections = []
+        for pattern in step_patterns:
+            if re.search(pattern, text):
+                logger.info(f"Found step pattern: {pattern}")
+                # Split the text by the pattern
+                parts = re.split(pattern, text)
+                if len(parts) > 1:
+                    # First part is usually introduction, skip it if it doesn't look like code
+                    if self._looks_like_python(parts[0]):
+                        sections.append(parts[0])
+                    
+                    # Add the rest of the parts
+                    sections.extend(parts[1:])
+                    logger.info(f"Split text into {len(sections)} sections")
+                    break
+        
+        # If we couldn't split by steps, try to use the whole text
+        if not sections:
+            sections = [text]
+        
+        # Strategy 2: Extract code-like sections from each part
+        logger.info("Extracting code-like sections from each part")
+        code_blocks = []
+        for i, section in enumerate(sections):
+            logger.info(f"Processing section {i+1}/{len(sections)}, length: {len(section)}")
+            
+            # Skip very short sections
+            if len(section) < 10:
+                continue
+                
+            # Extract code-like parts from this section
+            code_parts = self._extract_code_from_section(section)
+            if code_parts:
+                logger.info(f"Found {len(code_parts)} code parts in section {i+1}")
+                code_blocks.extend(code_parts)
+        
+        # Clean up the code blocks
+        cleaned_blocks = []
+        for block in code_blocks:
+            # Skip very short blocks that are likely not code
+            if len(block) < 10:
+                continue
+                
+            # Clean up the block
+            cleaned = block.rstrip() + '\n'
+            cleaned_blocks.append(cleaned)
+        
+        return cleaned_blocks
+    
+    def _extract_code_from_section(self, section: str) -> List[str]:
+        """Extract code-like parts from a section of text."""
+        import logging
+        logger = logging.getLogger('gollm.validator')
+        
+        # Check for code blocks first
+        code_blocks = re.findall(r'```(?:\w*)?\n(.+?)(?:\n```|$)', section, re.DOTALL)
+        if code_blocks:
+            logger.info(f"Found {len(code_blocks)} markdown code blocks in section")
+            return code_blocks
+        
+        # If no code blocks, check if the entire section looks like Python code
+        if self._looks_like_python(section):
+            logger.info("Entire section looks like Python code")
+            return [section]
+        
+        # Try to extract code-like parts based on indentation patterns
+        lines = section.split('\n')
+        code_parts = []
+        current_part = []
+        in_code_block = False
+        
+        for line in lines:
+            # Check if this line starts a code-like section
+            if not in_code_block and (
+                re.match(r'^\s{4,}\S', line) or  # Indented by 4+ spaces
+                re.match(r'^\s*(?:def|class|import|from|if|for|while|with)\b', line)  # Python keywords
+            ):
+                in_code_block = True
+                current_part = [line]
+            # Continue an existing code block
+            elif in_code_block:
+                # If we hit an empty line or a line that looks like text, end the code block
+                if not line.strip() or (
+                    not re.match(r'^\s+\S', line) and  # Not indented
+                    not re.match(r'^\s*(?:def|class|import|from|if|for|while|with|return|else|elif)\b', line)  # Not a Python keyword
+                ):
+                    # End the code block if it's not just a blank line in the middle of code
+                    if len(current_part) > 1:
+                        code_parts.append('\n'.join(current_part))
+                    current_part = []
+                    in_code_block = False
+                else:
+                    current_part.append(line)
+        
+        # Add the last code block if there is one
+        if current_part:
+            code_parts.append('\n'.join(current_part))
+        
+        logger.info(f"Extracted {len(code_parts)} code-like parts based on indentation and keywords")
+        return code_parts
+    
     def _looks_like_python(self, code: str) -> bool:
         """Sprawdza czy kod wygląda jak Python"""
         import logging
@@ -147,135 +285,142 @@ class ResponseValidator:
             logger.debug("Code does not appear to be Python")
             return False
     
+    def _clean_text_for_python(self, text: str) -> str:
+        """Clean text to make it more likely to be valid Python code."""
+        # Remove common prefixes that might appear before code
+        prefixes_to_remove = [
+            "Here's the solution:", "Here is the code:", "Here's the code:",
+            "Here's the implementation:", "Here is the implementation:",
+            "Here's how you can implement this:", "Here's how to implement this:",
+            "Here's the Python code:", "Here is the Python code:"
+        ]
+        
+        cleaned_text = text
+        for prefix in prefixes_to_remove:
+            if cleaned_text.startswith(prefix):
+                cleaned_text = cleaned_text[len(prefix):].lstrip()
+                break
+                
+        # Ensure the text ends with a newline
+        if cleaned_text and not cleaned_text.endswith('\n'):
+            cleaned_text += '\n'
+            
+        return cleaned_text
+    
     def validate_python_code(self, code: str) -> Dict[str, Any]:
-        """Waliduje kod Python"""
+        """Validate Python code syntax and structure.
+        
+        Args:
+            code: The Python code to validate
+            
+        Returns:
+            Dictionary with validation results
+        """
         import logging
         logger = logging.getLogger('gollm.validator')
+        
         logger.info(f"===== VALIDATING PYTHON CODE =====")
         logger.info(f"Code length: {len(code)}")
-        logger.debug(f"Code first 100 chars: {code[:100]}...")
-        logger.debug(f"Code last 100 chars: {code[-100:] if len(code) > 100 else code}")
+        logger.debug(f"Code first 200 chars: {code[:200]}...")
         
-        # Check if code looks like Python before parsing
-        if not self._looks_like_python(code):
-            logger.warning("Code does not appear to be Python based on heuristics")
-            # Continue anyway, but log the warning
+        if not code or not code.strip():
+            logger.warning("Empty code provided for validation")
+            return {
+                "syntax_valid": False,
+                "error_message": "Empty code",
+                "error_type": "EmptyCode",
+                "error_line": 0,
+                "error_col": 0
+            }
         
-        # Use the enhanced syntax validation method
-        is_valid, error_msg = self._validate_syntax(code)
+        # Validate syntax using ast.parse
+        syntax_result = self._validate_syntax(code)
         
-        if is_valid:
-            logger.info("✅ Python code validation successful")
-            return {"valid": True, "error": None}
+        # Log the validation result
+        if syntax_result["syntax_valid"]:
+            logger.info("Python code syntax is valid")
         else:
-            logger.error(f"❌ Python code validation failed: {error_msg}")
-            return {"valid": False, "error": error_msg}
+            logger.warning(f"Python code syntax is invalid: {syntax_result['error_message']}")
+            logger.debug(f"Error at line {syntax_result['error_line']}, col {syntax_result['error_col']}")
+        
+        return syntax_result
     
-    def _validate_syntax(self, code: str) -> Tuple[bool, str]:
-        """Sprawdza składnię Python"""
+    def _validate_syntax(self, code: str) -> Dict[str, Any]:
+        """Validate Python code syntax using ast.parse.
+        
+        Args:
+            code: The Python code to validate
+            
+        Returns:
+            Dictionary with validation results
+        """
         import logging
         logger = logging.getLogger('gollm.validator')
         
-        logger.info(f"===== VALIDATING PYTHON SYNTAX =====")
-        logger.info(f"Code length: {len(code)}")
+        result = {
+            "syntax_valid": False,
+            "error_message": None,
+            "error_type": None,
+            "error_line": 0,
+            "error_col": 0,
+            "error_context": None
+        }
         
         try:
-            logger.info("Attempting to parse code with ast.parse")
+            # Try to parse the code with ast
             ast.parse(code)
-            logger.info("✅ Syntax validation successful")
-            return True, "Syntax is valid"
+            result["syntax_valid"] = True
+            logger.info("Code syntax is valid")
+            return result
+            
         except SyntaxError as e:
-            logger.error(f"❌ Syntax error: {str(e)}")
-            logger.debug(f"Error details: line {e.lineno}, column {e.offset}, {e.text}")
-            # Log the problematic line and surrounding lines for context
-            if e.lineno is not None:
+            # Get detailed error information
+            error_line = e.lineno if hasattr(e, 'lineno') else 0
+            error_col = e.offset if hasattr(e, 'offset') else 0
+            error_msg = str(e)
+            
+            # Get context around the error
+            if error_line > 0 and code:
                 lines = code.split('\n')
-                if 0 <= e.lineno - 1 < len(lines):
-                    problem_line = lines[e.lineno - 1]
-                    logger.error(f"Problem line ({e.lineno}): {problem_line}")
-                    # Show surrounding lines for context
-                    start = max(0, e.lineno - 3)
-                    end = min(len(lines), e.lineno + 2)
-                    for i in range(start, end):
-                        if i != e.lineno - 1:  # Skip the problem line as we already showed it
-                            logger.debug(f"Line {i+1}: {lines[i]}")
-            return False, f"Syntax error: {str(e)}"
+                if error_line <= len(lines):
+                    context_start = max(0, error_line - 3)
+                    context_end = min(len(lines), error_line + 2)
+                    context_lines = lines[context_start:context_end]
+                    error_context = '\n'.join([f"{i+context_start+1}: {line}" for i, line in enumerate(context_lines)])
+                    
+                    # Add a marker pointing to the error column
+                    if error_col > 0 and error_line - 1 < len(lines):
+                        marker = ' ' * (error_col - 1) + '^'
+                        error_context += f"\n{marker}"
+                else:
+                    error_context = "<Context not available>"
+            else:
+                error_context = "<Context not available>"
+            
+            # Log detailed error information
+            logger.warning(f"SyntaxError: {error_msg} at line {error_line}, col {error_col}")
+            logger.debug(f"Error context:\n{error_context}")
+            
+            # Update the result dictionary
+            result.update({
+                "syntax_valid": False,
+                "error_message": error_msg,
+                "error_type": "SyntaxError",
+                "error_line": error_line,
+                "error_col": error_col,
+                "error_context": error_context
+            })
+            
+            return result
+            
         except Exception as e:
-            logger.error(f"❌ Error validating syntax: {str(e)}")
-            return False, f"Error validating syntax: {str(e)}"
-    
-    def _clean_text_for_python(self, text: str) -> str:
-        """Attempt to clean text to make it valid Python"""
-        import logging
-        logger = logging.getLogger('gollm.validator')
-        logger.info(f"Attempting to clean text of length {len(text)} for Python parsing")
-        
-        # Remove common non-code elements
-        # Remove markdown headers
-        cleaned = re.sub(r'^#+\s+.*$', '', text, flags=re.MULTILINE)
-        # Remove bullet points
-        cleaned = re.sub(r'^\s*[-*]\s+', '', cleaned, flags=re.MULTILINE)
-        # Remove numbered lists
-        cleaned = re.sub(r'^\s*\d+\.\s+', '', cleaned, flags=re.MULTILINE)
-        # Remove HTML-like tags
-        cleaned = re.sub(r'<.*?>', '', cleaned)
-        
-        # Try to validate if it's Python code
-        try:
-            ast.parse(cleaned)
-            logger.info("Successfully cleaned and parsed text as Python code")
-            return cleaned.strip()
-        except SyntaxError:
-            # If full text doesn't parse, try to extract just the parts that look like code
-            lines = cleaned.split('\n')
-            code_lines = []
-            current_block = []
-            in_code_block = False
+            # Handle other parsing errors
+            logger.warning(f"Unexpected error validating code: {str(e)}")
             
-            for line in lines:
-                stripped = line.strip()
-                # Skip empty lines and obvious non-code lines
-                if not stripped or stripped.startswith('#') or ':' in stripped and not any(kw in stripped for kw in ['if', 'else', 'elif', 'def', 'class', 'for', 'while', 'try', 'except']):
-                    if in_code_block and current_block:
-                        # End of a code block
-                        code_lines.extend(current_block)
-                        current_block = []
-                        in_code_block = False
-                    continue
-                
-                # Lines that look like code
-                if any(kw in stripped for kw in ['def ', 'class ', 'import ', 'from ', 'if ', 'for ', 'while ', 'return ']):
-                    in_code_block = True
-                
-                if in_code_block:
-                    current_block.append(line)
+            result.update({
+                "syntax_valid": False,
+                "error_message": str(e),
+                "error_type": type(e).__name__
+            })
             
-            # Add any remaining code block
-            if current_block:
-                code_lines.extend(current_block)
-            
-            if code_lines:
-                result = '\n'.join(code_lines)
-                logger.info(f"Extracted {len(code_lines)} lines of potential Python code")
-                return result.strip()
-            
-            logger.warning("Could not extract valid Python code from text")
-            return ''
-        except Exception as e:
-            logger.warning(f"Error cleaning text for Python: {str(e)}")
-            return ''
-
-    def _extract_explanation(self, text: str) -> str:
-        """Wyodrębnia wyjaśnienie z odpowiedzi LLM"""
-        
-        # Usuń bloki kodu
-        text_without_code = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
-        
-        # Wyczyść i zwróć
-        explanation = text_without_code.strip()
-        
-        # Ogranicz długość
-        if len(explanation) > 500:
-            explanation = explanation[:497] + "..."
-        
-        return explanation
+            return result
