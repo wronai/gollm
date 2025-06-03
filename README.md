@@ -15,189 +15,75 @@
 
 goLLM to zaawansowany system kontroli jakości kodu Python zintegrowany z modelami językowymi (LLM), który przekształca proces programowania w płynne doświadczenie, gdzie jakość kodu jest gwarantowana od pierwszego znaku.
 
-## 📚 Documentation
+## 📚 Dokumentacja
 
-For comprehensive documentation, please visit our [documentation site](https://gollm.readthedocs.io) or explore the following sections:
+Pełna dokumentacja dostępna jest w języku angielskim:
 
-- [Getting Started](/docs/getting-started/installation.md) - Installation and quick start guide
-- [Features](/docs/features/overview.md) - Overview of goLLM features
-- [Usage](/docs/features/usage.md) - How to use goLLM
-- [API Reference](/docs/api/reference.md) - API documentation
-- [Examples](/docs/examples/README.md) - Code examples and use cases
-- [Development](/docs/development/contributing.md) - Contributing to goLLM
+- [Rozpoczęcie pracy](/docs/getting-started/installation.md) - Instalacja i szybki start
+- [Funkcje](/docs/features/overview.md) - Przegląd funkcji
+- [Użycie](/docs/features/usage.md) - Jak korzystać z goLLM
+- [Przykłady](/docs/examples/README.md) - Przykłady użycia
+- [Dokumentacja API](/docs/api/reference.md) - Szczegóły techniczne
+- [Rozwój](/docs/development/contributing.md) - Jak współtworzyć projekt
 
-## 💫 Key Features
+## 💫 Najważniejsze funkcje
 
-- 🔥 **Code Generation with LLM** - Generate code from natural language descriptions
-- 🔍 **Code Validation** - Automatic code quality and correctness checks
-- 📈 **Quality Metrics** - Track code quality trends and improvements
-- 📝 **TODO Management** - Automatic task and issue tracking
-- 💬 **Code Explanations** - Generate understandable comments and documentation
-- 👷 **Automatic Fixes** - Intelligent error and issue resolution
-- 🚀 **Response Streaming** - Faster code generation with modular Ollama adapter
+- 🔥 **Generowanie kodu** - Tworzenie kodu na podstawie opisu w języku naturalnym
+- 🔍 **Walidacja kodu** - Automatyczne sprawdzanie jakości i poprawności kodu
+- 📈 **Metryki jakości** - Śledzenie postępów i trendów
+- 🚀 **Szybkie odpowiedzi** - Generowanie kodu z wykorzystaniem lokalnych modeli LLM
+- 🤖 **Integracja z IDE** - Wsparcie dla VS Code i PyCharm
+- 🔄 **Automatyczne poprawki** - Inteligentne sugestie napraw błędów
 
-## Quick Start
+## ⚡ Szybki start
 
 ```bash
-# Install goLLM
+# Instalacja
 pip install gollm[llm]
 
-# Generate your first code
-gollm generate "Create a Python function to calculate factorial"
+# Generowanie kodu
+gollm generate "Napisz funkcję w Pythonie, która oblicza silnię"
 ```
 
-## 🤝 Contributing
+## 🤝 Współtworzenie
 
-We welcome contributions! Please see our [Contributing Guide](/docs/development/contributing.md) to get started.
+Zapraszamy do współtworzenia projektu! Szczegóły znajdziesz w [przewodniku dla współtwórców](/docs/development/contributing.md).
 
-## 📝 License
+## 📝 Licencja
 
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+Ten projekt jest dostępny na licencji Apache 2.0 - szczegóły w pliku [LICENSE](LICENSE).
 
-## 🚀 Getting Started
+## 🔗 Przydatne linki
 
-### Prerequisites
-- Python 3.8 or higher
-- pip (latest version)
-- Ollama (optional, for local LLM models)
+- [Strona projektu](https://github.com/wronai/gollm)
+- [Dokumentacja](https://gollm.readthedocs.io)
+- [Zgłaszanie błędów](https://github.com/wronai/gollm/issues)
+- [Dyskusje](https://github.com/wronai/gollm/discussions)
 
-### Installation
+## 🤖 Wsparcie dla modeli
 
-#### Using pip
-```bash
-# Basic installation
-pip install gollm
+goLLM wspiera różne modele językowe, w tym:
 
-# With LLM support (recommended)
-pip install gollm[llm]
-```
+- Lokalne modele przez Ollama (zalecane)
+- OpenAI GPT-4/GPT-3.5
+- Inne kompatybilne modele z interfejsem API
 
-#### For Developers
-```bash
-# Clone the repository
-git clone https://github.com/wronai/gollm.git
-cd gollm
+## 📦 Wymagania systemowe
 
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+- Python 3.8+
+- 4GB+ wolnej pamięci RAM (więcej dla większych modeli)
+- Połączenie z internetem (opcjonalne, tylko dla niektórych funkcji)
 
-# Install in development mode
-pip install -e .[dev]
+## 🌍 Wsparcie społeczności
 
-# Install pre-commit hooks
-pre-commit install
-```
+Dołącz do naszej społeczności, aby zadawać pytania i dzielić się swoimi doświadczeniami:
 
-### Quick Start
+- [GitHub Discussions](https://github.com/wronai/gollm/discussions)
+- [Discord](https://discord.gg/example) (jeśli dostępny)
 
-1. **Initialize your project**
-   ```bash
-   # Navigate to your project
-   cd your_project
-   
-   # Initialize configuration (creates gollm.json)
-   gollm init
-   ```
+## 🔄 Ostatnie zmiany
 
-2. **Validate your code**
-   ```bash
-   # Check a single file
-   gollm validate file.py
-   
-   # Check entire project
-   gollm validate-project
-   
-   # Check project status
-   gollm status
-   ```
-
-3. **Generate code with LLM**
-   ```bash
-   # Standard generation with validation
-   gollm generate "Create a user class"
-   
-   # Fast generation (no validation)
-   gollm generate "Create a user class" --fast
-   
-   # Direct API access (no validation)
-   gollm direct generate "Create a user class"
-   ```
-
-## 🛠️ Development
-
-### Setting Up
-
-1. Clone the repository and install dependencies:
-   ```bash
-   git clone https://github.com/wronai/gollm.git
-   cd gollm
-   make setup
-   ```
-
-2. Run tests:
-   ```bash
-   # Run all tests
-   make test
-   
-   # Run tests with coverage
-   make test-coverage
-   
-   # Run linters
-   make lint
-   ```
-
-3. Build documentation:
-   ```bash
-   make docs
-   # Open docs/build/index.html in your browser
-   ```
-
-### Project Structure
-
-```
-gollm/
-├── src/                  # Source code
-│   └── gollm/            # Main package
-│       ├── cli/          # Command line interface
-│       ├── core/         # Core functionality
-│       ├── llm/          # LLM integration
-│       └── utils/        # Utility functions
-├── tests/                # Test files
-├── docs/                 # Documentation
-└── examples/             # Example usage
-```
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-1. **Report Bugs**: File an issue if you find a bug
-2. **Suggest Features**: Propose new features or improvements
-3. **Submit Pull Requests**: Contribute code improvements
-
-### Contribution Guidelines
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Code Style
-- Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) guidelines
-- Use type hints for all functions and methods
-- Write docstrings for all public modules, classes, and functions
-- Keep lines under 100 characters
-
-## 📝 License
-
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Thanks to all contributors who have helped improve this project
-- Inspired by various open-source AI and code quality tools
+Sprawdź [historię zmian](CHANGELOG.md), aby zobaczyć najnowsze aktualizacje i nowe funkcje.
 
 ## 📚 Dokumentacja
 
