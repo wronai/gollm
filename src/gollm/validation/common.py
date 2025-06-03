@@ -4,6 +4,17 @@ This module provides common classes and utilities used across validation modules
 """
 
 from typing import List, Optional
+from dataclasses import dataclass
+
+
+@dataclass
+class Violation:
+    type: str
+    message: str
+    file_path: str
+    line_number: int
+    severity: str = "error"
+    suggested_fix: Optional[str] = None
 
 
 class CodeValidationResult:

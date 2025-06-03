@@ -7,6 +7,11 @@ non-code text gets saved as code files.
 """
 
 import logging
+import re
+import ast
+import codecs
+import tokenize
+from io import BytesIO, StringIO
 from typing import Dict, Any, Tuple, List, Optional, Union
 
 # Import from refactored modules
@@ -17,6 +22,7 @@ from .validators.text_analyzer import extract_code_blocks, looks_like_prompt
 from .validators.python_validator import is_valid_python
 from .validators.code_fixer import attempt_syntax_fix
 from .validators.quality_checker import check_code_quality
+from .validators.ast_validator import ASTValidator
 
 logger = logging.getLogger('gollm.validation.code')
 
@@ -33,17 +39,7 @@ __all__ = [
     'detect_escape_sequences'
 ]
 
-class CodeValidationResult:
-    """Result of code validation."""
-    
-    def __init__(self, is_valid: bool, issues: List[str] = None, 
-                 fixed_code: Optional[str] = None):
-        self.is_valid = is_valid
-        self.issues = issues or []
-        self.fixed_code = fixed_code
-    
-    def __bool__(self):
-        return self.is_valid
+# CodeValidationResult is now imported from common.py
 
 def is_valid_python(code: str) -> CodeValidationResult:
     """Check if the string is valid Python code.
