@@ -88,7 +88,11 @@ def generate_command(ctx, request, output, critical, no_todo, fast, iterations, 
             # Show results
             quality_score = format_quality_score(result.quality_score)
             
-            if len(saved_files) > 1:
+            if not saved_files:
+                click.echo(f"\n⚠️ No files were saved! {quality_score}")
+                click.echo("  The generated content could not be validated as code.")
+                click.echo("  Try providing a more specific request or check the logs for details.")
+            elif len(saved_files) > 1:
                 click.echo(f"\n✨ Generated {len(saved_files)} files! {quality_score}")
                 for i, file_path in enumerate(saved_files, 1):
                     file_icon = "📄" if file_path.endswith('.py') else "📝"
@@ -103,6 +107,14 @@ def generate_command(ctx, request, output, critical, no_todo, fast, iterations, 
                 click.echo(f"  $ cd {output_path.parent}")
                 click.echo("  $ pip install -r requirements.txt")
                 click.echo("  $ python app.py")
+            
+            # If no files were saved, show suggestions for improving the request
+            if not saved_files:
+                click.echo("\n💡 Suggestions to improve results:")
+                click.echo("  1. Be more specific in your request")
+                click.echo("  2. Include programming language in your request")
+                click.echo("  3. Break down complex requests into smaller parts")
+                click.echo("  4. Check if the LLM is in thinking mode rather than code generation mode")
             
             # Show validation issues from code quality
             validation_issues = []
@@ -129,6 +141,28 @@ def generate_command(ctx, request, output, critical, no_todo, fast, iterations, 
             # If we had to fix syntax errors, notify the user
             if hasattr(result, 'fixed_syntax') and result.fixed_syntax:
                 click.echo("\n⚠️ Note: Syntax errors were automatically fixed in the generated code.")
+                
+            # If the response was detected as thinking-style output
+            if hasattr(result, 'validation_result') and result.validation_result.get('thinking_detected'):
+                click.echo("\n⚠️ Note: The LLM output appeared to be in 'thinking mode' rather than code generation.")
+                click.echo("    This often happens when the model is explaining its thought process.")
+                click.echo("    Try running the command again or being more specific in your request.")
+                
+            # If the response was detected as prompt-like but no code could be extracted
+            if hasattr(result, 'validation_result') and result.validation_result.get('prompt_no_code'):
+                click.echo("\n⚠️ Note: The LLM output appeared to be a prompt response without any code.")
+                click.echo("    Try adding 'in Python' or another language to your request.")
+                click.echo("    Example: 'Create a user class in Python' instead of 'Create a user class'")
+                click.echo("    You can also try running the command again with more specific instructions.")
+                
+            # If the response had critical validation issues
+            if hasattr(result, 'validation_result') and result.validation_result.get('critical_issues'):
+                click.echo("\n❌ Critical validation issues prevented saving the generated code.")
+                click.echo("    The LLM output could not be parsed as valid code.")
+                click.echo("    Try running the command again or refining your request.")
+                for issue in result.validation_result.get('critical_issues', []):
+                    click.echo(f"    - {issue}")
+
                 click.echo("    Please verify the generated code is correct.")
                 click.echo("    You may want to regenerate if the code doesn't work as expected.")
 

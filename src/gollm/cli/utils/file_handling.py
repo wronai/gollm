@@ -47,6 +47,11 @@ async def save_generated_files(generated_code: str, base_path: Path) -> List[str
                 logger.warning(f"Invalid code detected for {file_path}: {', '.join(issues)}")
                 logger.warning("Attempting to extract valid code from content...")
                 
+                # If no valid code could be extracted, skip saving this file
+                if not validated_content or validated_content.strip() == "":
+                    logger.error(f"Skipping file {file_path}: Could not extract any valid code")
+                    continue
+                
             if issues:
                 logger.info(f"Code validation issues for {file_path}: {', '.join(issues)}")
             
@@ -65,6 +70,11 @@ async def save_generated_files(generated_code: str, base_path: Path) -> List[str
         if not is_valid:
             logger.warning(f"Invalid code detected for {base_path}: {', '.join(issues)}")
             logger.warning("Attempting to extract valid code from content...")
+            
+            # If no valid code could be extracted, don't save the file
+            if not validated_content or validated_content.strip() == "":
+                logger.error(f"Not saving file {base_path}: Could not extract any valid code")
+                return []
             
         if issues:
             logger.info(f"Code validation issues for {base_path}: {', '.join(issues)}")

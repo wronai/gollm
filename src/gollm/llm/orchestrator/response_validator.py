@@ -54,21 +54,81 @@ class ResponseValidator:
             llm_output = str(llm_output)
         
         try:
-            # Try to extract code and explanation
+            # Try to extract code and explanation using the legacy method first
             code, explanation = self._extract_code_and_explanation(llm_output)
             
-            if not code:
+            # Determine file extension from context or default to Python
+            file_extension = 'py'
+            if context and 'output_path' in context:
+                output_path = context['output_path']
+                if isinstance(output_path, str) and '.' in output_path:
+                    file_extension = output_path.split('.')[-1]
+            
+            # Apply our enhanced code validation
+            validation_issues = []
+            extracted_from_prompt = False
+            fixed_syntax = False
+            thinking_detected = False
+            prompt_no_code = False
+            critical_issues = []
+            
+            # Check if the content looks like a prompt rather than code
+            if looks_like_prompt(code):
+                logger.warning("Generated content appears to be a prompt rather than code")
+                extracted_from_prompt = True
+                validation_issues.append("Content appears to be a prompt or natural language text, not code")
+                
+                # Check for thinking patterns in the original response
+                thinking_patterns = [
+                    r'<think>\s*([\s\S]*)',
+                    r'\[thinking\]\s*([\s\S]*)',
+                    r'\*\*thinking\*\*\s*([\s\S]*)',
+                    r'Let me think about this[\s\S]*',
+                    r'I need to create[\s\S]*',
+                    r'Let\'s tackle this[\s\S]*',
+                    r'Okay, let\'s tackle this[\s\S]*'
+                ]
+                
+                for pattern in thinking_patterns:
+                    if re.search(pattern, llm_output, re.IGNORECASE):
+                        thinking_detected = True
+                        logger.warning("Detected thinking-style output in LLM response")
+                        break
+            
+            # Validate and potentially fix the code
+            is_valid, validated_code, issues = validate_and_extract_code(code, file_extension)
+            
+            if issues:
+                validation_issues.extend(issues)
+                
+            if not is_valid and not validated_code:
+                logger.error("Failed to extract valid code from LLM response")
+                prompt_no_code = True
+                critical_issues.append("No valid code could be extracted from the response")
+                if thinking_detected:
+                    critical_issues.append("LLM output appears to be in 'thinking mode' rather than code generation")
+                
                 return {
                     'success': False,
-                    'error': 'No code block found in response',
+                    'error': 'No valid code could be extracted from response',
                     'code_extracted': False,
-                    'explanation': explanation or 'No explanation provided'
+                    'explanation': explanation or 'No explanation provided',
+                    'code_validation_issues': validation_issues,
+                    'thinking_detected': thinking_detected,
+                    'prompt_no_code': prompt_no_code,
+                    'critical_issues': critical_issues
                 }
+            
+            # Check if we had to fix syntax errors
+            if validated_code != code and is_valid:
+                fixed_syntax = True
+                logger.info("Fixed syntax errors in generated code")
+                code = validated_code
             
             # Validate code quality if we have a validator
             code_quality = {}
             if self.code_validator:
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
+                with tempfile.NamedTemporaryFile(mode='w', suffix=f'.{file_extension}', delete=False) as temp_file:
                     temp_file.write(code)
                     temp_file_path = temp_file.name
                 
@@ -77,12 +137,24 @@ class ResponseValidator:
                 finally:
                     os.unlink(temp_file_path)
             
+            # If we had to fix syntax errors, track that
+            if any(issue.startswith('syntax_error') for issue in issues):
+                fixed_syntax = True
+                
+            # Return the validated code with all metadata
             return {
                 'success': True,
-                'code_extracted': True,
-                'extracted_code': code,
+                'code': validated_code,
                 'explanation': explanation,
-                'code_quality': code_quality
+                'code_extracted': True,
+                'extracted_code': validated_code,
+                'code_quality': code_quality,
+                'extracted_from_prompt': extracted_from_prompt,
+                'fixed_syntax': fixed_syntax,
+                'code_validation_issues': validation_issues,
+                'thinking_detected': thinking_detected,
+                'prompt_no_code': prompt_no_code,
+                'critical_issues': critical_issues
             }
             
         except Exception as e:
@@ -110,6 +182,41 @@ class ResponseValidator:
         
         # Clean up the text first
         text = text.strip()
+        
+        # Check for thinking-style output (common in LLM responses)
+        thinking_patterns = [
+            r'<think>\s*([\s\S]*)',
+            r'\[thinking\]\s*([\s\S]*)',
+            r'\*\*thinking\*\*\s*([\s\S]*)',
+            r'Let me think about this[\s\S]*',
+            r'I need to create[\s\S]*',
+            r'Let\'s tackle this[\s\S]*',
+            r'Okay, let\'s tackle this[\s\S]*'
+        ]
+        
+        for pattern in thinking_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                logger.debug("Detected thinking-style output in LLM response")
+                # This is clearly a prompt-like response, not code
+                return '', f'Thinking-style output detected: {text[:50]}...'
+        
+        # Check for common non-code indicators at the beginning of the text
+        non_code_indicators = [
+            r'^\s*Okay,\s',
+            r'^\s*I will\s',
+            r'^\s*Here\s',
+            r'^\s*Let me\s',
+            r'^\s*First,\s',
+            r'^\s*To create\s',
+            r'^\s*Now I\'ll\s',
+            r'^\s*I\'m going to\s'
+        ]
+        
+        for pattern in non_code_indicators:
+            if re.search(pattern, text, re.IGNORECASE):
+                logger.debug("Detected natural language beginning in LLM response")
+                # This might be a prompt-like response, but we'll still try to extract code later
+                break
         
         # First, check for the absolute simplest case - just a print statement
         simple_print = re.search(r'^print\([\'"].*?[\"\']\)\s*$', text, re.MULTILINE)
