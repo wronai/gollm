@@ -2,7 +2,7 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from .config.config import GollmConfig
 from .llm.orchestrator import LLMOrchestrator
@@ -11,6 +11,8 @@ from .project_management.changelog_manager import ChangelogManager
 from .project_management.metrics_tracker import MetricsTracker
 from .project_management.todo_manager import TodoManager
 from .validation.validators import CodeValidator
+from .core.session_models import GollmSession
+from .llm.orchestrator.models import LLMResponse
 
 
 class GollmCore:
@@ -51,57 +53,37 @@ class GollmCore:
         """
         return self.validator.validate_project(staged_only=staged_only)
 
-    async def handle_code_generation(
+    async def handle_code_generation_request(
         self,
-        user_request: str,
-        context: dict = None,
-        max_iterations: int = 3,
-        validation_mode: str = "strict",
-        skip_validation: bool = False,
-        use_streaming: bool = True,
-    ) -> dict:
-        """Obsługuje generowanie kodu przez LLM
+        gollm_session: GollmSession,
+        cli_provided_context: Optional[Dict[str, Any]] = None
+    ) -> LLMResponse:
+        """Obsługuje generowanie kodu przez LLM przy użyciu sesji.
 
         Args:
-            user_request: The user's code generation request
-            context: Additional context for generation
-            max_iterations: Maximum number of generation iterations
-            validation_mode: Validation mode (strict or standard)
-            skip_validation: Whether to skip validation
-            use_streaming: Whether to use streaming API when available
+            gollm_session: The GoLLM session object containing all context.
+            cli_provided_context: Dodatkowe parametry z CLI, które mogą nadpisać te z sesji.
 
         Returns:
-            LLMResponse with generated code and metadata
+            LLMResponse with generated code and metadata, including the updated session.
         """
-        if context is None:
-            context = {}
+        # # Logic for setting adapter_type and use_streaming from context might need to be re-evaluated
+        # # if these are now primarily managed via GollmSession.cli_context.
+        # # For now, we assume the orchestrator handles merging/prioritizing these from the session.
+        # if cli_provided_context:
+        #     if "adapter_type" in cli_provided_context:
+        #         import os
+        #         os.environ["OLLAMA_ADAPTER_TYPE"] = cli_provided_context["adapter_type"]
+        #     if "use_streaming" in cli_provided_context:
+        #         import os
+        #         os.environ["GOLLM_USE_STREAMING"] = str(cli_provided_context["use_streaming"]).lower()
 
-        # Set adapter type in context if specified
-        if "adapter_type" in context:
-            # Set environment variable to influence adapter selection
-            import os
-
-            os.environ["OLLAMA_ADAPTER_TYPE"] = context["adapter_type"]
-
-        # Set streaming flag in environment if specified
-        if "use_streaming" in context:
-            import os
-
-            os.environ["GOLLM_USE_STREAMING"] = str(context["use_streaming"]).lower()
-
-        # Create a request context with all parameters
-        request_context = context.copy()
-
-        # Add parameters to context to ensure they're passed correctly
-        request_context["max_iterations"] = max_iterations
-        request_context["validation_mode"] = validation_mode
-        request_context["skip_validation"] = skip_validation
-        request_context["use_streaming"] = use_streaming
-
-        # Call the orchestrator with the user request and enhanced context
         return await self.llm_orchestrator.handle_code_generation_request(
-            user_request=user_request, context=request_context
+            gollm_session=gollm_session,
+            cli_provided_context=cli_provided_context
         )
+
+
 
     def get_next_task(self) -> dict:
         """Pobiera następne zadanie z TODO"""

@@ -30,55 +30,51 @@ class OllamaGenerator:
         self.temperature = config.get("temperature", 0.1)
         self.api_type = config.get("api_type", "chat")
 
-    def _calculate_adaptive_timeout(self, prompt: str, context: Dict[str, Any]) -> int:
-        """Calculate an adaptive timeout based on prompt length and task type.
+    def _calculate_timeout(self, prompt: str, context: Dict[str, Any]) -> int:
+        """Calculate an appropriate timeout based on prompt length and complexity.
 
         Args:
             prompt: The prompt to generate a response for
             context: Additional context for the generation
 
         Returns:
-            Calculated timeout in seconds
+            Timeout in seconds
         """
         # Start with the base timeout
         timeout = self.timeout
-
-        # If adaptive timeout is disabled, return the base timeout
-        if not context.get("adaptive_timeout", True):
-            return timeout
-
-        # Calculate based on prompt length
         prompt_length = len(prompt)
-
-        # For very short prompts (e.g., "hello world"), use a shorter timeout
-        if prompt_length < 50:
-            timeout = min(timeout, 30)  # Cap at 30 seconds for very short prompts
-
-        # For medium-length prompts, scale linearly
-        elif prompt_length < 500:
-            # Scale from 30s to base timeout based on length
-            timeout = max(30, min(timeout, 30 + (prompt_length / 500) * (timeout - 30)))
-
-        # For longer prompts, increase the timeout
-        else:
-            # Add 5 seconds for every 1000 chars over 500, up to 2x base timeout
-            additional_time = min((prompt_length - 500) / 1000 * 5, timeout)
-            timeout = min(timeout * 2, timeout + additional_time)
-
-        # Adjust for code generation tasks which may need less time
+        
+        # For chat, calculate total content length of all messages
+        if context.get("messages"):
+            prompt_length = sum(len(msg.get("content", "")) for msg in context.get("messages", []))
+        
+        # Always ensure a minimum timeout regardless of other factors
+        min_timeout = 60  # At least 60 seconds for any request
+        
+        # For code generation, ensure a substantial minimum timeout
         if context.get("is_code_generation", False):
-            # Code generation often needs less time than creative text generation
-            code_factor = 0.8  # 20% reduction for code tasks
-            timeout = max(20, timeout * code_factor)  # But never less than 20 seconds
-
-            # Further adjust based on language complexity
-            language = context.get("language", "python").lower()
-            if language in ["python", "javascript", "typescript"]:
-                # These languages are typically faster to generate
-                timeout = max(15, timeout * 0.9)
-            elif language in ["c++", "rust", "java"]:
-                # These languages may need more time
-                timeout = timeout * 1.1
+            min_timeout = 180  # At least 3 minutes for code generation
+            logger.info(f"Using increased minimum timeout for code generation: {min_timeout}s")
+        
+        # Calculate adaptive timeout if enabled
+        if context.get("adaptive_timeout", True):
+            # For longer prompts, add additional time
+            if prompt_length > 500:
+                # Add 10 seconds for every 1000 chars over 500, up to 2x base timeout
+                additional_time = min((prompt_length - 500) / 1000 * 10, timeout)
+                timeout = min(timeout * 2, timeout + additional_time)
+            
+            # Ensure we never go below the minimum timeout
+            timeout = max(timeout, min_timeout)
+        else:
+            # If adaptive timeout is disabled, use the base timeout but ensure minimum
+            timeout = max(timeout, min_timeout)
+        
+        # Add the calculated timeout to the context for logging
+        context["calculated_timeout"] = timeout
+        logger.info(f"Using timeout: {timeout}s (base: {self.timeout}s, minimum: {min_timeout}s)")
+        
+        return timeout
 
         # Round to nearest second
         return round(timeout)
@@ -111,12 +107,9 @@ class OllamaGenerator:
         # Record start time for metrics
         start_time = time.time()
 
-        # Calculate adaptive timeout before generation
-        timeout = self._calculate_adaptive_timeout(prompt, context)
-        if timeout != self.timeout:
-            logger.info(f"Using adaptive timeout: {timeout}s (base: {self.timeout}s)")
-            # Store the calculated timeout in the context for use in generation methods
-            context["calculated_timeout"] = timeout
+        # Calculate appropriate timeout before generation
+        timeout = self._calculate_timeout(prompt, context)
+        # The timeout is already stored in context by _calculate_timeout
 
         # Determine which API endpoint to use
         if self.api_type == "chat":
@@ -302,15 +295,24 @@ class OllamaGenerator:
                 }
         except asyncio.TimeoutError:
             logger.error(f"Timeout during chat generation after {timeout}s")
+            error_message = f"Request timed out after {timeout} seconds. The model may be overloaded or the request may be too complex."
             return {
                 "error": "Timeout",
-                "details": f"Request timed out after {timeout} seconds",
-                "generated_text": "",
-                "text": "",
+                "details": error_message,
+                "generated_text": f"ERROR: {error_message}",
+                "text": f"ERROR: {error_message}",
+                "success": False,
             }
         except Exception as e:
             logger.exception(f"Error during chat generation: {str(e)}")
-            return {"error": "Exception", "details": str(e), "generated_text": ""}
+            error_message = f"Error during request: {str(e)}"
+            return {
+                "error": "Exception", 
+                "details": error_message, 
+                "generated_text": f"ERROR: {error_message}",
+                "text": f"ERROR: {error_message}",
+                "success": False
+            }
 
     async def _generate_completion(
         self, prompt: str, context: Dict[str, Any]
@@ -370,13 +372,26 @@ class OllamaGenerator:
                         f"Ollama completion API error: {response.status} - {error_text}"
                     )
                     return {}
+                result = await response.json()
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout during completion generation after {timeout}s")
+            error_message = f"Request timed out after {timeout} seconds. The model may be overloaded or the request may be too complex."
+            return {
+                "error": "Timeout",
+                "details": error_message,
+                "generated_text": f"ERROR: {error_message}",
+                "text": f"ERROR: {error_message}",
+                "success": False,
+            }
         except Exception as e:
             logger.exception(f"Error during completion generation: {str(e)}")
+            error_message = f"Error during request: {str(e)}"
             return {
                 "error": "Exception",
-                "details": str(e),
-                "generated_text": "",
-                "text": "",
+                "details": error_message,
+                "generated_text": f"ERROR: {error_message}",
+                "text": f"ERROR: {error_message}",
+                "success": False,
             }
 
         # Apply adaptive timeout if specified in context

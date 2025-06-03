@@ -295,55 +295,7 @@ class LLMOrchestrator:
                             else:
                                 self.logger.info(f"Fix attempt {attempt + 1} failed. Error: {error_output}")
                         
-                        if not final_llm_response.execution_successful:
-                            self.logger.warning("Failed to fix code execution errors after multiple attempts.")
-                            
-                            # Create a fix request object with higher iteration count for complex fixes
-                            fix_llm_request = LLMRequest(
-                                user_request=fix_request,
-                                context=context,
-                                session_id=request.session_id + f"-fix-{attempt+1}",
-                                max_iterations=2 if attempt > 1 else 1,  # More iterations for complex fixes
-                                fast_mode=False,  # Disable fast mode for fixes to ensure quality
-                            )
-                            
-                            # Process the fix request
-                            fix_response = await self._process_llm_request(
-                                fix_llm_request, use_streaming=use_streaming
-                            )
-                            
-                            # Update the code with the fixed version
-                            current_code = fix_response.generated_code
-                            
-                            # Test the fixed code with enhanced error handling
-                            success, error, output = execute_python_code(current_code, timeout=execution_timeout)
-                            if success:
-                                logger.info(f"Successfully fixed code execution errors after {attempt+1} attempts")
-                                response.execution_successful = True
-                                response.execution_fixed = True
-                                response.generated_code = current_code  # Update with fixed code
-                                
-                                # Log the successful output
-                                if output:
-                                    logger.debug(f"Fixed code execution output:\n{output}")
-                                break
-                            else:
-                                logger.warning(f"Fix attempt {attempt+1} failed: {error}")
-                                response.execution_errors.append(error)
-                                
-                                # If we're getting the same error repeatedly, try a more drastic approach
-                                if attempt > 1 and len(set(response.execution_errors[-2:])) == 1:
-                                    logger.info("Getting same error repeatedly, trying more comprehensive rewrite...")
-                        
-                        if not response.execution_successful:
-                            logger.error(f"Failed to fix code execution errors after {max_fix_attempts} attempts")
-                            # Add a note about the unfixed errors to the explanation
-                            if response.explanation:
-                                response.explanation += "\n\n**Note:** The code has execution errors that could not be automatically fixed. Please review the error messages and fix manually."
-                    
-                    elif success:
-                        logger.info("Code execution successful on first attempt")
-                        # Add a note about successful execution to the explanation
+
             # If test generation is enabled, generate tests for the code
             # This also needs to be adapted for multi-file and use the session
             if generate_tests and gollm_session.current_state.current_code_files:

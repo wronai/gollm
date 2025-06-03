@@ -47,18 +47,24 @@ class LLMOrchestrator:
         )
 
     async def handle_code_generation_request(
-        self, user_request: str, context: Optional[Dict[str, Any]] = None
+        self, gollm_session: 'GollmSession', cli_provided_context: Optional[Dict[str, Any]] = None
     ) -> LLMResponse:
         """Handle a code generation request.
 
         Args:
-            user_request: The user's request for code generation
-            context: Additional context for the request
+            gollm_session: The GollmSession containing the user's request and context
+            cli_provided_context: Additional context provided by the CLI
 
         Returns:
             LLMResponse with the generated code and metadata
         """
-        context = context or {}
+        # Extract user_request from gollm_session
+        user_request = gollm_session.original_request
+        
+        # Combine session context with cli_provided_context
+        context = gollm_session.cli_context.model_dump() if hasattr(gollm_session.cli_context, 'model_dump') else {}
+        if cli_provided_context:
+            context.update(cli_provided_context)
 
         # Create a task in the todo manager if available
         self._create_todo_task(user_request, context)
@@ -66,6 +72,10 @@ class LLMOrchestrator:
         try:
             # Create request object
             request = self._create_request(user_request, context)
+            
+            # Add gollm_session to request if needed
+            if hasattr(request, 'set_session'):
+                request.set_session(gollm_session)
 
             # Process the request
             response = await self._process_llm_request(request)

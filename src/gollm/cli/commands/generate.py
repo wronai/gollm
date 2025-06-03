@@ -219,7 +219,7 @@ def generate_command(
         logging.info(f"Using {adapter_type} adapter for Ollama communication")
 
     async def run_generation():
-        is_website = context.get("is_website_project", False)
+        is_website = ctx.obj.get("is_website_project", False)
         suggested_name = suggest_filename(request, is_website)
 
         # Set up output path - always create a directory structure
@@ -232,7 +232,7 @@ def generate_command(
         # Determine the main file name based on the content to be generated
         if is_website:
             # For websites, use app.py as the main file
-            output_path = project_dir / "app.py"
+            main_script_path = project_dir / "app.py"
         else:
             # For other code, determine an appropriate main file name
             # based on what we're likely generating
@@ -259,7 +259,7 @@ def generate_command(
                 # Default to main.py
                 file_name = "main.py"
                 
-            output_path = project_dir / file_name
+            main_script_path = project_dir / file_name
 
         try:
             # Add context about the project structure
@@ -274,14 +274,14 @@ def generate_command(
             # Pass the whole session object to the orchestrator
             response = await gollm.handle_code_generation_request(
                 gollm_session, # Pass the entire session object
-                context=context,
+                cli_provided_context=ctx.obj, # Pass click context obj for runtime params
                 # output_path, project_name, main_file_name are now part of session.cli_context or derived
             )
 
             # Save all generated files
             saved_files = await save_generated_files(
                 response.generated_code,
-                output_path,
+                main_script_path,
                 context.get("validation_options", {}),
             )
             
@@ -320,7 +320,7 @@ def generate_command(
                     saved_files.append(str(init_file))
 
             # Show results
-            quality_score = format_quality_score(result.quality_score)
+            quality_score = format_quality_score(response.quality_score)
 
             if not saved_files:
                 click.echo(f"\n⚠️ No files were saved! {quality_score}")
@@ -358,16 +358,16 @@ def generate_command(
 
             # Show validation issues from code quality
             validation_issues = []
-            if result.validation_result.get("code_quality", {}).get("violations"):
-                for v in result.validation_result["code_quality"]["violations"]:
+            if response.validation_result.get("code_quality", {}).get("violations"):
+                for v in response.validation_result["code_quality"]["violations"]:
                     validation_issues.append(f"{v.type}: {v.message}")
 
             # Show code validation issues from our validator
             if (
-                hasattr(result, "code_validation_issues")
-                and result.code_validation_issues
+                hasattr(response, "code_validation_issues")
+                and response.code_validation_issues
             ):
-                validation_issues.extend(result.code_validation_issues)
+                validation_issues.extend(response.code_validation_issues)
 
             # Display all validation issues
             if validation_issues:
@@ -376,44 +376,44 @@ def generate_command(
                     click.echo(f"  - {issue}")
             
             # Show information about incomplete functions and their completion status
-            if hasattr(result, "has_incomplete_functions") and result.has_incomplete_functions:
-                if hasattr(result, "has_completed_functions") and result.has_completed_functions:
+            if hasattr(response, "has_incomplete_functions") and response.has_incomplete_functions:
+                if hasattr(response, "has_completed_functions") and response.has_completed_functions:
                     click.echo("\n🔄 Detected and automatically completed incomplete functions!")
-                    if hasattr(result, "still_has_incomplete_functions") and result.still_has_incomplete_functions:
-                        click.echo(f"⚠️ Still found {len(result.still_incomplete_functions)} functions that couldn't be fully completed.")
-                        for func in result.still_incomplete_functions:
+                    if hasattr(response, "still_has_incomplete_functions") and response.still_has_incomplete_functions:
+                        click.echo(f"⚠️ Still found {len(response.still_incomplete_functions)} functions that couldn't be fully completed.")
+                        for func in response.still_incomplete_functions:
                             click.echo(f"  - {func['name']}")
                     else:
                         click.echo("✅ All functions were successfully completed.")
                 else:
                     click.echo("\n⚠️ Detected incomplete functions but auto-completion was disabled:")
-                    for func in result.incomplete_functions:
+                    for func in response.incomplete_functions:
                         click.echo(f"  - {func['name']}")
                     click.echo("💡 Run with auto-completion enabled to complete these functions automatically.")
             
             # Show information about code execution testing and fixing
-            if hasattr(result, "execution_tested") and result.execution_tested:
-                if hasattr(result, "execution_successful") and result.execution_successful:
-                    if hasattr(result, "execution_fixed") and result.execution_fixed:
-                        click.echo(f"\n👍 Successfully fixed code execution errors after {result.execution_fix_attempts} attempts!")
+            if hasattr(response, "execution_tested") and response.execution_tested:
+                if hasattr(response, "execution_successful") and response.execution_successful:
+                    if hasattr(response, "execution_fixed") and response.execution_fixed:
+                        click.echo(f"\n👍 Successfully fixed code execution errors after {response.execution_fix_attempts} attempts!")
                     else:
                         click.echo("\n✅ Code executed successfully on first attempt!")
                 else:
                     click.echo("\n⛔ Code execution failed with errors:")
-                    for i, error in enumerate(result.execution_errors):
+                    for i, error in enumerate(response.execution_errors):
                         if i < 3:  # Show at most 3 errors to avoid cluttering the output
                             click.echo(f"  - Attempt {i+1}: {error}")
-                    if len(result.execution_errors) > 3:
-                        click.echo(f"  ... and {len(result.execution_errors) - 3} more errors")
+                    if len(response.execution_errors) > 3:
+                        click.echo(f"  ... and {len(response.execution_errors) - 3} more errors")
                     
-                    if hasattr(result, "execution_fix_attempts") and result.execution_fix_attempts > 0:
-                        click.echo(f"🔧 Made {result.execution_fix_attempts} attempts to fix the code, but errors persist.")
+                    if hasattr(response, "execution_fix_attempts") and response.execution_fix_attempts > 0:
+                        click.echo(f"🔧 Made {response.execution_fix_attempts} attempts to fix the code, but errors persist.")
                         click.echo("💡 You may need to manually fix the code or try again with different options.")
 
             # If we had to extract code from a prompt-like response, notify the user
             if (
-                hasattr(result, "extracted_from_prompt")
-                and result.extracted_from_prompt
+                hasattr(response, "extracted_from_prompt")
+                and response.extracted_from_prompt
             ):
                 click.echo(
                     "\n⚠️ Note: The generated content appeared to contain non-code text."
@@ -422,13 +422,13 @@ def generate_command(
                 click.echo("    Please verify the generated code is correct.")
 
             # If we had to fix syntax errors, notify the user
-            if hasattr(result, "fixed_syntax") and result.fixed_syntax:
+            if hasattr(response, "fixed_syntax") and response.fixed_syntax:
                 click.echo(
                     "\n⚠️ Note: Syntax errors were automatically fixed in the generated code."
                 )
 
             # If the response was detected as thinking-style output
-            if hasattr(result, "validation_result") and result.validation_result.get(
+            if hasattr(response, "validation_result") and response.validation_result.get(
                 "thinking_detected"
             ):
                 click.echo(
@@ -442,7 +442,7 @@ def generate_command(
                 )
 
             # If the response was detected as prompt-like but no code could be extracted
-            if hasattr(result, "validation_result") and result.validation_result.get(
+            if hasattr(response, "validation_result") and response.validation_result.get(
                 "prompt_no_code"
             ):
                 click.echo(
@@ -459,7 +459,7 @@ def generate_command(
                 )
 
             # If the response had critical validation issues
-            if hasattr(result, "validation_result") and result.validation_result.get(
+            if hasattr(response, "validation_result") and response.validation_result.get(
                 "critical_issues"
             ):
                 click.echo(
@@ -469,7 +469,7 @@ def generate_command(
                 click.echo(
                     "    Try running the command again or refining your request."
                 )
-                for issue in result.validation_result.get("critical_issues", []):
+                for issue in response.validation_result.get("critical_issues", []):
                     click.echo(f"    - {issue}")
 
                 click.echo("    Please verify the generated code is correct.")
@@ -484,7 +484,7 @@ def generate_command(
         except Exception as e:
             click.echo(f"\n❌ Error during generation: {str(e)}")
 
-            # Check if this is a result from a timeout with additional information
+            # Check if this is a response from a timeout with additional information
             if hasattr(e, "__dict__") and isinstance(
                 getattr(e, "__dict__", None), dict
             ):

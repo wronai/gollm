@@ -8,6 +8,11 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Union
 from ..base import BaseLLMProvider
 from .config import OllamaConfig
 from .factory import AdapterType, create_adapter, get_best_available_adapter
+from .modules.parameters import map_params_to_options
+from .modules.prompt import prepare_llm_request_args, extract_response_content
+from .modules.response import process_llm_response
+from .modules.models import ensure_model_available
+from .modules.error import handle_timeout_error, handle_api_error
 
 logger = logging.getLogger("gollm.ollama.provider")
 
@@ -170,46 +175,26 @@ class OllamaLLMProvider(BaseLLMProvider):
         Returns:
             Dictionary of prepared generation parameters
         """
-        # Start with default parameters
-        params = {
-            "model": model,
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "top_k": 40,
-            "repeat_penalty": 1.1,
-            "num_ctx": 4096,
-            "num_predict": 500,
-            "stop": ["```", "\n```", "\n#", "---", "==="],
-        }
+        # Use the parameters module to prepare generation parameters
+        from .modules.parameters.mapping import prepare_generation_parameters
+        return prepare_generation_parameters(model, **kwargs)
 
-        # Update with any provided kwargs, filtering out None values
-        params.update({k: v for k, v in kwargs.items() if v is not None})
-
-        # Ensure parameter values are within valid ranges
-        if "temperature" in params:
-            params["temperature"] = max(0.0, min(1.0, float(params["temperature"])))
-
-        if "top_p" in params:
-            params["top_p"] = max(0.0, min(1.0, float(params["top_p"])))
-
-        if "top_k" in params:
-            params["top_k"] = max(1, min(100, int(params["top_k"])))
-
-        if "repeat_penalty" in params:
-            params["repeat_penalty"] = max(1.0, float(params["repeat_penalty"]))
-
-        if "num_predict" in params:
-            params["num_predict"] = max(1, int(params["num_predict"]))
-
-        # Ensure stop is a list of strings
-        if "stop" in params and params["stop"] is not None:
-            if isinstance(params["stop"], str):
-                params["stop"] = [params["stop"]]
-            elif not isinstance(params["stop"], list):
-                params["stop"] = list(map(str, params["stop"]))
-
-        return params
-
+    def _prepare_llm_request_args(
+        self, prompt: str, context: Optional[Dict[str, Any]], **kwargs
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Prepare the prompt and parameters for an LLM request.
+        
+        Args:
+            prompt: The original prompt to modify
+            context: Additional context for generation
+            **kwargs: Additional generation parameters
+            
+        Returns:
+            Tuple containing (modified_prompt, generation_params)
+        """
+        # Use the prompt module to prepare the request arguments
+        return prepare_llm_request_args(prompt, context, self.config.model, **kwargs)
+    
     async def generate_response(
         self, prompt: str, context: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Dict[str, Any]:
@@ -219,278 +204,249 @@ class OllamaLLMProvider(BaseLLMProvider):
             prompt: The prompt to generate a response for
             context: Additional context for the generation
             **kwargs: Additional generation parameters (temperature, max_tokens, etc.)
-                - temperature: Controls randomness (0.0 to 1.0)
-                - max_tokens: Maximum number of tokens to generate
-                - top_p: Nucleus sampling parameter (0.0 to 1.0)
-                - top_k: Limit next token selection to top K (1-100)
-                - repeat_penalty: Penalty for repeated tokens (1.0+)
-                - stop: List of strings to stop generation
-                - Any other Ollama API parameters
 
         Returns:
-            Dictionary containing the generated response and metadata
-                - success: Whether the generation was successful
-                - generated_text: The generated text (if successful)
-                - error: Error message (if unsuccessful)
-                - model: The model used for generation
-                - usage: Token usage information
+            A dictionary containing the generated text and metadata
         """
-        # Import the generation module
-        from .generation import generate_response as generate
-        from .models import ensure_model_available
-        from .prompt import extract_response_content
+        from .modules.models import ensure_model_available
+        from .modules.error import handle_timeout_error, handle_api_error
+        from .modules.response.processor import extract_code_blocks, clean_generated_text
 
-        # Ensure we have an adapter
+        # Ensure the adapter is ready
         if not self.adapter:
             await self.__aenter__()
 
         # Ensure the model is available
-        model_available = await ensure_model_available(self.adapter, self.config.model)
+        model_name = kwargs.get("model_name", self.config.model)
+        model_available, error_message = await ensure_model_available(self.adapter, model_name)
+        
         if not model_available:
+            logger.error(f"Model {model_name} is not available: {error_message}")
             return {
                 "success": False,
-                "error": f"Model '{self.config.model}' is not available",
-                "generated_text": "",
+                "error": "ModelNotAvailable",
+                "generated_text": f"ERROR: Model {model_name} is not available. {error_message}",
+                "model": model_name,
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                }
             }
 
         try:
-            # Default generation parameters - optimized for code generation
-            default_params = {
-                "temperature": 0.1,  # Very low for deterministic output
-                "max_tokens": 500,  # Increased to allow for longer code blocks
-                "top_p": 0.9,  # Focus on high probability tokens
-                "top_k": 40,  # Limit sampling pool
-                "repeat_penalty": 1.2,  # Penalize repetition more
-                "num_ctx": 4096,  # Increased context window for code generation
-                "stop": [
-                    "```",
-                    "\n\n",
-                    "\n#",
-                    "---",
-                    "===",
-                    "\n",
-                ],  # Stop on formatting
-            }
-
-            # Log incoming parameters for debugging
-            logger.debug("Original generation parameters: %s", kwargs)
-
-            # Update defaults with any provided kwargs, filtering out None values
-            generation_params = {
-                **default_params,
-                **{k: v for k, v in kwargs.items() if v is not None},
-            }
-
-            # Ensure temperature is within valid range
-            if "temperature" in generation_params:
-                generation_params["temperature"] = max(
-                    0.0, min(1.0, float(generation_params["temperature"]))
-                )
-
-            # Modify the prompt to be extremely explicit about the expected output format
-            if "CODE_ONLY" not in prompt:
-                prompt = f"""
-                {prompt}
-                
-                RULES:
-                - Respond with ONLY the Python code, nothing else
-                - No explanations, no markdown, no additional text
-                - Just the raw Python code that can be executed directly
-                
-                Example of the ONLY acceptable response:
-                print("Hello, World!")
-                
-                CODE_ONLY: True
-                """.strip()
-
-                # Add a system message to ensure the model understands the format
-                if context and "messages" in context:
-                    # If we have a chat context, insert a system message
-                    context["messages"].insert(
-                        0,
-                        {
-                            "role": "system",
-                            "content": "You are a code generator. Respond with ONLY the requested code, no explanations, no markdown, just the raw code.",
-                        },
-                    )
-
-            # Get generation parameters with overrides
-            generation_params = self._prepare_generation_parameters(
-                model=self.config.model, **kwargs
+            # Prepare the prompt and generation parameters
+            modified_prompt, generation_params = self._prepare_llm_request_args(prompt, context, **kwargs)
+            
+            # Map parameters to API options
+            options = self._map_params_to_options(generation_params)
+            
+            # Process the response
+            response, generated_text, model, prompt_tokens, completion_tokens = await self._process_llm_response(
+                modified_prompt, context, options
             )
-
-            # Force specific parameters for code generation
-            generation_params["temperature"] = 0.1
-            generation_params["top_p"] = 0.9
-            generation_params["top_k"] = 40
-            generation_params["repeat_penalty"] = 1.1
-            generation_params["num_ctx"] = 4096
-            generation_params["num_predict"] = 500  # Override to allow longer responses
-
-            # Ensure consistent stop sequences
-            if "stop" not in generation_params or not generation_params["stop"]:
-                generation_params["stop"] = ["```", "\n```", "\n#", "---", "==="]
-
-            # Prepare the options dictionary with generation parameters
-            options = {}
-
-            # Map common parameter names to Ollama's expected names
-            param_mapping = {
-                "max_tokens": "num_predict",
-                "frequency_penalty": "repeat_penalty",
-                "presence_penalty": "repeat_penalty",
-                "stop": "stop",
-            }
-
-            # Add all generation parameters to options with proper mapping
-            for param, value in generation_params.items():
-                # Skip None values to use Ollama defaults
-                if value is None:
-                    continue
-
-                # Special handling for stop sequences
-                if param == "stop" and value:
-                    if not isinstance(value, list):
-                        value = [str(value)]
-                    options["stop"] = [str(s) for s in value]
-                    continue
-
-                # Map parameter names if needed
-                mapped_param = param_mapping.get(param, param)
-
-                # Ensure parameter values are within valid ranges
-                if mapped_param == "temperature":
-                    value = max(0.0, min(1.0, float(value)))
-                elif mapped_param in ("top_p", "top_k"):
-                    value = max(1, min(100, int(value)))
-                elif mapped_param == "repeat_penalty":
-                    value = max(1.0, float(value))
-                elif mapped_param == "num_predict":
-                    value = max(1, int(value))
-
-                options[mapped_param] = value
-
-            # Log the final options being sent to the API
-            logger.debug(f"Sending to Ollama API with options: {options}")
-
-            # Prepare messages or prompt based on API type
-            if self.config.api_type == "chat":
-                messages = [{"role": "user", "content": prompt}]
-                if context and "messages" in context:
-                    messages = context["messages"] + messages
-
-                logger.debug(f"Sending chat request with messages: {messages}")
-                response = await self.adapter.chat(
-                    messages=messages,
-                    model=self.config.model,
-                    options=options,
-                    stream=False,
-                )
-
-                # Handle chat completion response format
-                generated_text = response.get("message", {}).get("content", "")
-                model = response.get("model", self.config.model)
-                prompt_tokens = response.get("prompt_eval_count", len(prompt.split()))
-                completion_tokens = response.get(
-                    "eval_count", len(generated_text.split())
-                )
-            else:
-                # Handle completion response format
-                response = await self.adapter.generate(
-                    prompt=prompt,
-                    model=self.config.model,
-                    options=options,
-                    stream=False,
-                )
-
-                # Extract the generated text from different possible response formats
-                generated_text = ""
-                if isinstance(response, str):
-                    generated_text = response
-                elif "response" in response:
-                    generated_text = response["response"]
-                elif (
-                    "message" in response
-                    and isinstance(response["message"], dict)
-                    and "content" in response["message"]
-                ):
-                    generated_text = response["message"]["content"]
-                elif (
-                    "choices" in response
-                    and len(response["choices"]) > 0
-                    and "text" in response["choices"][0]
-                ):
-                    generated_text = response["choices"][0]["text"]
-                elif (
-                    "choices" in response
-                    and len(response["choices"]) > 0
-                    and "message" in response["choices"][0]
-                ):
-                    generated_text = response["choices"][0]["message"].get(
-                        "content", ""
+            
+            # Store the original response for recovery attempts
+            original_response = response
+            original_text = generated_text
+            
+            # Log the raw response for debugging
+            logger.debug(f"Raw response type: {type(response)}")
+            if isinstance(response, dict):
+                logger.debug(f"Raw response keys: {response.keys()}")
+                
+                # Log message content if available
+                if "message" in response and isinstance(response["message"], dict):
+                    if "content" in response["message"]:
+                        message_content = response["message"]["content"]
+                        logger.debug(f"Raw message.content length: {len(message_content)}")
+                        logger.debug(f"Raw message.content preview: {message_content[:100]}...")
+                        
+                        # Check if message content contains code blocks
+                        if "```" in message_content:
+                            logger.info(f"Found code blocks in message.content, length: {len(message_content)}")
+            
+            # RECOVERY STRATEGY 1: Direct extraction from generator response
+            # This is a critical fix for the empty response issue
+            if isinstance(response, dict) and "message" in response and isinstance(response["message"], dict) and "content" in response["message"]:
+                content = response["message"]["content"]
+                logger.info(f"RECOVERY 1: Extracting from message.content, length: {len(content)}")
+                
+                # Try to extract code blocks directly from the content
+                if "```" in content:
+                    logger.info("Found code blocks in raw response, attempting direct extraction")
+                    cleaned_content = clean_generated_text(content)
+                    logger.debug(f"Cleaned content length: {len(cleaned_content)}")
+                    
+                    extracted_code = extract_code_blocks(cleaned_content)
+                    logger.info(f"Extracted code length: {len(extracted_code) if extracted_code else 0}")
+                    
+                    if extracted_code and extracted_code.strip():
+                        logger.info(f"Successfully extracted code blocks directly, length: {len(extracted_code)}")
+                        generated_text = extracted_code
+                        logger.debug(f"FINAL GENERATED TEXT: {generated_text[:200]}...")
+                    else:
+                        logger.warning("Extracted code was empty or None, using original content")
+                        generated_text = content
+                        logger.debug(f"USING ORIGINAL CONTENT: {generated_text[:200]}...")
+                else:
+                    logger.info("No code blocks found in raw response, using as-is")
+                    generated_text = content
+                    logger.debug(f"USING CONTENT AS-IS: {generated_text[:200]}...")
+            
+            # RECOVERY STRATEGY 2: Check if there's a 'response' field
+            elif isinstance(response, dict) and "response" in response and response["response"]:
+                content = response["response"]
+                logger.info(f"RECOVERY 2: Using 'response' field, length: {len(content)}")
+                generated_text = content
+                
+                # Try to extract code blocks if present
+                if "```" in content:
+                    logger.info("Found code blocks in response field, attempting extraction")
+                    cleaned_content = clean_generated_text(content)
+                    extracted_code = extract_code_blocks(cleaned_content)
+                    
+                    if extracted_code and extracted_code.strip():
+                        logger.info(f"Successfully extracted code from response field, length: {len(extracted_code)}")
+                        generated_text = extracted_code
+            
+            # RECOVERY STRATEGY 3: Check for choices format
+            elif isinstance(response, dict) and "choices" in response and len(response["choices"]) > 0:
+                choice = response["choices"][0]
+                logger.info("RECOVERY 3: Attempting to extract from choices")
+                
+                if isinstance(choice, dict):
+                    if "text" in choice:
+                        content = choice["text"]
+                        logger.info(f"Using choices[0].text, length: {len(content)}")
+                        generated_text = content
+                    elif "message" in choice and isinstance(choice["message"], dict) and "content" in choice["message"]:
+                        content = choice["message"]["content"]
+                        logger.info(f"Using choices[0].message.content, length: {len(content)}")
+                        generated_text = content
+            
+            # Log the processed response
+            logger.info(f"Generated text length after recovery attempts: {len(generated_text) if generated_text else 0}")
+            if generated_text:
+                logger.debug(f"Generated text preview: {generated_text[:100]}...")
+            
+            # Check for error responses
+            if generated_text and generated_text.startswith("ERROR:"):
+                error_message = generated_text[7:].strip()
+                logger.warning(f"Error in LLM response: {error_message}")
+                return {
+                    "success": False,
+                    "error": "ResponseError",
+                    "generated_text": generated_text,
+                    "model": model,
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens if completion_tokens else 0,
+                    }
+                }
+                
+            # FINAL CHECK: If we still have an empty response after all recovery attempts
+            if not generated_text or not generated_text.strip():
+                logger.warning("Empty response detected after all recovery attempts")
+                
+                # RECOVERY STRATEGY 4: Look for any text content in the response
+                try:
+                    # Try to extract any text content from the response
+                    from .modules.response.extraction.code_extractor import extract_all_text_content
+                    
+                    content = extract_all_text_content(original_response)
+                    if content and content.strip():
+                        logger.info(f"RECOVERY 4: Found content using deep extraction, length: {len(content)}")
+                        generated_text = content.strip()
+                        logger.debug(f"Deeply extracted content preview: {generated_text[:100]}...")
+                        
+                        # Return the recovered content
+                        return {
+                            "success": True,
+                            "generated_text": generated_text,
+                            "model": model,
+                            "usage": {
+                                "prompt_tokens": prompt_tokens,
+                                "completion_tokens": completion_tokens if completion_tokens else len(generated_text.split()),
+                            }
+                        }
+                except Exception as e:
+                    logger.error(f"Error during deep content extraction: {str(e)}")
+                
+                # RECOVERY STRATEGY 5: Last resort - use the original text if it exists
+                if original_text and original_text.strip():
+                    logger.info(f"RECOVERY 5: Using original unprocessed text, length: {len(original_text)}")
+                    generated_text = original_text.strip()
+                    logger.debug(f"Original text preview: {generated_text[:100]}...")
+                    
+                    return {
+                        "success": True,
+                        "generated_text": generated_text,
+                        "model": model,
+                        "usage": {
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens if completion_tokens else len(generated_text.split()),
+                        }
+                    }
+                
+                # RECOVERY STRATEGY 6: Direct API call to get raw response
+                try:
+                    logger.info("RECOVERY 6: Making direct API call to get raw response")
+                    
+                    # Prepare messages for chat API
+                    messages = []
+                    if context and "messages" in context:
+                        messages = context["messages"]
+                    messages.append({"role": "user", "content": prompt})
+                    
+                    # Make direct API call
+                    direct_response = await self.adapter.chat(
+                        messages=messages,
+                        model=model_name,
+                        options=options,
+                        stream=False
                     )
-                elif "generated_text" in response:
-                    generated_text = response["generated_text"]
+                    
+                    logger.debug(f"Direct API response: {direct_response}")
+                    
+                    # Extract content from direct response
+                    if isinstance(direct_response, dict) and "message" in direct_response:
+                        if isinstance(direct_response["message"], dict) and "content" in direct_response["message"]:
+                            content = direct_response["message"]["content"]
+                            if content and content.strip():
+                                logger.info(f"Successfully recovered content from direct API call, length: {len(content)}")
+                                generated_text = content.strip()
+                                logger.debug(f"Direct API content preview: {generated_text[:100]}...")
+                                
+                                return {
+                                    "success": True,
+                                    "generated_text": generated_text,
+                                    "model": model,
+                                    "usage": {
+                                        "prompt_tokens": prompt_tokens,
+                                        "completion_tokens": completion_tokens if completion_tokens else len(generated_text.split()),
+                                    }
+                                }
+                except Exception as e:
+                    logger.error(f"Error during direct API recovery: {str(e)}")
+                
+                # If all recovery attempts failed, return an error
+                logger.error("All recovery attempts failed, returning EmptyResponse error")
+                return {
+                    "success": False,
+                    "error": "EmptyResponse",
+                    "generated_text": "ERROR: The model returned an empty response. Please try again.",
+                    "model": model,
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": 0,
+                    }
+                }
 
-                # Clean up the generated text
-                if generated_text:
-                    # Remove any leading/trailing whitespace and newlines
-                    generated_text = generated_text.strip()
+            # Log successful response
+            logger.info(f"Successfully generated response with model {model} ({prompt_tokens + completion_tokens} tokens)")
+            logger.info(f"Final generated text length: {len(generated_text)}")
+            logger.debug(f"Response preview: {generated_text[:100]}...")
 
-                    # Try to extract clean code from the response
-                    original_text = generated_text
-
-                    # First, try to find a code block
-                    if "```" in generated_text:
-                        parts = generated_text.split("```")
-                        if len(parts) > 1:
-                            # Find the first code block that might contain Python code
-                            for i in range(1, len(parts), 2):
-                                if i < len(parts):
-                                    code_part = parts[i].strip()
-                                    # Remove language specifier if present
-                                    if code_part.startswith("python"):
-                                        code_part = code_part[6:].lstrip("\n")
-
-                                    # Clean up the code block
-                                    cleaned_code = code_part.split("```")[0].strip()
-                                    if cleaned_code:  # If we found valid code, use it
-                                        generated_text = cleaned_code
-                                        break
-
-                    # If we still don't have a good match, try to find the first line that looks like Python code
-                    if generated_text == original_text:
-                        for line in generated_text.split("\n"):
-                            line = line.strip()
-                            # Look for lines that look like Python code
-                            if (
-                                line.startswith("print(")
-                                or line.startswith("def ")
-                                or line.startswith("import ")
-                                or line.startswith("class ")
-                                or line.startswith("from ")
-                            ):
-                                generated_text = line
-                                break
-
-                    # If we still have a long response, try to extract just the first line
-                    if len(generated_text) > 100:
-                        first_line = generated_text.split("\n")[0].strip()
-                        if (
-                            first_line and len(first_line) < 50
-                        ):  # Only use if it's a reasonable length
-                            generated_text = first_line
-
-                model = response.get("model", self.config.model)
-                prompt_tokens = response.get("prompt_eval_count", len(prompt.split()))
-                completion_tokens = response.get(
-                    "eval_count", len(generated_text.split())
-                )
-
-            # Log the final generated text
-            logger.debug("Extracted generated text: %s", generated_text)
-
-            # Return the response in the expected format
             return {
                 "success": True,
                 "generated_text": generated_text,
@@ -498,18 +454,254 @@ class OllamaLLMProvider(BaseLLMProvider):
                 "usage": {
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
-                    "total_tokens": prompt_tokens + completion_tokens,
                 },
-                "raw_response": response,  # Include raw response for debugging
             }
-
+            
+        except asyncio.TimeoutError as e:
+            logger.error(f"Timeout error with model {model_name}: {str(e)}")
+            return handle_timeout_error(e, model_name, prompt)
+            
         except Exception as e:
-            logger.exception("Failed to generate response")
-            return {
-                "success": False,
-                "error": f"Failed to generate response: {str(e)}",
-                "generated_text": "",
-            }
+            logger.error(f"Error during response generation: {str(e)}")
+            logger.error(f"Error traceback: {traceback.format_exc()}")
+            return handle_api_error(e, model_name, prompt)
+            
+    async def _ensure_valid_model(self) -> bool:
+        """Ensure the configured model is available.
+        
+        Returns:
+            bool: True if the model is available, False otherwise
+        """
+        if self._model_available is not None:
+            return self._model_available
+        
+        # Ensure the adapter is ready
+        if not self.adapter:
+            await self.__aenter__()
+            
+        # Check if the model is available
+        model_available, error_message = await ensure_model_available(self.adapter, self.config.model)
+        
+        if model_available:
+            self._model_available = True
+            return True
+        else:
+            self._model_available = False
+            logger.error(f"Model {self.config.model} is not available: {error_message}")
+            return False
+    
+    def _map_params_to_options(self, generation_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Map generation parameters to Ollama API options format.
+        
+        Args:
+            generation_params: Dictionary of generation parameters
+            
+        Returns:
+            Dictionary of options formatted for the Ollama API
+        """
+        options = {}
+
+        # Map common parameter names to Ollama's expected names
+        param_mapping = {
+            "max_tokens": "num_predict",
+            "frequency_penalty": "repeat_penalty",
+            "presence_penalty": "repeat_penalty",
+            "stop": "stop",
+        }
+
+        # Add all generation parameters to options with proper mapping
+        for param, value in generation_params.items():
+            # Skip None values to use Ollama defaults
+            if value is None:
+                continue
+
+            # Special handling for stop sequences
+            if param == "stop" and value:
+                if not isinstance(value, list):
+                    value = [str(value)]
+                options["stop"] = [str(s) for s in value]
+                continue
+
+            # Map parameter names if needed
+            mapped_param = param_mapping.get(param, param)
+
+            # Ensure parameter values are within valid ranges
+            if mapped_param == "temperature":
+                value = max(0.0, min(1.0, float(value)))
+            elif mapped_param in ("top_p", "top_k"):
+                value = max(1, min(100, int(value)))
+            elif mapped_param == "repeat_penalty":
+                value = max(1.0, float(value))
+            elif mapped_param == "num_predict":
+                value = max(1, int(value))
+
+            options[mapped_param] = value
+            
+        return options
+    
+    async def _process_llm_response(
+        self, prompt: str, context: Optional[Dict[str, Any]], options: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], str, str, int, int]:
+        """Process the LLM request and handle the response.
+        
+        Args:
+            prompt: The prompt to send to the LLM
+            context: Additional context for the generation
+            options: API options for the request
+            
+        Returns:
+            Tuple containing (response, generated_text, model, prompt_tokens, completion_tokens)
+        """
+        # Prepare messages or prompt based on API type
+        if self.config.api_type == "chat":
+            messages = [{"role": "user", "content": prompt}]
+            if context and "messages" in context:
+                messages = context["messages"] + messages
+
+            logger.debug(f"Sending chat request with messages: {messages}")
+            response = await self.adapter.chat(
+                messages=messages,
+                model=self.config.model,
+                options=options,
+                stream=False,
+            )
+
+            # Handle chat completion response format
+            generated_text = response.get("message", {}).get("content", "")
+            logger.debug(f"Raw chat response text length: {len(generated_text)}")
+            if generated_text:
+                logger.debug(f"Raw chat response preview: {generated_text[:100]}...")
+                
+            # Import the processor functions for code extraction
+            from .modules.response.processor import extract_code_blocks, clean_generated_text
+            
+            # Store original text for fallback
+            original_text = generated_text
+            
+            # Clean and extract code blocks
+            if generated_text:
+                # Clean the text first
+                generated_text = clean_generated_text(generated_text)
+                logger.debug(f"After cleaning, chat text length: {len(generated_text)}")
+                
+                # Extract code blocks
+                extracted_text = extract_code_blocks(generated_text)
+                
+                # Log extraction results
+                if extracted_text != generated_text:
+                    logger.info(f"Extracted code blocks from chat response, length: {len(extracted_text)}")
+                    if extracted_text and extracted_text.strip():
+                        generated_text = extracted_text
+                        logger.debug(f"Using extracted code blocks: {generated_text[:100]}...")
+                    else:
+                        logger.warning("Extracted text was empty, using cleaned text")
+            
+            # If we still have empty text, try to recover from original
+            if not generated_text or not generated_text.strip():
+                logger.warning("Generated text is empty after processing, attempting to recover")
+                if original_text and original_text.strip():
+                    logger.info("Recovering using original unprocessed text")
+                    generated_text = original_text
+            
+            model = response.get("model", self.config.model)
+            prompt_tokens = response.get("prompt_eval_count", len(prompt.split()))
+            completion_tokens = response.get(
+                "eval_count", len(generated_text.split())
+            )
+        else:
+            # Handle completion response format
+            response = await self.adapter.generate(
+                prompt=prompt,
+                model=self.config.model,
+                options=options,
+                stream=False,
+            )
+
+            # Extract the generated text from different possible response formats
+            generated_text = ""
+            if isinstance(response, str):
+                generated_text = response
+            elif "response" in response:
+                generated_text = response["response"]
+            elif (
+                "message" in response
+                and isinstance(response["message"], dict)
+                and "content" in response["message"]
+            ):
+                generated_text = response["message"]["content"]
+            elif (
+                "choices" in response
+                and len(response["choices"]) > 0
+                and "text" in response["choices"][0]
+            ):
+                generated_text = response["choices"][0]["text"]
+            elif (
+                "choices" in response
+                and len(response["choices"]) > 0
+                and "message" in response["choices"][0]
+            ):
+                generated_text = response["choices"][0]["message"].get(
+                    "content", ""
+                )
+            elif "generated_text" in response:
+                generated_text = response["generated_text"]
+
+            # Clean up the generated text
+            if generated_text:
+                # Remove any leading/trailing whitespace and newlines
+                generated_text = generated_text.strip()
+
+                # Try to extract clean code from the response
+                original_text = generated_text
+
+                # First, try to find a code block
+                if "```" in generated_text:
+                    parts = generated_text.split("```")
+                    if len(parts) > 1:
+                        # Find the first code block that might contain Python code
+                        for i in range(1, len(parts), 2):
+                            if i < len(parts):
+                                code_part = parts[i].strip()
+                                # Remove language specifier if present
+                                if code_part.startswith("python"):
+                                    code_part = code_part[6:].lstrip("\n")
+
+                                # Clean up the code block
+                                cleaned_code = code_part.split("```")[0].strip()
+                                if cleaned_code:  # If we found valid code, use it
+                                    generated_text = cleaned_code
+                                    break
+
+                # If we still don't have a good match, try to find the first line that looks like Python code
+                if generated_text == original_text:
+                    for line in generated_text.split("\n"):
+                        line = line.strip()
+                        # Look for lines that look like Python code
+                        if (
+                            line.startswith("print(")
+                            or line.startswith("def ")
+                            or line.startswith("import ")
+                            or line.startswith("class ")
+                            or line.startswith("from ")
+                        ):
+                            generated_text = line
+                            break
+
+                # If we still have a long response, try to extract just the first line
+                if len(generated_text) > 100:
+                    first_line = generated_text.split("\n")[0].strip()
+                    if (
+                        first_line and len(first_line) < 50
+                    ):  # Only use if it's a reasonable length
+                        generated_text = first_line
+
+            model = response.get("model", self.config.model)
+            prompt_tokens = response.get("prompt_eval_count", len(prompt.split()))
+            completion_tokens = response.get(
+                "eval_count", len(generated_text.split())
+            )
+            
+        return response, generated_text, model, prompt_tokens, completion_tokens
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform a health check of the Ollama service.
