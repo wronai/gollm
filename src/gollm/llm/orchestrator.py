@@ -1,10 +1,13 @@
 # src/gollm/llm/orchestrator.py
 import asyncio
 import json
-from dataclasses import dataclass
+import logging # Add logging
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+from datetime import datetime # For timestamps
 
 from gollm.validation.validators import CodeValidator
+from ..core.session_models import GollmSession, GenerationStep, SessionState, CliContext # Session models
 
 from .context_builder import ContextBuilder
 from .prompt_formatter import PromptFormatter
@@ -14,30 +17,34 @@ from .response_validator import ResponseValidator
 @dataclass
 class LLMRequest:
     user_request: str
-    context: Dict[str, Any]
-    session_id: str
+    # context: Dict[str, Any] # Context will be part of GollmSession
+    gollm_session: GollmSession # Pass the whole session
+    # session_id: str # session_id is part of GollmSession
     max_iterations: int = 3
     fast_mode: bool = False
+    current_iteration_type: str = 'initial_code' # To describe the purpose of this LLM call
 
 
 @dataclass
 class LLMResponse:
-    generated_code: str
-    explanation: str
-    validation_result: Dict[str, Any]
-    iterations_used: int
-    quality_score: int
-    test_code: Optional[str] = None
+    generated_code_files: Dict[str, str] = field(default_factory=dict) # {filepath: code}
+    explanation: Optional[str] = None
+    validation_result: Optional[Dict[str, Any]] = None
+    iterations_used: int = 0
+    quality_score: Optional[int] = None # Quality score might not always be applicable
+    test_code_files: Dict[str, str] = field(default_factory=dict) # {filepath: code}
     has_incomplete_functions: bool = False
-    incomplete_functions: List[Dict[str, str]] = None
+    incomplete_functions: Optional[List[Dict[str, str]]] = None
     has_completed_functions: bool = False
     still_has_incomplete_functions: bool = False
-    still_incomplete_functions: List[Dict[str, str]] = None
+    still_incomplete_functions: Optional[List[Dict[str, str]]] = None
     execution_tested: bool = False
     execution_successful: bool = False
-    execution_errors: List[str] = None
+    execution_errors: Optional[List[str]] = None
     execution_fixed: bool = False
     execution_fix_attempts: int = 0
+    # Add a field to store the final session state if needed by CLI
+    final_session_state: Optional[SessionState] = None
 
 
 class LLMOrchestrator:
@@ -51,154 +58,245 @@ class LLMOrchestrator:
         self.code_validator = code_validator or CodeValidator(config)
         self.todo_manager = todo_manager
         self.current_task_id = None
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     async def handle_code_generation_request(
-        self, user_request: str, context: Dict[str, Any] = None
+        self, gollm_session: GollmSession, cli_provided_context: Optional[Dict[str, Any]] = None
     ) -> LLMResponse:
         """Główny punkt wejścia dla generowania kodu przez LLM"""
-        if context is None:
-            context = {}
-            
-        # Check if we should generate tests automatically
-        generate_tests = context.get("generate_tests", False)
+        # cli_provided_context might contain overrides or additional runtime info
+        # For now, we primarily rely on gollm_session.cli_context for core parameters
+        # and gollm_session.current_state for resuming.
 
-        # Extract parameters from context
-        max_iterations = context.get("max_iterations", 3)
-        validation_mode = context.get("validation_mode", "strict")
-        skip_validation = context.get("skip_validation", False)
-        use_streaming = context.get("use_streaming", True)
+        effective_context = gollm_session.cli_context.model_dump() # Start with session's CLI context
+        if cli_provided_context:
+            effective_context.update(cli_provided_context) # Overlay any CLI runtime specifics
 
-        # Create a task in the todo manager
-        if self.todo_manager:
-            task_context = {
-                "request": user_request,
-                "context": context,
-                "is_critical": context.get("is_critical", False),
-                "related_files": context.get("related_files", []),
-            }
-            task = self.todo_manager.add_code_generation_task(
-                user_request, task_context
+        # If it's a new session (iteration 0 and no history), log initial request
+        if not gollm_session.generation_history and gollm_session.current_state.current_iteration == 0:
+            initial_step = GenerationStep(
+                step_type="session_start",
+                prompt_to_llm=gollm_session.original_request,
+                feedback_provided=f"CLI Context: {gollm_session.cli_context.model_dump_json(indent=2)}"
             )
-            self.current_task_id = task.id
+            gollm_session.generation_history.append(initial_step)
 
-        session_id = context.get(
-            "session_id", f"session-{asyncio.get_event_loop().time()}"
-        )
+            
+        # Extract parameters from effective_context (derived from gollm_session.cli_context)
+        user_request = gollm_session.original_request # The core user prompt
+        generate_tests = effective_context.get("generate_tests", True) # Default from CliContext
+        max_iterations = effective_context.get("iterations", 6) # Default from CliContext
+        # validation_mode = effective_context.get("validation_mode", "strict") # If you have this
+        # skip_validation = effective_context.get("skip_validation", False) # If you have this
+        use_streaming = effective_context.get("use_streaming", True) # Assuming this is a general setting
+        fast_mode = effective_context.get("fast_mode", False) # Default from CliContext
 
-        # Get fast mode and max iterations from context
-        fast_mode = context.get("fast_mode", False)
-        max_iterations = context.get(
-            "max_iterations", self.config.llm_integration.max_iterations
-        )
+        # TODO: Todo manager integration needs to be adapted if it relies on old context structure
+        # For now, focusing on core LLM interaction with session
 
-        # If fast mode is enabled, limit to 1 iteration
-        if fast_mode:
-            max_iterations = 1
+        # If fast mode is enabled, limit to 1 main generation iteration (session's iterations might be higher for overall task)
+        # This 'max_iterations' here is for the _process_llm_request call, not total session iterations.
+        current_llm_max_iterations = 1 if fast_mode else max_iterations # For the immediate LLM call
 
-        request = LLMRequest(
-            user_request=user_request,
-            context=context,
-            session_id=session_id,
-            max_iterations=max_iterations,
+        # Create the LLMRequest for the main generation task
+        # We start at gollm_session.current_state.current_iteration
+        # The _process_llm_request will handle its own internal looping up to current_llm_max_iterations
+        llm_req = LLMRequest(
+            user_request=user_request, # This might be refined based on current_state for retries/resumes
+            gollm_session=gollm_session,
+            max_iterations=current_llm_max_iterations,
             fast_mode=fast_mode,
+            current_iteration_type='initial_code_generation' # Or 'resume_code_generation'
+        )
+
+        # Initialize an LLMResponse object to aggregate results
+        # This will be populated by _process_llm_request and subsequent steps
+        final_llm_response = LLMResponse(
+            iterations_used=gollm_session.current_state.current_iteration
         )
 
         try:
-            # Process the main code generation request
-            response = await self._process_llm_request(
-                request, use_streaming=use_streaming
+            # Process the main code generation request using the current session state
+            # _process_llm_request will now directly update gollm_session's history and state
+            processed_response_data = await self._process_llm_request(
+                llm_req, use_streaming=use_streaming
             )
+            
+            # _process_llm_request should return the primary generated code and explanation
+            # And update gollm_session.current_state.current_code_files, .generation_history etc.
+            final_llm_response.generated_code_files = gollm_session.current_state.current_code_files
+            # final_llm_response.explanation = processed_response_data.get('explanation') # Assuming _process_llm_request returns this
+            final_llm_response.iterations_used = gollm_session.current_state.current_iteration
+            final_llm_response.quality_score = gollm_session.current_state.get('quality_score') # If available
             
             # Check for incomplete functions in the generated code
             from gollm.validation.validators.validation_coordinator import check_for_incomplete_functions
             from gollm.validation.validators.incomplete_function_detector import format_for_completion, extract_completed_functions
+
+            # Assume generated_code is now a dict of files {filepath: content}
+            # We need to decide which file to check for incomplete functions or iterate through all
+            # For simplicity, let's assume a primary code file for now or that _process_llm_request identifies it.
+            primary_code_content = ""
+            if gollm_session.current_state.current_code_files:
+                # Heuristic: find a .py file, or the first file if only one.
+                # This needs to be more robust, perhaps storing main_file_path in session state.
+                py_files = [content for path, content in gollm_session.current_state.current_code_files.items() if path.endswith('.py')]
+                if py_files:
+                    primary_code_content = py_files[0]
+                elif len(gollm_session.current_state.current_code_files) == 1:
+                    primary_code_content = list(gollm_session.current_state.current_code_files.values())[0]
             
-            has_incomplete_functions, incomplete_functions = check_for_incomplete_functions(response.generated_code)
+            has_incomplete_functions, incomplete_functions_list = check_for_incomplete_functions(primary_code_content)
+            final_llm_response.has_incomplete_functions = has_incomplete_functions
+            final_llm_response.incomplete_functions = incomplete_functions_list
             
             # If incomplete functions are found and auto-completion is enabled, complete them
-            auto_complete = context.get("auto_complete_functions", True)  # Enable by default
+            auto_complete_enabled = effective_context.get("auto_complete", True)
             
-            if has_incomplete_functions and auto_complete:
-                logger.info(f"Found {len(incomplete_functions)} incomplete functions. Triggering auto-completion...")
+            if has_incomplete_functions and auto_complete_enabled:
+                self.logger.info(f"Found {len(incomplete_functions_list)} incomplete functions. Triggering auto-completion...")
                 
                 # Format the code for completion
-                completion_prompt = format_for_completion(incomplete_functions, response.generated_code)
+                completion_prompt = format_for_completion(incomplete_functions_list, primary_code_content)
                 
-                # Create a completion request
-                completion_request = LLMRequest(
+                # Create a completion request - this will also update gollm_session
+                completion_llm_req = LLMRequest(
                     user_request=completion_prompt,
-                    context=context,
-                    session_id=request.session_id + "-completion",
-                    max_iterations=1,
-                    fast_mode=request.fast_mode,
+                    gollm_session=gollm_session, # Pass the same session
+                    max_iterations=1, # Typically 1 attempt for completion
+                    fast_mode=fast_mode,
+                    current_iteration_type='auto_completion'
                 )
                 
                 # Process the completion request
-                completion_response = await self._process_llm_request(
-                    completion_request, use_streaming=use_streaming
+                # _process_llm_request needs to handle this type and update the correct file in current_code_files
+                completion_response_data = await self._process_llm_request(
+                    completion_llm_req, use_streaming=use_streaming
                 )
-                
-                # Merge the completed functions with the original code
-                merged_code = extract_completed_functions(response.generated_code, completion_response.generated_code)
-                
-                # Update the response with the completed code
-                response.generated_code = merged_code
-                response.has_completed_functions = True
+
+                # Assume _process_llm_request updated gollm_session.current_state.current_code_files
+                # and recorded a GenerationStep for the completion attempt.
+                # The 'merged_code' logic might now live inside _process_llm_request or be handled by it.
+                # For now, let's assume primary_code_content is updated in the session.
+                updated_primary_code_content = "" # Re-fetch from session
+                if gollm_session.current_state.current_code_files:
+                    py_files = [content for path, content in gollm_session.current_state.current_code_files.items() if path.endswith('.py')]
+                    if py_files: updated_primary_code_content = py_files[0]
+                    elif len(gollm_session.current_state.current_code_files) == 1: updated_primary_code_content = list(gollm_session.current_state.current_code_files.values())[0]
+
+                final_llm_response.has_completed_functions = True # Mark that we attempted
                 
                 # Check if there are still incomplete functions after the completion attempt
-                still_has_incomplete, still_incomplete = check_for_incomplete_functions(merged_code)
+                still_has_incomplete, still_incomplete_list = check_for_incomplete_functions(updated_primary_code_content)
                 if still_has_incomplete:
-                    logger.warning(f"Still found {len(still_incomplete)} incomplete functions after auto-completion.")
-                    response.still_has_incomplete_functions = True
-                    response.still_incomplete_functions = still_incomplete
+                    self.logger.warning(f"Still found {len(still_incomplete_list)} incomplete functions after auto-completion.")
+                    final_llm_response.still_has_incomplete_functions = True
+                    final_llm_response.still_incomplete_functions = still_incomplete_list
                 else:
-                    logger.info("Successfully completed all incomplete functions.")
-                    response.still_has_incomplete_functions = False
+                    self.logger.info("Successfully completed all incomplete functions.")
+                    final_llm_response.still_has_incomplete_functions = False
             elif has_incomplete_functions:
-                logger.info(f"Found {len(incomplete_functions)} incomplete functions, but auto-completion is disabled.")
-                response.has_incomplete_functions = True
-                response.incomplete_functions = incomplete_functions
+                self.logger.info(f"Found {len(incomplete_functions_list)} incomplete functions, but auto-completion is disabled.")
+                # Already set: final_llm_response.has_incomplete_functions = True
+                # Already set: final_llm_response.incomplete_functions = incomplete_functions_list
             else:
-                response.has_incomplete_functions = False
+                final_llm_response.has_incomplete_functions = False
             
             # Test code execution and fix errors if needed
             from gollm.validation.validators.code_executor import execute_python_code, format_error_for_completion
             
             # Check if execution testing is enabled
-            execute_test = context.get("execute_test", True)  # Enable by default
-            auto_fix_execution = context.get("auto_fix_execution", True)  # Enable by default
-            max_fix_attempts = context.get("max_fix_attempts", 5)  # Default to 5 attempts (increased from 3)
-            execution_timeout = context.get("execution_timeout", 15)  # Default timeout in seconds
+            execute_test_enabled = effective_context.get("execute_test", True)
+            auto_fix_execution_enabled = effective_context.get("auto_fix_execution", True)
+            max_execution_fix_attempts = effective_context.get("max_fix_attempts", 5)
+            execution_timeout_seconds = effective_context.get("execution_timeout", 15)
+
+            # Again, assuming primary_code_content is the one to test, or iterate through all relevant files
+            # This part needs careful handling for multi-file projects.
+            # For now, we'll use the 'updated_primary_code_content' from the auto-completion step if it ran,
+            # otherwise the 'primary_code_content' from initial generation.
+            code_to_execute = updated_primary_code_content if final_llm_response.has_completed_functions else primary_code_content
             
-            if execute_test and response.generated_code and response.generated_code.strip():
+            if execute_test_enabled and code_to_execute and code_to_execute.strip():
                 # Only test Python code for now
-                if response.generated_code.strip().startswith("#!/usr/bin/env python") or "def " in response.generated_code or "import " in response.generated_code:
-                    logger.info("Testing code execution...")
-                    response.execution_tested = True
+                if code_to_execute.strip().startswith("#!/usr/bin/env python") or "def " in code_to_execute or "import " in code_to_execute:
+                    self.logger.info("Testing code execution...")
+                    final_llm_response.execution_tested = True
                     
                     # Execute the code with enhanced error handling
-                    success, error, output = execute_python_code(response.generated_code, timeout=execution_timeout)
-                    response.execution_successful = success
-                    response.execution_errors = [error] if error else []
+                    success, error_output, exec_stdout = execute_python_code(code_to_execute, timeout=execution_timeout_seconds)
+                    final_llm_response.execution_successful = success
+                    final_llm_response.execution_errors = [error_output] if error_output else []
+                    gollm_session.current_state.last_error_context = error_output # Save last error
+
+                    # Record execution attempt as a generation step
+                    exec_step = GenerationStep(
+                        step_type='execution_test',
+                        generated_code_snapshot=gollm_session.current_state.current_code_files.copy(),
+                        execution_results={'success': success, 'error': error_output, 'output': exec_stdout},
+                        feedback_provided=f"Execution test performed. Success: {success}."
+                    )
+                    gollm_session.generation_history.append(exec_step)
                     
-                    # Log output for debugging if successful
-                    if success and output:
-                        logger.debug(f"Code execution output:\n{output}")
+                    if success and exec_stdout:
+                        self.logger.debug(f"Code execution output:\n{exec_stdout}")
                     
-                    # If execution failed and auto-fix is enabled, try to fix it
-                    if not success and auto_fix_execution:
-                        logger.info(f"Code execution failed with error: {error}. Attempting to fix...")
-                        current_code = response.generated_code
+                    if not success and auto_fix_execution_enabled:
+                        self.logger.info(f"Code execution failed with error: {error_output}. Attempting to fix...")
                         
-                        for attempt in range(max_fix_attempts):
-                            response.execution_fix_attempts += 1
+                        for attempt in range(max_execution_fix_attempts):
+                            gollm_session.current_state.current_fix_attempt = attempt + 1
+                            final_llm_response.execution_fix_attempts += 1
                             
-                            # Format the error for LLM completion with enhanced error context
-                            fix_request = format_error_for_completion(current_code, error)
+                            fix_prompt = format_error_for_completion(code_to_execute, error_output)
+                            if attempt > 0 and final_llm_response.execution_errors:
+                                prev_errors = ', '.join(final_llm_response.execution_errors[-min(3, len(final_llm_response.execution_errors)):])[:500]
+                                fix_prompt += f"\n\nThis is fix attempt #{attempt+1}. Previous fix attempts failed with these errors:\n```\n{prev_errors}\n```\n\nPlease provide a more robust solution."
+
+                            fix_llm_req = LLMRequest(
+                                user_request=fix_prompt,
+                                gollm_session=gollm_session,
+                                max_iterations=1, # One attempt per fix call to LLM
+                                fast_mode=fast_mode, # Or consider not using fast_mode for fixes
+                                current_iteration_type='execution_fix_attempt'
+                            )
                             
-                            # Add more context for better fixes after multiple failed attempts
-                            if attempt > 0:
-                                fix_request += f"\n\nThis is fix attempt #{attempt+1}. Previous fix attempts failed with these errors:\n```\n{', '.join(response.execution_errors[-min(3, len(response.execution_errors)):])[:500]}\n```\n\nPlease provide a more robust solution that addresses all potential issues."
+                            # _process_llm_request handles updating session state and history for the fix
+                            fix_response_data = await self._process_llm_request(
+                                fix_llm_req, use_streaming=use_streaming
+                            )
+                            
+                            # Re-fetch the potentially fixed code from the session state
+                            code_to_execute = "" # Re-fetch from session
+                            if gollm_session.current_state.current_code_files:
+                                py_f = [c for p, c in gollm_session.current_state.current_code_files.items() if p.endswith('.py')]
+                                if py_f: code_to_execute = py_f[0]
+                                elif len(gollm_session.current_state.current_code_files) == 1: code_to_execute = list(gollm_session.current_state.current_code_files.values())[0]
+
+                            # Re-test execution
+                            success, error_output, exec_stdout = execute_python_code(code_to_execute, timeout=execution_timeout_seconds)
+                            final_llm_response.execution_successful = success
+                            final_llm_response.execution_errors.append(error_output) if error_output else None
+                            gollm_session.current_state.last_error_context = error_output
+
+                            # Record this fix attempt and its execution result
+                            fix_exec_step = GenerationStep(
+                                step_type=f'execution_fix_attempt_result_after_attempt_{attempt+1}',
+                                generated_code_snapshot=gollm_session.current_state.current_code_files.copy(),
+                                execution_results={'success': success, 'error': error_output, 'output': exec_stdout},
+                                feedback_provided=f"Execution test after fix attempt {attempt+1}. Success: {success}."
+                            )
+                            gollm_session.generation_history.append(fix_exec_step)
+
+                            if success:
+                                self.logger.info(f"Code execution succeeded after fix attempt {attempt + 1}.")
+                                final_llm_response.execution_fixed = True
+                                break # Exit fix loop
+                            else:
+                                self.logger.info(f"Fix attempt {attempt + 1} failed. Error: {error_output}")
+                        
+                        if not final_llm_response.execution_successful:
+                            self.logger.warning("Failed to fix code execution errors after multiple attempts.")
                             
                             # Create a fix request object with higher iteration count for complex fixes
                             fix_llm_request = LLMRequest(
@@ -246,81 +344,59 @@ class LLMOrchestrator:
                     elif success:
                         logger.info("Code execution successful on first attempt")
                         # Add a note about successful execution to the explanation
-                        if response.explanation:
-                            response.explanation += "\n\n**Note:** The code has been automatically tested and executes successfully."
-                else:
-                    logger.info("Skipping execution test for non-Python code")
-            
             # If test generation is enabled, generate tests for the code
-            if generate_tests and response.generated_code:
-                # Create a new request for test generation
-                test_request = f"Write unit tests for the following code:\n\n```python\n{response.generated_code}\n```"
+            # This also needs to be adapted for multi-file and use the session
+            if generate_tests and gollm_session.current_state.current_code_files:
+                self.logger.info("Generating tests for the code...")
+                # Assuming test generation is for the primary code content
+                code_for_tests = code_to_execute # Use the latest version of the code
                 
-                # Create a test request object
-                test_llm_request = LLMRequest(
-                    user_request=test_request,
-                    context=context,
-                    session_id=request.session_id + "-test",
-                    max_iterations=1,  # Tests usually need fewer iterations
-                    fast_mode=request.fast_mode,
+                test_generation_prompt = self.prompt_formatter.format_test_generation_prompt(
+                    code_for_tests, user_request
                 )
-                
-                # Process the test generation request
-                test_response = await self._process_llm_request(
-                    test_llm_request, use_streaming=use_streaming
+                test_llm_req = LLMRequest(
+                    user_request=test_generation_prompt,
+                    gollm_session=gollm_session,
+                    max_iterations=1, 
+                    fast_mode=fast_mode,
+                    current_iteration_type='test_generation'
                 )
-                
-                # Store the test code in the response
-                response.test_code = test_response.generated_code
-                
-                # Execute the tests if execution testing is enabled
-                if execute_test and response.execution_successful and response.test_code:
-                    logger.info("Testing the generated unit tests...")
-                    
-                    # Create a temporary test file that imports the main code
-                    import_code = ""
-                    if "import unittest" not in response.test_code:
-                        import_code = "import unittest\n"
-                    
-                    # Execute the tests
-                    test_success, test_error, test_output = execute_python_code(
-                        import_code + response.test_code, 
-                        filename="test_execution.py",
-                        timeout=execution_timeout * 2  # Double timeout for tests
-                    )
-                    
-                    if test_success:
-                        logger.info("Unit tests executed successfully")
-                        if response.explanation:
-                            response.explanation += "\n\n**Note:** The generated unit tests have been executed and pass successfully."
-                    else:
-                        logger.warning(f"Unit tests failed to execute: {test_error}")
-                        # We don't try to fix test failures automatically - that's a separate concern
+                # _process_llm_request should handle saving test code to gollm_session.current_state.current_test_files
+                test_response_data = await self._process_llm_request(
+                    test_llm_req, use_streaming=use_streaming
+                )
+                final_llm_response.test_code_files = gollm_session.current_state.current_test_files
+                self.logger.info("Tests generated successfully.")
             else:
-                response.test_code = None
+                final_llm_response.test_code_files = {}
 
-            # Update task with results if successful
-            if self.todo_manager and self.current_task_id:
-                self.todo_manager.update_code_generation_task(
-                    self.current_task_id,
-                    {
-                        "generated_code": response.generated_code,
-                        "test_code": getattr(response, "test_code", None),
-                        "quality_score": response.quality_score,
-                        "violations": response.validation_result.get("violations", []),
-                        "output_file": context.get("output_file", "unknown.py"),
-                    },
-                )
+            # Update task status in todo manager (if used and adapted)
+            # if self.todo_manager and self.current_task_id:
+            #     self.todo_manager.update_task_status(self.current_task_id, "completed")
 
-            return response
+            gollm_session.current_state.is_complete = True # Mark session as processed for this run
+            final_llm_response.final_session_state = gollm_session.current_state
+            return final_llm_response
 
         except Exception as e:
-            # Update task with error if something went wrong
-            if self.todo_manager and self.current_task_id:
-                self.todo_manager.update_code_generation_task(
-                    self.current_task_id, {"error": str(e)}
-                )
-            raise
+            self.logger.error(f"Error during code generation: {e}", exc_info=True)
+            # if self.todo_manager and self.current_task_id:
+            #     self.todo_manager.update_task_status(self.current_task_id, "failed")
+            
+            # Record the error in session history
+            error_step = GenerationStep(
+                step_type='error',
+                feedback_provided=f"Orchestrator error: {type(e).__name__} - {str(e)}"
+            )
+            gollm_session.generation_history.append(error_step)
+            gollm_session.current_state.is_complete = True # Mark as complete due to error
+            gollm_session.current_state.last_error_context = f"Orchestrator error: {type(e).__name__} - {str(e)}"
+
+            # Return a partial response or raise exception
+            return LLMResponse(
+                explanation=f"Error: {e}",
+                final_session_state=gollm_session.current_state
+            )
 
     async def _process_llm_request(
         self, request: LLMRequest, use_streaming: bool = True

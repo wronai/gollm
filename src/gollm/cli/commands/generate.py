@@ -9,6 +9,8 @@ import click
 
 from ..utils.file_handling import save_generated_files, suggest_filename
 from ..utils.formatting import format_quality_score
+from ...core.session_manager import SessionManager
+from ...core.session_models import GollmSession, GenerationStep # For type hinting and creating steps
 
 logger = logging.getLogger("gollm.commands.generate")
 
@@ -67,24 +69,36 @@ logger = logging.getLogger("gollm.commands.generate")
     default=3,
     help="Maximum number of attempts to fix execution errors (default: 3)",
 )
+@click.option(
+    "--save-session",
+    type=click.Path(dir_okay=False, writable=True),
+    help="Save the generation session to a JSON file."
+)
+@click.option(
+    "--load-session",
+    type=click.Path(dir_okay=False, readable=True, exists=True),
+    help="Load a previous generation session from a JSON file and continue."
+)
 @click.pass_context
 def generate_command(
-    ctx,
-    request,
-    output,
-    critical,
-    no_todo,
-    fast,
-    iterations,
-    adapter_type,
-    use_streaming,
-    use_grpc,
-    no_tests,
-    no_auto_complete,
-    no_execute_test,
-    no_auto_fix,
-    max_fix_attempts,
-):
+    ctx: click.Context,
+    request: str,
+    output: Optional[str],
+    critical: bool,
+    no_todo: bool,
+    fast: bool,
+    iterations: int,
+    adapter_type: str,
+    use_streaming: bool,
+    use_grpc: bool,
+    no_tests: bool,
+    no_auto_complete: bool,
+    no_execute_test: bool,
+    no_auto_fix: bool,
+    max_fix_attempts: int,
+    save_session: Optional[str], # Populated by @click.option for --save-session
+    load_session: Optional[str]  # Populated by @click.option for --load-session
+) -> None:
     """Generate code using LLM with quality validation.
 
     For website projects, specify a directory as output to generate multiple files.
@@ -143,12 +157,73 @@ def generate_command(
     else:
         logging.info(f"Using {adapter_type} adapter for Ollama communication")
 
+    gollm_session: Optional[GollmSession] = None
+    session_manager = SessionManager()
+
+    if load_session:
+        logger.info(f"Loading session from: {load_session}")
+        gollm_session = session_manager.load_session(Path(load_session))
+        if not gollm_session:
+            logger.error("Failed to load session. Exiting.")
+            ctx.exit(1)
+        
+        # Override CLI parameters with loaded session's context if needed, or use them to inform
+        # For now, let's assume we primarily use the loaded session's state and original request.
+        # The 'request' argument might be ignored or used as a new prompt for continuation.
+        request = gollm_session.original_request # Or a new request for continuation
+        # Potentially update other CLI params from gollm_session.cli_context
+        iterations = gollm_session.cli_context.iterations # Example
+        # ... and so on for other relevant params
+        logger.info(f"Resuming session for request: '{request}'")
+        # output_path might need to be re-evaluated or taken from session
+        if gollm_session.cli_context.output_path:
+            output_path = Path(gollm_session.cli_context.output_path)
+        else:
+            # Fallback if not in session, though it should be if saved properly
+            output_path = Path(output) if output else Path(suggest_filename(request))
+
+    else:
+        logger.info(f"Received generation request: '{request}'")
+        # Determine output path for new session
+        if output:
+            output_path = Path(output)
+        else:
+            # New logic: suggest_filename now returns a directory name
+            project_dir_name = suggest_filename(request)
+            output_path = Path(project_dir_name) # This is the project directory
+
+        # Create CLI context for a new session
+        cli_params_for_session = {
+            'request': request,
+            'output_path': str(output_path),
+            'iterations': iterations,
+            'fast': fast,
+            'auto_complete': not no_auto_complete,
+            'execute_test': not no_execute_test,
+            'auto_fix_execution': not no_auto_fix,
+            'max_fix_attempts': max_fix_attempts,
+            'tests': not no_tests,
+            'adapter_type': adapter_type,
+            'model_name': ctx.obj.get("MODEL_NAME"), # Assuming model name is in context
+            'temperature': ctx.obj.get("TEMPERATURE"), # Assuming temperature is in context
+            # 'context_files' would need to be passed if used
+        }
+        gollm_session = session_manager.create_new_session(request, cli_params_for_session)
+
+    logger.info(f"Effective output path: {output_path}")
+    logger.info(f"Iterations: {iterations}")
+
+    if use_grpc:
+        logging.info("Using gRPC for faster communication with Ollama")
+    else:
+        logging.info(f"Using {adapter_type} adapter for Ollama communication")
+
     async def run_generation():
         is_website = context.get("is_website_project", False)
         suggested_name = suggest_filename(request, is_website)
 
         # Set up output path - always create a directory structure
-        project_dir = Path(output) if output else Path(suggested_name)
+        project_dir = output_path
         
         # Create the project directory if it doesn't exist
         if not project_dir.exists():
@@ -196,18 +271,23 @@ def generate_command(
                     "static": "static/",
                 }
 
-            result = await gollm.handle_code_generation(request, context=context)
+            # Pass the whole session object to the orchestrator
+            response = await gollm.handle_code_generation_request(
+                gollm_session, # Pass the entire session object
+                context=context,
+                # output_path, project_name, main_file_name are now part of session.cli_context or derived
+            )
 
             # Save all generated files
             saved_files = await save_generated_files(
-                result.generated_code,
+                response.generated_code,
                 output_path,
                 context.get("validation_options", {}),
             )
             
             # If test code was generated, save it as a separate file in a tests directory
             test_files = []
-            if hasattr(result, 'test_code') and result.test_code:
+            if hasattr(response, 'test_code') and response.test_code:
                 # Create a tests directory inside the project directory
                 tests_dir = project_dir / "tests"
                 tests_dir.mkdir(exist_ok=True)
@@ -224,7 +304,7 @@ def generate_command(
                 
                 # Save the test code
                 test_files = await save_generated_files(
-                    result.test_code,
+                    response.test_code, # Changed from result.test_code
                     test_file_path,
                     context.get("validation_options", {}),
                 )
@@ -419,3 +499,8 @@ def generate_command(
             logger.exception("Generation failed")
 
     asyncio.run(run_generation())
+
+    # Save the session if requested, after all generation steps are complete
+    if save_session and gollm_session:
+        logger.info(f"Saving session to: {save_session}")
+        session_manager.save_session(gollm_session, Path(save_session))
