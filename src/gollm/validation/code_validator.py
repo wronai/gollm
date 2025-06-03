@@ -18,6 +18,7 @@ from .validators.text_analyzer import extract_code_blocks, looks_like_prompt
 from .validators.python_validator import is_valid_python
 from .validators.code_fixer import attempt_syntax_fix
 from .validators.quality_checker import check_code_quality
+from .validators.markdown_cleaner import clean_markdown_artifacts
 
 logger = logging.getLogger('gollm.validation.code')
 
@@ -31,5 +32,6 @@ __all__ = [
     'is_valid_python',
     'attempt_syntax_fix',
     'check_code_quality',
-    'detect_escape_sequences'
+    'detect_escape_sequences',
+    'clean_markdown_artifacts'
 ]

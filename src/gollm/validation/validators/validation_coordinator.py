@@ -11,6 +11,7 @@ from .text_analyzer import extract_code_blocks, looks_like_prompt
 from .escape_handler import format_code_with_escape_sequences
 from .python_validator import is_valid_python
 from .code_fixer import attempt_syntax_fix
+from .markdown_cleaner import clean_markdown_artifacts
 
 logger = logging.getLogger('gollm.validation.coordinator')
 
@@ -28,6 +29,11 @@ def validate_and_extract_code(content: str, file_extension: str, options: Dict[s
     """
     options = options or {}
     
+    # Clean markdown artifacts from the content
+    content, was_cleaned = clean_markdown_artifacts(content)
+    if was_cleaned:
+        logger.info("Cleaned markdown artifacts from the generated code")
+        
     # Format content to handle escape sequences before validation
     content = format_code_with_escape_sequences(content)
     

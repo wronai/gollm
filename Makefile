@@ -10,7 +10,7 @@ dev:
 
 # Testowanie
 test:
-	pytest tests/ -v
+	pytest
 
 # Run end-to-end tests (requires Ollama service running)
 test-e2e: check-ollama
