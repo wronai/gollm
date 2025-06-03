@@ -48,10 +48,13 @@ class ResponseValidator:
     def _extract_code_blocks(self, text: str) -> List[str]:
         """Wyodrębnia bloki kodu z odpowiedzi LLM"""
         import logging
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger('gollm.validator')
+        logger.info(f"===== CODE EXTRACTION STARTED =====")
         
         # Log the input text for debugging
         logger.info(f"Extracting code blocks from text of length {len(text)}")
+        logger.debug(f"Text first 200 chars: {text[:200]}...")
+        logger.debug(f"Text last 200 chars: {text[-200:] if len(text) > 200 else text}")
         
         # Try to extract markdown code blocks with various formats
         # This handles both ```python and ``` formats, with optional language specifier
@@ -59,6 +62,12 @@ class ResponseValidator:
         
         # Log how many blocks were found
         logger.info(f"Found {len(code_blocks)} code blocks using markdown pattern")
+        
+        # Log each code block found for debugging
+        for i, block in enumerate(code_blocks):
+            logger.info(f"Code block {i+1} length: {len(block)}")
+            logger.debug(f"Code block {i+1} first 100 chars: {block[:100]}...")
+            logger.debug(f"Code block {i+1} last 100 chars: {block[-100:] if len(block) > 100 else block}")
         
         # If we found code blocks, clean them up
         if code_blocks:
@@ -138,20 +147,68 @@ class ResponseValidator:
             logger.debug("Code does not appear to be Python")
             return False
     
-    def _validate_syntax(self, code: str) -> Dict[str, Any]:
-        """Sprawdza składnię Python"""
-        try:
-            ast.parse(code)
+    def validate_python_code(self, code: str) -> Dict[str, Any]:
+        """Waliduje kod Python"""
+        import logging
+        logger = logging.getLogger('gollm.validator')
+        logger.info(f"===== VALIDATING PYTHON CODE =====")
+        logger.info(f"Code length: {len(code)}")
+        logger.debug(f"Code first 100 chars: {code[:100]}...")
+        logger.debug(f"Code last 100 chars: {code[-100:] if len(code) > 100 else code}")
+        
+        # Check if code looks like Python before parsing
+        if not self._looks_like_python(code):
+            logger.warning("Code does not appear to be Python based on heuristics")
+            # Continue anyway, but log the warning
+        
+        # Use the enhanced syntax validation method
+        is_valid, error_msg = self._validate_syntax(code)
+        
+        if is_valid:
+            logger.info("✅ Python code validation successful")
             return {"valid": True, "error": None}
+        else:
+            logger.error(f"❌ Python code validation failed: {error_msg}")
+            return {"valid": False, "error": error_msg}
+    
+    def _validate_syntax(self, code: str) -> Tuple[bool, str]:
+        """Sprawdza składnię Python"""
+        import logging
+        logger = logging.getLogger('gollm.validator')
+        
+        logger.info(f"===== VALIDATING PYTHON SYNTAX =====")
+        logger.info(f"Code length: {len(code)}")
+        
+        try:
+            logger.info("Attempting to parse code with ast.parse")
+            ast.parse(code)
+            logger.info("✅ Syntax validation successful")
+            return True, "Syntax is valid"
         except SyntaxError as e:
-            return {"valid": False, "error": f"Syntax error: {e.msg} at line {e.lineno}"}
+            logger.error(f"❌ Syntax error: {str(e)}")
+            logger.debug(f"Error details: line {e.lineno}, column {e.offset}, {e.text}")
+            # Log the problematic line and surrounding lines for context
+            if e.lineno is not None:
+                lines = code.split('\n')
+                if 0 <= e.lineno - 1 < len(lines):
+                    problem_line = lines[e.lineno - 1]
+                    logger.error(f"Problem line ({e.lineno}): {problem_line}")
+                    # Show surrounding lines for context
+                    start = max(0, e.lineno - 3)
+                    end = min(len(lines), e.lineno + 2)
+                    for i in range(start, end):
+                        if i != e.lineno - 1:  # Skip the problem line as we already showed it
+                            logger.debug(f"Line {i+1}: {lines[i]}")
+            return False, f"Syntax error: {str(e)}"
         except Exception as e:
-            return {"valid": False, "error": f"Parse error: {str(e)}"}
+            logger.error(f"❌ Error validating syntax: {str(e)}")
+            return False, f"Error validating syntax: {str(e)}"
     
     def _clean_text_for_python(self, text: str) -> str:
-        """Attempts to clean up text to make it valid Python code"""
+        """Attempt to clean text to make it valid Python"""
         import logging
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger('gollm.validator')
+        logger.info(f"Attempting to clean text of length {len(text)} for Python parsing")
         
         # Remove common non-code elements
         # Remove markdown headers

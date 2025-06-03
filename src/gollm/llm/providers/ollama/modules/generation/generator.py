@@ -82,18 +82,32 @@ class OllamaGenerator:
         # Round to nearest second
         return round(timeout)
     
-    async def generate(self, prompt: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Generate a response using the Ollama API.
+    async def generate(self, prompt, context=None):
+        """
+        Generate text using the appropriate API based on the current api_type.
         
         Args:
-            prompt: The prompt to generate a response for
-            context: Additional context for the generation
+            prompt: The text prompt to generate from
+            context: Additional context for generation
             
         Returns:
-            Dictionary containing the generated response and metadata
+            Dictionary with generated text and metadata
         """
-        start_time = time.time()
+        import logging
+        logger = logging.getLogger('gollm.ollama.generator')
+        
+        logger.info(f"===== OLLAMA GENERATOR STARTING =====")
+        logger.info(f"API type: {self.api_type}")
+        logger.info(f"Model: {self.model_name}")
+        logger.info(f"Prompt length: {len(prompt) if prompt else 0}")
+        logger.info(f"Context keys: {list(context.keys()) if context else []}")
+        
+        if not context:
+            context = {}
         context = context or {}
+        
+        # Record start time for metrics
+        start_time = time.time()
         
         # Calculate adaptive timeout before generation
         timeout = self._calculate_adaptive_timeout(prompt, context)
@@ -123,15 +137,17 @@ class OllamaGenerator:
         return result
     
     async def _generate_chat(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate using the chat API.
+        """Generate a response using the chat endpoint"""
+        import logging
+        logger = logging.getLogger('gollm.ollama.generator')
+        logger.info(f"===== OLLAMA GENERATOR CHAT REQUEST STARTED =====")
+        logger.info(f"Context keys: {list(context.keys())}")
+        logger.info(f"Using model: {context.get('model', self.model_name)}")
+        logger.info(f"Max tokens: {context.get('max_tokens', self.token_limit)}")
+        logger.info(f"Temperature: {context.get('temperature', self.temperature)}")
+        logger.info(f"Is code generation: {context.get('is_code_generation', False)}")
+        logger.info(f"API type: {self.api_type}")
         
-        Args:
-            prompt: The prompt to generate a response for
-            context: Additional context for the generation
-            
-        Returns:
-            Dictionary with the generated response
-        """
         # Prepare the payload
         messages = context.get('messages', [])
         if not messages and prompt:
@@ -196,25 +212,48 @@ class OllamaGenerator:
                 result = await response.json()
                 logger.debug(f"Chat API raw response: {json.dumps(result, indent=2)}")
                 # Log the response in a more visible way for debugging
-                logger.info(f"OLLAMA RESPONSE: {json.dumps(result, indent=2)}")
+                logger.info(f"===== OLLAMA RESPONSE RECEIVED =====")
+                logger.info(f"Response status: {response.status}")
+                logger.info(f"Response keys: {list(result.keys())}")
+                logger.info(f"Done reason: {result.get('done_reason', 'unknown')}")
+                logger.info(f"Total tokens: {result.get('eval_count', 0)}")
+                logger.debug(f"Full response: {json.dumps(result, indent=2)}")
                 
                 # Extract the response content - the API might return different formats
                 generated_text = ""
                 
+                logger.info(f"===== EXTRACTING CONTENT FROM OLLAMA RESPONSE =====")
+                
                 # Try to extract from standard chat format first
                 if "message" in result and "content" in result["message"]:
                     generated_text = result["message"]["content"]
-                    logger.info(f"Extracted content from message.content: {generated_text[:200]}...")
+                    logger.info(f"Extracted content from message.content (length: {len(generated_text)})")
+                    logger.debug(f"Content first 200 chars: {generated_text[:200]}...")
+                    logger.debug(f"Content last 200 chars: {generated_text[-200:] if len(generated_text) > 200 else generated_text}")
+                    
+                    # Check for code blocks in the content
+                    import re
+                    code_blocks = re.findall(r'```(?:\w*)?\n(.+?)(?:\n```|$)', generated_text, re.DOTALL)
+                    logger.info(f"Found {len(code_blocks)} code blocks in content")
+                    for i, block in enumerate(code_blocks):
+                        logger.info(f"Code block {i+1} length: {len(block)}")
+                        logger.debug(f"Code block {i+1} first 100 chars: {block[:100]}...")
+                        logger.debug(f"Code block {i+1} last 100 chars: {block[-100:] if len(block) > 100 else block}")
+                
                 # If not found, try to extract from response field (some Ollama versions)
                 elif "response" in result:
                     generated_text = result["response"]
-                    logger.info(f"Extracted content from response: {generated_text[:200]}...")
+                    logger.info(f"Extracted content from response (length: {len(generated_text)})")
+                    logger.debug(f"Content first 200 chars: {generated_text[:200]}...")
+                    logger.debug(f"Content last 200 chars: {generated_text[-200:] if len(generated_text) > 200 else generated_text}")
+                
                 else:
                     logger.warning(f"Could not find content in Ollama response. Keys: {list(result.keys())}")
                     # Try to extract from any field that might contain text
                     for key, value in result.items():
                         if isinstance(value, str) and len(value) > 50:  # Likely to be content
-                            logger.info(f"Found potential content in key '{key}': {value[:200]}...")
+                            logger.info(f"Found potential content in key '{key}' (length: {len(value)})")
+                            logger.debug(f"Content first 200 chars: {value[:200]}...")
                             generated_text = value
                             break
                 
@@ -295,33 +334,6 @@ class OllamaGenerator:
                     error_text = await response.text()
                     logger.error(f"Ollama completion API error: {response.status} - {error_text}")
                     return {
-                        "error": f"API error: {response.status}",
-                        "details": error_text,
-                        "generated_text": "",
-                        "text": ""
-                    }
-                    
-                result = await response.json()
-                logger.debug(f"Completion API raw response: {json.dumps(result, indent=2)}")
-                
-                # Extract the response content
-                generated_text = result.get("response", "")
-                logger.debug(f"Extracted completion text (length: {len(generated_text)}): {generated_text[:100]}...")
-                
-                return {
-                    "generated_text": generated_text,
-                    "text": generated_text,
-                    "raw_response": result,
-                    "finish_reason": result.get("done", True),
-                    "success": True
-                }
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout during completion generation after {timeout}s")
-            return {
-                "error": "Timeout",
-                "details": f"Request timed out after {timeout} seconds",
-                "generated_text": "",
-                "text": ""
             }
         except Exception as e:
             logger.exception(f"Error during completion generation: {str(e)}")

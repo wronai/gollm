@@ -86,7 +86,12 @@ class LLMOrchestrator:
     
     async def _process_llm_request(self, request: LLMRequest) -> LLMResponse:
         """Process an LLM request with multiple iterations if needed."""
-        logger.info(f"Starting LLM request processing for: {request.user_request[:100]}...")
+        logger.info(f"===== PROCESSING LLM REQUEST =====")
+        logger.info(f"User request: {request.user_request[:100]}...")
+        logger.info(f"Session ID: {request.session_id}")
+        logger.info(f"Max iterations: {request.max_iterations}")
+        logger.info(f"Context keys: {list(request.context.keys()) if request.context else []}")
+        logger.debug(f"Full context: {request.context}")
         
         # Build context
         full_context = await self.context_builder.build_context(request.context)
@@ -137,12 +142,30 @@ class LLMOrchestrator:
         iteration: int
     ) -> LLMIterationResult:
         """Run a single LLM iteration and validate the response."""
+        logger = logging.getLogger(__name__)
+        logger.info(f"===== STARTING ITERATION {iteration + 1} =====")
+        logger.info(f"Prompt length: {len(prompt)}")
+        logger.debug(f"Prompt first 200 chars: {prompt[:200]}...")
+        logger.debug(f"Prompt last 200 chars: {prompt[-200:] if len(prompt) > 200 else prompt}")
+        logger.info(f"Context keys: {list(context.keys()) if context else []}")
+        
         # Initialize LLM client
+        logger.info("Initializing LLM client")
         async with LLMClient(self.config) as llm_client:
             # Generate response
+            logger.info("Sending request to LLM")
+            start_time = time.time()
             llm_output = await llm_client.generate(prompt, context)
+            end_time = time.time()
+            duration = end_time - start_time
+            
+            logger.info(f"Received LLM response in {duration:.2f}s")
+            logger.info(f"Response length: {len(llm_output)}")
+            logger.debug(f"Response first 200 chars: {llm_output[:200]}...")
+            logger.debug(f"Response last 200 chars: {llm_output[-200:] if len(llm_output) > 200 else llm_output}")
             
             # Validate response
+            logger.info("Starting response validation")
             validation_result = await self.response_validator.validate_response(
                 llm_output,
                 context
@@ -165,33 +188,25 @@ class LLMOrchestrator:
         context: Dict[str, Any]
     ) -> LLMRequest:
         """Create an LLMRequest from user input."""
-        session_id = context.get('session_id', f"session-{asyncio.get_event_loop().time()}")
-        
-        return LLMRequest(
-            user_request=user_request,
-            context=context,
-            session_id=session_id,
-            max_iterations=self.config.llm_integration.max_iterations
-        )
-    
     def _create_final_response(
         self,
         best_result: Optional[LLMIterationResult],
-        request: LLMRequest
-    ) -> LLMResponse:
+        request: CodeGenerationRequest
+    ) -> CodeGenerationResponse:
         """Create a final response from the best result."""
         if not best_result:
             error_msg = "No valid response was generated after all iterations"
             logger.error(error_msg)
-            return LLMResponse(
-                generated_code="",
-                explanation=error_msg,
-                validation_result={"error": error_msg, "success": False},
-                iterations_used=request.max_iterations,
-                quality_score=0
+            return CodeGenerationResponse(
+                success=False,
+                error_message=error_msg,
+                generated_code=None,
+                explanation=None
             )
         
-        return LLMResponse(
+        return CodeGenerationResponse(
+            success=True,
+            error_message=None,
             generated_code=best_result.generated_code,
             explanation=best_result.explanation,
             validation_result=best_result.validation_result,

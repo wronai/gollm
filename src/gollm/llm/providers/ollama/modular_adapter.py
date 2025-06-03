@@ -236,20 +236,36 @@ class OllamaModularAdapter:
             self.prompt_logger.log_error(e, prompt, model)
             return {"success": False, "error": str(e)}
     
-    async def chat(self, messages: List[Dict[str, str]], model: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-        """Generate chat completion.
+    async def chat(self, messages, model=None, **kwargs):
+        """
+        Generate a chat response using the Ollama API.
         
         Args:
-            messages: List of message dictionaries with 'role' and 'content' keys
-            model: Model to use for generation (defaults to config model)
-            **kwargs: Additional generation parameters
-                
-        Returns:
-            Dictionary containing the generated response and metadata
-        """
-        if not self.client or not self.generator:
-            return {"success": False, "error": "Adapter not initialized"}
+            messages: List of message dictionaries with 'role' and 'content'
+            model: Optional model override
+            **kwargs: Additional parameters for generation
             
+        Returns:
+            Dictionary with generated response
+        """
+        # Import logger at the module level to avoid UnboundLocalError
+        import logging
+        logger = logging.getLogger('gollm.ollama.adapter')
+        
+        logger.info(f"===== STARTING OLLAMA CHAT GENERATION =====")
+        logger.info(f"Messages count: {len(messages)}")
+        logger.info(f"Model: {model or self.config.model}")
+        logger.info(f"Kwargs keys: {list(kwargs.keys())}")
+        
+        # Log message roles for better tracing
+        message_roles = [msg.get('role', 'unknown') for msg in messages]
+        logger.info(f"Message roles: {message_roles}")
+        
+        # Log first user message content preview for context
+        user_message = next((msg.get('content', '') for msg in messages if msg.get('role') == 'user'), '')
+        if user_message:
+            logger.info(f"User message preview: {user_message[:100]}...")
+        
         try:
             # Determine if this is a code generation task
             is_code_task = kwargs.get('is_code_generation', False)
@@ -283,6 +299,11 @@ class OllamaModularAdapter:
                         chat_history=prev_messages
                     )
                     logger.info(f"Using code-optimized chat messages for {language} generation")
+                    logger.debug(f"Formatted message count: {len(formatted_messages)}")
+                    # Log the system message for debugging
+                    system_msg = next((msg.get('content', '') for msg in formatted_messages if msg.get('role') == 'system'), '')
+                    if system_msg:
+                        logger.debug(f"System message preview: {system_msg[:100]}...")
                 else:
                     # Fallback to standard formatting if no user message found
                     formatted_messages = self.prompt_formatter.format_chat_messages(messages)
@@ -328,8 +349,6 @@ class OllamaModularAdapter:
             
             # Use the generator component
             # For chat, we pass an empty prompt since messages are in context
-            import logging
-            logger = logging.getLogger('gollm.ollama.adapter')
             
             logger.info(f"OllamaModularAdapter.chat_async called with context keys: {list(context.keys())}")
             

@@ -163,11 +163,21 @@ class LLMOrchestrator:
             
             # Make the actual LLM call
             logger.info("Calling LLM...")
-            llm_output = await self._simulate_llm_call(prompt, stream=use_streaming)
-            logger.debug(f"LLM output (first 500 chars): {str(llm_output)[:500]}...")
+            raw_output = await self._simulate_llm_call(prompt, stream=use_streaming)
+            logger.info(f"===== RAW LLM OUTPUT RECEIVED =====")
+            logger.info(f"Raw output length: {len(raw_output)}")
+            logger.info(f"First 500 chars: {raw_output[:500]}...")
+            logger.info(f"Last 200 chars: {raw_output[-200:] if len(raw_output) > 200 else raw_output}")
             
-            # Log the full LLM output for debugging
-            logger.info(f"Raw LLM output (first 500 chars): {str(llm_output)[:500]}...")
+            # Check for code blocks in the raw output
+            import re
+            code_blocks = re.findall(r'```(?:\w*)?\n(.+?)(?:\n```|$)', raw_output, re.DOTALL)
+            logger.info(f"Found {len(code_blocks)} code blocks in raw output")
+            for i, block in enumerate(code_blocks):
+                logger.info(f"Raw output code block {i+1} length: {len(block)}")
+                if len(block) > 0:
+                    logger.debug(f"Raw output code block {i+1} first 100 chars: {block[:100]}...")
+                    logger.debug(f"Raw output code block {i+1} last 100 chars: {block[-100:] if len(block) > 100 else block}")
             
             # Waliduj odpowiedź - simplified in fast mode
             logger.info("Validating LLM response...")
@@ -178,7 +188,7 @@ class LLMOrchestrator:
                 import re
                 
                 # Try to extract code blocks first
-                code_blocks = re.findall(r'```(?:python)?\n(.+?)\n```', llm_output, re.DOTALL)
+                code_blocks = re.findall(r'```(?:python)?\n(.+?)\n```', raw_output, re.DOTALL)
                 
                 if code_blocks:
                     extracted_code = code_blocks[0]  # Take the first code block
@@ -190,16 +200,16 @@ class LLMOrchestrator:
                         'explanation': "Code extracted in fast mode",
                         'code_quality': {
                             'violations': [],
-                            'quality_score': 80  # Assume reasonable quality in fast mode
+                            'quality_score': 80  # Assume reasonable quality for code blocks
                         }
                     }
                 else:
-                    # If no code blocks, assume the whole response is code
-                    logger.info("Fast mode: No code blocks found, using entire response")
+                    # If no code blocks found, use the entire output as code
+                    logger.info("Fast mode: No code blocks found, using entire output")
                     validation_result = {
                         'success': True,
                         'code_extracted': True,
-                        'extracted_code': llm_output,
+                        'extracted_code': raw_output,
                         'explanation': "Full response used as code in fast mode",
                         'code_quality': {
                             'violations': [],
@@ -207,13 +217,23 @@ class LLMOrchestrator:
                         }
                     }
             else:
-                # Standard validation for normal mode
-                validation_result = await self.response_validator.validate_response(llm_output)
+                # Full validation with ResponseValidator
+                logger.info("Using full ResponseValidator for validation")
+                validator = ResponseValidator()
+                validation_result = validator.validate(raw_output)
+                logger.info(f"Validation result: success={validation_result.get('success', False)}, code_extracted={validation_result.get('code_extracted', False)}")
+                if validation_result.get('code_extracted', False):
+                    logger.info(f"Extracted code length: {len(validation_result.get('extracted_code', ''))}")
+                    logger.debug(f"First 200 chars of extracted code: {validation_result.get('extracted_code', '')[:200]}...")
+                else:
+                    logger.warning(f"Failed to extract code: {validation_result.get('explanation', 'No explanation provided')}")
+                
                 logger.debug(f"Validation result: {validation_result}")
                 
                 if not validation_result.get('code_extracted', False):
                     logger.warning("No code was extracted from the LLM response")
                     logger.debug(f"Full validation result: {validation_result}")
+                    logger.debug(f"Raw output that failed validation: {raw_output[:200]}...")
                 else:
                     logger.info(f"Code extracted successfully, length: {len(validation_result.get('extracted_code', ''))} chars")
                 
