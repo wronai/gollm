@@ -95,8 +95,21 @@ class ResponseValidator:
                         logger.warning("Detected thinking-style output in LLM response")
                         break
             
+            # Extract validation options from context
+            validation_options = {}
+            if context and 'validation_options' in context:
+                validation_options = context.get('validation_options', {})
+                
+                # Log validation options if present
+                if validation_options.get('strict_validation'):
+                    logger.info("Using strict validation mode - no automatic fixing of syntax errors")
+                if validation_options.get('allow_prompt_text'):
+                    logger.info("Prompt-like text will be allowed in generated code")
+                if validation_options.get('skip_validation'):
+                    logger.warning("Code validation is disabled - this may result in invalid code being saved")
+            
             # Validate and potentially fix the code
-            is_valid, validated_code, issues = validate_and_extract_code(code, file_extension)
+            is_valid, validated_code, issues = validate_and_extract_code(code, file_extension, validation_options)
             
             if issues:
                 validation_issues.extend(issues)

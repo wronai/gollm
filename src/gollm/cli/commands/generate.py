@@ -82,7 +82,8 @@ def generate_command(ctx, request, output, critical, no_todo, fast, iterations, 
             # Save all generated files
             saved_files = await save_generated_files(
                 result.generated_code, 
-                output_path
+                output_path,
+                context.get('validation_options', {})
             )
             
             # Show results

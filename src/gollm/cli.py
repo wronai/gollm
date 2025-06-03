@@ -77,8 +77,11 @@ def validate_project(ctx):
 @click.option('--no-todo', is_flag=True, help='Skip creating a TODO item')
 @click.option('--fast', '-f', is_flag=True, help='Use fast mode with minimal validation')
 @click.option('--iterations', '-i', default=3, type=int, help='Number of generation iterations')
+@click.option('--strict-validation', is_flag=True, help='Use strict validation mode (no auto-fixing)')
+@click.option('--allow-prompt-text', is_flag=True, help='Allow prompt-like text in generated code')
+@click.option('--skip-validation', is_flag=True, help='Skip code validation entirely (not recommended)')
 @click.pass_context
-def generate(ctx, request, output, critical, no_todo, fast, iterations):
+def generate(ctx, request, output, critical, no_todo, fast, iterations, strict_validation, allow_prompt_text, skip_validation):
     """Generate code using LLM with quality validation
     
     For website projects, specify a directory as output to generate multiple files.
@@ -92,7 +95,12 @@ def generate(ctx, request, output, critical, no_todo, fast, iterations):
         'is_website_project': any(keyword in request.lower() for keyword in 
                                ['website', 'web app', 'webapp', 'frontend', 'backend', 'api']),
         'fast_mode': fast,
-        'max_iterations': 1 if fast else iterations
+        'max_iterations': 1 if fast else iterations,
+        'validation_options': {
+            'strict_validation': strict_validation,
+            'allow_prompt_text': allow_prompt_text,
+            'skip_validation': skip_validation
+        }
     }
     
     if no_todo:
@@ -103,6 +111,15 @@ def generate(ctx, request, output, critical, no_todo, fast, iterations):
         logging.info("Using fast mode with minimal validation")
     else:
         logging.info(f"Using standard mode with up to {iterations} iterations")
+        
+    # Log validation options
+    if skip_validation:
+        logging.warning("Code validation is disabled - this may result in invalid code being saved")
+    elif strict_validation:
+        logging.info("Using strict validation mode - no automatic fixing of syntax errors")
+    
+    if allow_prompt_text:
+        logging.info("Prompt-like text will be allowed in generated code")
     
     def suggest_filename(request_text: str, is_website: bool = False) -> str:
         """Generate a filename or directory name based on the request text"""

@@ -15,12 +15,13 @@ from ...validation.code_validator import validate_and_extract_code
 
 logger = logging.getLogger('gollm.cli.file_handling')
 
-async def save_generated_files(generated_code: str, base_path: Path) -> List[str]:
+async def save_generated_files(generated_code: str, base_path: Path, validation_options: Dict[str, bool] = None) -> List[str]:
     """Save generated code to appropriate files, handling multi-file output.
     
     Args:
         generated_code: Generated code content, possibly with file markers
         base_path: Base path to save files to
+        validation_options: Options for code validation
         
     Returns:
         List of saved file paths
@@ -41,7 +42,7 @@ async def save_generated_files(generated_code: str, base_path: Path) -> List[str
             
             # Validate code before saving
             file_extension = file_path.suffix.lstrip('.')
-            is_valid, validated_content, issues = validate_and_extract_code(file_content, file_extension)
+            is_valid, validated_content, issues = validate_and_extract_code(file_content, file_extension, validation_options)
             
             if not is_valid:
                 logger.warning(f"Invalid code detected for {file_path}: {', '.join(issues)}")
@@ -65,7 +66,7 @@ async def save_generated_files(generated_code: str, base_path: Path) -> List[str
     else:
         # Single file output - validate code first
         file_extension = base_path.suffix.lstrip('.')
-        is_valid, validated_content, issues = validate_and_extract_code(generated_code, file_extension)
+        is_valid, validated_content, issues = validate_and_extract_code(generated_code, file_extension, validation_options)
         
         if not is_valid:
             logger.warning(f"Invalid code detected for {base_path}: {', '.join(issues)}")

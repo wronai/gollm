@@ -277,20 +277,43 @@ def extract_code_blocks(text: str) -> List[str]:
     
     return markdown_blocks
 
-def validate_and_extract_code(content: str, file_extension: str) -> Tuple[bool, str, List[str]]:
+def validate_and_extract_code(content: str, file_extension: str, options: Dict[str, bool] = None) -> Tuple[bool, str, List[str]]:
     """Validate content as code and extract valid code if possible.
     
     Args:
         content: The content to validate
         file_extension: The file extension (e.g., 'py', 'js')
+        options: Dictionary of validation options:
+            - strict_validation: If True, don't attempt to fix syntax errors
+            - allow_prompt_text: If True, don't reject prompt-like content
+            - skip_validation: If True, skip validation entirely
         
     Returns:
         Tuple of (is_valid, best_code, issues)
     """
+    # Set default options if none provided
+    if options is None:
+        options = {
+            'strict_validation': False,
+            'allow_prompt_text': False,
+            'skip_validation': False
+        }
+    
+    # If validation is disabled, return content as-is
+    if options.get('skip_validation', False):
+        logger.warning("Code validation is disabled - returning content without validation")
+        return True, content, []
     if file_extension == 'py':
         # For Python, we have specific validation
         # First try the whole content
         validation = is_valid_python(content)
+        
+        # If allow_prompt_text is enabled and the only issue is prompt-like content, ignore it
+        if options.get('allow_prompt_text', False) and not validation.is_valid:
+            if len(validation.issues) == 1 and "prompt" in validation.issues[0].lower():
+                logger.info("Allowing prompt-like content as requested by user options")
+                return True, content, ["Prompt-like content allowed by user option"]
+        
         if validation.is_valid:
             return True, content, validation.issues
         
@@ -307,11 +330,14 @@ def validate_and_extract_code(content: str, file_extension: str) -> Tuple[bool, 
                     best_validation = block_validation
         
         if best_block:
-            return True, best_block, best_validation.issues
+            return True, best_block, best_validation.issues + ["Code extracted from mixed content"]
         
-        # If we have a fixed version, use that
-        if validation.fixed_code:
-            return True, validation.fixed_code, validation.issues
+        # If we have a fixed version and strict_validation is not enabled, use that
+        if validation.fixed_code and not options.get('strict_validation', False):
+            return True, validation.fixed_code, validation.issues + ["Syntax errors automatically fixed"]
+        elif validation.fixed_code and options.get('strict_validation', False):
+            logger.info("Not applying automatic fixes due to strict validation mode")
+            return False, content, validation.issues + ["Syntax errors found but not fixed (strict mode)"] 
         
         return False, content, validation.issues
     else:
@@ -319,8 +345,14 @@ def validate_and_extract_code(content: str, file_extension: str) -> Tuple[bool, 
         if not content or content.isspace():
             return False, content, ["Empty or whitespace-only content"]
         
+        # Check if content looks like a prompt
         if looks_like_prompt(content):
-            # Try to extract code blocks
+            # If allow_prompt_text is enabled, accept the content as-is
+            if options.get('allow_prompt_text', False):
+                logger.info("Allowing prompt-like content as requested by user options")
+                return True, content, ["Prompt-like content allowed by user option"]
+                
+            # Otherwise, try to extract code blocks
             code_blocks = extract_code_blocks(content)
             if code_blocks:
                 return True, code_blocks[0], ["Extracted code from prompt-like text"]
