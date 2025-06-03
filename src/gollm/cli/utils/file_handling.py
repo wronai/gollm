@@ -17,10 +17,14 @@ async def save_generated_files(
     generated_code: str, base_path: Path, validation_options: Dict[str, bool] = None
 ) -> List[str]:
     """Save generated code to appropriate files, handling multi-file output.
+    
+    With the new directory structure, base_path is expected to be a file path
+    within a project directory. Files with special markers will be saved in the
+    appropriate locations within the project directory.
 
     Args:
         generated_code: Generated code content, possibly with file markers
-        base_path: Base path to save files to
+        base_path: Base path to save files to (should be within a project directory)
         validation_options: Options for code validation
 
     Returns:
@@ -28,6 +32,9 @@ async def save_generated_files(
     """
     saved_files = []
 
+    # Get the project directory (parent of the base_path)
+    project_dir = base_path.parent
+    
     # Check for multi-file format (files separated by --- filename.ext ---)
     if "--- " in generated_code and "\n" in generated_code:
         files_section = generated_code.strip().split("--- ")[1:]
@@ -37,8 +44,40 @@ async def save_generated_files(
                 continue
 
             file_header, *file_content = file_section.split("\n", 1)
-            file_path = base_path / file_header.strip()
+            file_name = file_header.strip()
             file_content = "\n".join(file_content).strip()
+            
+            # Determine the appropriate path based on file type
+            if file_name.endswith(".py"):
+                if file_name.startswith("test_"):
+                    # Test files go in the tests directory
+                    tests_dir = project_dir / "tests"
+                    tests_dir.mkdir(parents=True, exist_ok=True)
+                    file_path = tests_dir / file_name
+                    
+                    # Create __init__.py if it doesn't exist
+                    init_file = tests_dir / "__init__.py"
+                    if not init_file.exists():
+                        with open(init_file, 'w') as f:
+                            f.write("# Test package for generated code\n")
+                        saved_files.append(str(init_file))
+                else:
+                    file_path = project_dir / file_name
+            elif any(file_name.endswith(ext) for ext in [".html", ".css", ".js"]):
+                # Web files go in appropriate directories
+                if file_name.endswith(".html"):
+                    templates_dir = project_dir / "templates"
+                    templates_dir.mkdir(parents=True, exist_ok=True)
+                    file_path = templates_dir / file_name
+                elif file_name.endswith(".css") or file_name.endswith(".js"):
+                    static_dir = project_dir / "static"
+                    static_dir.mkdir(parents=True, exist_ok=True)
+                    file_path = static_dir / file_name
+                else:
+                    file_path = project_dir / file_name
+            else:
+                # Other files go in the project root
+                file_path = project_dir / file_name
 
             # Validate code before saving
             file_extension = file_path.suffix.lstrip(".")
@@ -148,22 +187,42 @@ async def save_generated_files(
 
 
 def suggest_filename(request_text: str, is_website: bool = False) -> str:
-    """Generate a filename or directory name based on the request text.
+    """Generate a directory name based on the request text.
+    
+    Instead of creating a single file with a long descriptive name,
+    we now create a directory with a meaningful name and place the
+    main code files inside with more specific names like 'main.py'
+    or names that reflect their function.
 
     Args:
         request_text: The text of the request
         is_website: Whether this is a website project
 
     Returns:
-        Suggested filename or directory name
+        Suggested directory name
     """
-    clean_name = request_text.lower().replace(" ", "_")
+    # Extract main concept from the request
+    words = request_text.lower().split()
+    
+    # Remove common verbs and articles that don't contribute to the name
+    common_words = ["create", "make", "build", "implement", "develop", "a", "an", "the", "with"]
+    filtered_words = [w for w in words if w not in common_words]
+    
+    # If we filtered out too much, use original words
+    if len(filtered_words) < 2 and len(words) > 2:
+        filtered_words = words[:3]  # Use first 3 words
+    
+    # Join the words to create a clean name
+    clean_name = "_".join(filtered_words)
     clean_name = "".join(c if c.isalnum() or c == "_" else "" for c in clean_name)
     clean_name = "_".join(filter(None, clean_name.split("_")))
-
-    if is_website:
-        return clean_name  # Directory for website projects
-    return f"{clean_name}.py"
+    
+    # Limit the length to avoid excessively long directory names
+    if len(clean_name) > 30:
+        clean_name = clean_name[:30]
+    
+    # Always return a directory name
+    return clean_name
 
 
 def load_config(config_path: str) -> Dict[str, Any]:

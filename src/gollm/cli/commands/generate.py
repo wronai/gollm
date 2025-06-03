@@ -147,13 +147,44 @@ def generate_command(
         is_website = context.get("is_website_project", False)
         suggested_name = suggest_filename(request, is_website)
 
-        # Set up output path
-        if output:
-            output_path = Path(output)
-            if is_website and not output_path.suffix:  # Directory for website
-                output_path = output_path / "app.py"  # Default main file
+        # Set up output path - always create a directory structure
+        project_dir = Path(output) if output else Path(suggested_name)
+        
+        # Create the project directory if it doesn't exist
+        if not project_dir.exists():
+            project_dir.mkdir(parents=True, exist_ok=True)
+            
+        # Determine the main file name based on the content to be generated
+        if is_website:
+            # For websites, use app.py as the main file
+            output_path = project_dir / "app.py"
         else:
-            output_path = Path(suggested_name)
+            # For other code, determine an appropriate main file name
+            # based on what we're likely generating
+            if any(keyword in request.lower() for keyword in ["class", "processor", "manager", "service"]):
+                # If generating a class, name the file after the class
+                class_name = None
+                for word in request.lower().split():
+                    if word in ["class", "processor", "manager", "service"]:
+                        # Try to find the class name in the request
+                        idx = request.lower().split().index(word)
+                        if idx > 0:
+                            class_name = request.lower().split()[idx-1]
+                        elif idx < len(request.lower().split()) - 1:
+                            class_name = request.lower().split()[idx+1]
+                
+                if class_name:
+                    file_name = f"{class_name.lower()}.py"
+                else:
+                    file_name = "main.py"
+            elif any(keyword in request.lower() for keyword in ["function", "utility", "util", "helper"]):
+                # If generating utility functions
+                file_name = "utils.py"
+            else:
+                # Default to main.py
+                file_name = "main.py"
+                
+            output_path = project_dir / file_name
 
         try:
             # Add context about the project structure
@@ -174,16 +205,22 @@ def generate_command(
                 context.get("validation_options", {}),
             )
             
-            # If test code was generated, save it as a separate file
+            # If test code was generated, save it as a separate file in a tests directory
             test_files = []
             if hasattr(result, 'test_code') and result.test_code:
+                # Create a tests directory inside the project directory
+                tests_dir = project_dir / "tests"
+                tests_dir.mkdir(exist_ok=True)
+                
                 # Determine the test file path
                 if output_path.suffix == '.py':
-                    # For Python files, use test_filename.py naming convention
-                    test_file_path = output_path.with_name(f"test_{output_path.stem}.py")
+                    # For Python files, use test_filename.py naming convention in the tests directory
+                    test_file_name = f"test_{output_path.stem}.py"
                 else:
                     # For other files, append _test to the filename
-                    test_file_path = output_path.with_name(f"{output_path.stem}_test{output_path.suffix}")
+                    test_file_name = f"{output_path.stem}_test{output_path.suffix}"
+                
+                test_file_path = tests_dir / test_file_name
                 
                 # Save the test code
                 test_files = await save_generated_files(
@@ -194,6 +231,13 @@ def generate_command(
                 
                 # Add test files to the list of saved files
                 saved_files.extend(test_files)
+                
+                # Create an __init__.py file in the tests directory to make it a proper package
+                init_file = tests_dir / "__init__.py"
+                if not init_file.exists():
+                    with open(init_file, 'w') as f:
+                        f.write("# Test package for generated code\n")
+                    saved_files.append(str(init_file))
 
             # Show results
             quality_score = format_quality_score(result.quality_score)
