@@ -15,15 +15,21 @@ logger = logging.getLogger('gollm.ollama.http')
 class OllamaHttpClient:
     """HTTP client for Ollama API with connection pooling and optimized request handling."""
     
-    def __init__(self, config: OllamaConfig):
+    def __init__(self, config):
         """Initialize the Ollama HTTP client.
         
         Args:
-            config: Ollama configuration
+            config: Ollama configuration (OllamaConfig or dict)
         """
         self.config = config
         self.session: Optional[aiohttp.ClientSession] = None
         self._request_id = 0
+        
+        # Extract necessary attributes for both dict and OllamaConfig
+        self.base_url = getattr(config, 'base_url', config.get('base_url', 'http://localhost:11434')) if isinstance(config, dict) else config.base_url
+        self.timeout = getattr(config, 'timeout', config.get('timeout', 60)) if isinstance(config, dict) else config.timeout
+        self.api_key = getattr(config, 'api_key', config.get('api_key', None)) if isinstance(config, dict) else getattr(config, 'api_key', None)
+        self.headers = getattr(config, 'headers', config.get('headers', {})) if isinstance(config, dict) else getattr(config, 'headers', {})
     
     async def __aenter__(self):
         """Async context manager entry."""

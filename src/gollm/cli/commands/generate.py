@@ -18,11 +18,12 @@ logger = logging.getLogger('gollm.commands.generate')
 @click.option('--no-todo', is_flag=True, help='Skip creating a TODO item')
 @click.option('--fast', '-f', is_flag=True, help='Use fast mode with minimal validation')
 @click.option('--iterations', '-i', default=3, type=int, help='Number of generation iterations')
-@click.option('--adapter-type', type=click.Choice(['http', 'grpc']), default='http', 
+@click.option('--adapter-type', type=click.Choice(['http', 'grpc', 'modular']), default='modular', 
               help='Adapter type for Ollama communication')
-@click.option('--use-grpc', is_flag=True, help='Use gRPC for faster communication with Ollama')
+@click.option('--use-streaming', is_flag=True, default=True, help='Use streaming API for faster response times')
+@click.option('--use-grpc', is_flag=True, help='Use gRPC for faster communication with Ollama (deprecated, use --adapter-type grpc)')
 @click.pass_context
-def generate_command(ctx, request, output, critical, no_todo, fast, iterations, adapter_type, use_grpc):
+def generate_command(ctx, request, output, critical, no_todo, fast, iterations, adapter_type, use_streaming, use_grpc):
     """Generate code using LLM with quality validation.
     
     For website projects, specify a directory as output to generate multiple files.
@@ -38,8 +39,19 @@ def generate_command(ctx, request, output, critical, no_todo, fast, iterations, 
         'fast_mode': fast,
         'max_iterations': 1 if fast else iterations,
         'adapter_type': adapter_type,
+        'use_streaming': use_streaming,
         'use_grpc': use_grpc
     }
+    
+    # Set environment variables for adapter type and streaming
+    import os
+    os.environ['OLLAMA_ADAPTER_TYPE'] = adapter_type
+    os.environ['GOLLM_USE_STREAMING'] = str(use_streaming).lower()
+    
+    # Log adapter and streaming information
+    logging.info(f"Using {adapter_type} adapter for Ollama communication")
+    if use_streaming and adapter_type == 'modular':
+        logging.info("Streaming enabled for faster response times")
     
     if no_todo:
         context['skip_todo'] = True

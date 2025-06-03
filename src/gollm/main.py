@@ -74,6 +74,11 @@ class GollmCore:
             # Set environment variable to influence adapter selection
             import os
             os.environ['OLLAMA_ADAPTER_TYPE'] = context['adapter_type']
+            
+        # Set streaming flag in environment if specified
+        if 'use_streaming' in context:
+            import os
+            os.environ['GOLLM_USE_STREAMING'] = str(context['use_streaming']).lower()
         
         # Create a request context with all parameters
         request_context = context.copy()

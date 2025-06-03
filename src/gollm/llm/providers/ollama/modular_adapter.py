@@ -25,16 +25,39 @@ class OllamaModularAdapter:
         """
         # Initialize configuration manager and load config
         self.config_manager = ConfigManager()
-        self.config = self.config_manager.load_config(config)
+        
+        # Handle both dictionary and OllamaConfig objects
+        if isinstance(config, dict):
+            self.config = self.config_manager.load_config(config)
+        else:
+            # Convert OllamaConfig to dictionary if needed
+            config_dict = {
+                'base_url': getattr(config, 'base_url', 'http://localhost:11434'),
+                'model': getattr(config, 'model', 'mistral:latest'),
+                'timeout': getattr(config, 'timeout', 60),
+                'temperature': getattr(config, 'temperature', 0.7),
+                'top_p': getattr(config, 'top_p', 0.9),
+                'top_k': getattr(config, 'top_k', 40),
+                'max_tokens': getattr(config, 'max_tokens', 2048),
+            }
+            self.config = self.config_manager.load_config(config_dict)
         self.client: Optional[OllamaHttpClient] = None
         
         # Component configuration
-        self.component_config = {
-            'show_prompt': getattr(config, 'show_prompt', False),
-            'show_response': getattr(config, 'show_response', False),
-            'show_metadata': getattr(config, 'show_metadata', False),
-            'adaptive_timeout': getattr(config, 'adaptive_timeout', True),
-        }
+        if isinstance(config, dict):
+            self.component_config = {
+                'show_prompt': config.get('show_prompt', False),
+                'show_response': config.get('show_response', False),
+                'show_metadata': config.get('show_metadata', False),
+                'adaptive_timeout': config.get('adaptive_timeout', True),
+            }
+        else:
+            self.component_config = {
+                'show_prompt': getattr(config, 'show_prompt', False),
+                'show_response': getattr(config, 'show_response', False),
+                'show_metadata': getattr(config, 'show_metadata', False),
+                'adaptive_timeout': getattr(config, 'adaptive_timeout', True),
+            }
         
         # Component instances (initialized in __aenter__)
         self.prompt_formatter = None
