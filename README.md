@@ -795,11 +795,13 @@ curl -X POST http://192.168.188.212:11434/api/chat \
      -H 'Content-Type: application/json' \
      -d '{
        "model": "mistral",
-       "messages": [ {"role": "user", "content": "Write Hello World in Python"} ],
+       "messages": [ {"role": "user", "content": "Stwórz klasę użytkownika"} ],
        "stream": false
      }' | jq
           
 gollm generate "Write Hello World in Python"
 gollm -v generate "Write Hello World in Python"
 gollm generate "Write Hello World in Python" --fast
+gollm generate "Stwórz klasę użytkownika"
+gollm generate "Stwórz klasę użytkownika" --adapter-type modular
 ```

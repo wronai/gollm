@@ -65,6 +65,7 @@ class GollmConfig:
     project_management: ProjectManagement
     llm_integration: LLMIntegration
     project_root: str = "."
+    debug_logging: bool = False
     
     @classmethod
     def load(cls, config_path: str = "gollm.json") -> "GollmConfig":
@@ -139,7 +140,8 @@ class GollmConfig:
             validation_rules=ValidationRules(**data.get('validation_rules', {})),
             project_management=ProjectManagement(**data.get('project_management', {})),
             llm_integration=llm_integration,
-            project_root=data.get('project_root', '.')
+            project_root=data.get('project_root', '.'),
+            debug_logging=data.get('debug_logging', False)
         )
     
     @classmethod

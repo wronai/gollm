@@ -6,14 +6,32 @@ before saving it to a file, preventing issues where prompts or other
 non-code text gets saved as code files.
 """
 
-import ast
-import re
-import tokenize
-from io import BytesIO, StringIO
 import logging
 from typing import Dict, Any, Tuple, List, Optional, Union
 
+# Import from refactored modules
+from .common import CodeValidationResult
+from .validator import validate_and_extract_code
+from .validators.escape_handler import format_code_with_escape_sequences, detect_escape_sequences
+from .validators.text_analyzer import extract_code_blocks, looks_like_prompt
+from .validators.python_validator import is_valid_python
+from .validators.code_fixer import attempt_syntax_fix
+from .validators.quality_checker import check_code_quality
+
 logger = logging.getLogger('gollm.validation.code')
+
+# Re-export functions to maintain backward compatibility
+__all__ = [
+    'CodeValidationResult',
+    'validate_and_extract_code',
+    'format_code_with_escape_sequences',
+    'extract_code_blocks',
+    'looks_like_prompt',
+    'is_valid_python',
+    'attempt_syntax_fix',
+    'check_code_quality',
+    'detect_escape_sequences'
+]
 
 class CodeValidationResult:
     """Result of code validation."""
@@ -278,55 +296,30 @@ def extract_code_blocks(text: str) -> List[str]:
     return markdown_blocks
 
 def validate_and_extract_code(content: str, file_extension: str, options: Dict[str, bool] = None) -> Tuple[bool, str, List[str]]:
-    """Validate content as code and extract valid code if possible.
+    # [existing code...]
     
-    Args:
-        content: The content to validate
-        file_extension: The file extension (e.g., 'py', 'js')
-        options: Dictionary of validation options:
-            - strict_validation: If True, don't attempt to fix syntax errors
-            - allow_prompt_text: If True, don't reject prompt-like content
-            - skip_validation: If True, skip validation entirely
-        
-    Returns:
-        Tuple of (is_valid, best_code, issues)
-    """
-    # Set default options if none provided
-    if options is None:
-        options = {
-            'strict_validation': False,
-            'allow_prompt_text': False,
-            'skip_validation': False
-        }
+    # Format content to handle escape sequences before validation
+    content = format_code_with_escape_sequences(content)
     
-    # If validation is disabled, return content as-is
-    if options.get('skip_validation', False):
-        logger.warning("Code validation is disabled - returning content without validation")
-        return True, content, []
     if file_extension == 'py':
         # For Python, we have specific validation
         # First try the whole content
         validation = is_valid_python(content)
         
-        # If allow_prompt_text is enabled and the only issue is prompt-like content, ignore it
-        if options.get('allow_prompt_text', False) and not validation.is_valid:
-            if len(validation.issues) == 1 and "prompt" in validation.issues[0].lower():
-                logger.info("Allowing prompt-like content as requested by user options")
-                return True, content, ["Prompt-like content allowed by user option"]
+        # [rest of existing code...]
         
-        if validation.is_valid:
-            return True, content, validation.issues
-        
-        # If not valid, try to extract code blocks
+        # When extracting code blocks, also format them
         code_blocks = extract_code_blocks(content)
         best_block = None
         best_validation = None
         
         for block in code_blocks:
-            block_validation = is_valid_python(block)
+            # Format the block to handle escape sequences
+            formatted_block = format_code_with_escape_sequences(block)
+            block_validation = is_valid_python(formatted_block)
             if block_validation.is_valid:
-                if best_block is None or len(block) > len(best_block):
-                    best_block = block
+                if best_block is None or len(formatted_block) > len(best_block):
+                    best_block = formatted_block
                     best_validation = block_validation
         
         if best_block:
@@ -359,3 +352,86 @@ def validate_and_extract_code(content: str, file_extension: str, options: Dict[s
             return False, content, ["Content appears to be a prompt, not code"]
         
         return True, content, []
+
+def format_code_with_escape_sequences(code: str) -> str:
+    """Format code by properly handling escape sequences.
+    
+    Args:
+        code: The code string that might contain escape sequences
+        
+    Returns:
+        Formatted code with properly interpreted escape sequences
+    """
+    # Check if the code contains escape sequences that need handling
+    if '\\n' in code or '\\t' in code or '\\"' in code or "\\'" in code or '\\u' in code or '\\x' in code:
+        logger.info(f"Detected escape sequences in code, attempting to format")
+        
+        # Strategy 1: Try codecs.decode with unicode_escape
+        try:
+            formatted_code = codecs.decode(code, 'unicode_escape')
+            logger.info(f"Successfully formatted code with codecs.decode")
+            return formatted_code
+        except Exception as e:
+            logger.warning(f"Failed to format with codecs.decode: {str(e)}")
+        
+        # Strategy 2: Try ast.literal_eval with escaping
+        try:
+            escaped_code = code.replace('"', '\\"').replace("'", "\\'")
+            code_to_eval = f'"{escaped_code}"'
+            formatted_code = ast.literal_eval(code_to_eval)
+            logger.info(f"Successfully formatted code with ast.literal_eval (escaped quotes)")
+            return formatted_code
+        except (SyntaxError, ValueError) as e:
+            logger.warning(f"Failed to format with ast.literal_eval (escaped): {str(e)}")
+        
+        # Strategy 3: Try ast.literal_eval with triple quotes
+        try:
+            code_to_eval = f'"""' + code + '"""'
+            formatted_code = ast.literal_eval(code_to_eval)
+            logger.info(f"Successfully formatted code with ast.literal_eval (triple quotes)")
+            return formatted_code
+        except (SyntaxError, ValueError) as e:
+            logger.warning(f"Failed to format with ast.literal_eval (triple quotes): {str(e)}")
+        
+        # Strategy 4: Manual replacement of common escape sequences
+        try:
+            formatted_code = code
+            replacements = [
+                ('\\n', '\n'),
+                ('\\t', '\t'),
+                ('\\r', '\r'),
+                ('\\"', '"'),
+                ("\\'", "'"),
+                ('\\\\', '\\'),
+                ('\\b', '\b'),
+                ('\\f', '\f'),
+            ]
+            for old, new in replacements:
+                formatted_code = formatted_code.replace(old, new)
+            
+            # Handle Unicode escapes (\uXXXX)
+            unicode_pattern = r'\\u([0-9a-fA-F]{4})'
+            while re.search(unicode_pattern, formatted_code):
+                match = re.search(unicode_pattern, formatted_code)
+                if match:
+                    hex_val = match.group(1)
+                    unicode_char = chr(int(hex_val, 16))
+                    formatted_code = formatted_code.replace(f"\\u{hex_val}", unicode_char)
+            
+            # Handle hex escapes (\xXX)
+            hex_pattern = r'\\x([0-9a-fA-F]{2})'
+            while re.search(hex_pattern, formatted_code):
+                match = re.search(hex_pattern, formatted_code)
+                if match:
+                    hex_val = match.group(1)
+                    hex_char = chr(int(hex_val, 16))
+                    formatted_code = formatted_code.replace(f"\\x{hex_val}", hex_char)
+            
+            logger.info(f"Successfully formatted code with manual replacement")
+            return formatted_code
+        except Exception as e:
+            logger.warning(f"Failed to format with manual replacement: {str(e)}")
+            logger.warning(traceback.format_exc())
+    
+    # If no escape sequences or all formatting attempts failed, return original
+    return code

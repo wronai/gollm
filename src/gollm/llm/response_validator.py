@@ -88,6 +88,8 @@ class ResponseValidator:
             for block in code_blocks:
                 # Remove trailing whitespace and ensure it ends with a newline
                 cleaned = block.rstrip() + '\n'
+                # Apply escape sequence formatting
+                cleaned = self._format_code_with_escape_sequences(cleaned)
                 cleaned_blocks.append(cleaned)
             return cleaned_blocks
         
@@ -185,8 +187,10 @@ class ResponseValidator:
                 
             # Clean up the block
             cleaned = block.rstrip() + '\n'
+            # Apply escape sequence formatting
+            cleaned = self._format_code_with_escape_sequences(cleaned)
             cleaned_blocks.append(cleaned)
-        
+
         return cleaned_blocks
     
     def _extract_code_from_section(self, section: str) -> List[str]:
@@ -424,3 +428,103 @@ class ResponseValidator:
             })
             
             return result
+
+    def _format_code_with_escape_sequences(self, code: str) -> str:
+        """
+        Format code by properly handling escape sequences like \n and \t.
+        This is needed when the LLM response contains literal escape sequences
+        that should be interpreted as actual newlines and tabs.
+        """
+        import logging
+        import re
+        logger = logging.getLogger('gollm.validator')
+        
+        if not code:
+            return code
+        
+        logger.info("Formatting code with escape sequences")
+        
+        # Check if the code contains escape sequences
+        if '\\n' in code or '\\t' in code or '\\"' in code or "\\'" in code or '\\u' in code or '\\x' in code:
+            logger.info("Found escape sequences in code, processing them")
+            
+            # Strategy 1: Use codecs.decode with unicode_escape
+            try:
+                import codecs
+                formatted_code = codecs.decode(code, 'unicode_escape')
+                logger.info("Successfully formatted code using codecs.decode")
+                return formatted_code
+            except Exception as e:
+                logger.warning(f"Failed to format code with codecs.decode: {e}")
+            
+            # Strategy 2: Try ast.literal_eval with proper escaping
+            try:
+                import ast
+                
+                # Prepare the code for literal_eval by ensuring it's properly quoted
+                # and escape any existing quotes
+                escaped_code = code.replace('"', '\\"').replace("'", "\\'")
+                code_to_eval = f'"{escaped_code}"'
+                    
+                # Use ast.literal_eval to safely evaluate the string
+                formatted_code = ast.literal_eval(code_to_eval)
+                logger.info("Successfully formatted code using ast.literal_eval with escaping")
+                return formatted_code
+            except (SyntaxError, ValueError) as e:
+                logger.warning(f"Failed to format code with ast.literal_eval: {e}")
+            
+            # Strategy 3: Try with triple quotes to handle multiline strings
+            try:
+                import ast
+                code_to_eval = f'"""' + code + '"""'
+                formatted_code = ast.literal_eval(code_to_eval)
+                logger.info("Successfully formatted code using ast.literal_eval with triple quotes")
+                return formatted_code
+            except (SyntaxError, ValueError) as e:
+                logger.warning(f"Failed to format code with triple quotes: {e}")
+                
+            # Strategy 4: Manually replace common escape sequences
+            try:
+                formatted_code = code
+                # Handle common escape sequences
+                replacements = [
+                    ('\\n', '\n'),     # Newline
+                    ('\\t', '\t'),     # Tab
+                    ('\\r', '\r'),     # Carriage return
+                    ('\\"', '"'),      # Double quote
+                    ("\\'", "'"),      # Single quote
+                    ('\\\\', '\\'),    # Backslash
+                    ('\\b', '\b'),     # Backspace
+                    ('\\f', '\f')      # Form feed
+                ]
+                
+                for old, new in replacements:
+                    formatted_code = formatted_code.replace(old, new)
+                
+                # Handle Unicode escapes like \u00A9 (copyright symbol)
+                unicode_escapes = re.findall(r'\\u([0-9a-fA-F]{4})', formatted_code)
+                for escape in unicode_escapes:
+                    try:
+                        char = chr(int(escape, 16))
+                        formatted_code = formatted_code.replace(f'\\u{escape}', char)
+                    except:
+                        pass
+                
+                # Handle hex escapes like \x41 (A)
+                hex_escapes = re.findall(r'\\x([0-9a-fA-F]{2})', formatted_code)
+                for escape in hex_escapes:
+                    try:
+                        char = chr(int(escape, 16))
+                        formatted_code = formatted_code.replace(f'\\x{escape}', char)
+                    except:
+                        pass
+                
+                logger.info("Formatted code using enhanced manual escape sequence replacement")
+                return formatted_code
+            except Exception as e:
+                logger.warning(f"Failed during manual escape sequence replacement: {e}")
+                # If all else fails, return the original code
+                return code
+        
+        # No escape sequences found, return as is
+        return code

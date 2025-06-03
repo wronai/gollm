@@ -150,6 +150,17 @@ class LLMOrchestrator:
         logger.debug(f"Prompt last 200 chars: {prompt[-200:] if len(prompt) > 200 else prompt}")
         logger.info(f"Context keys: {list(context.keys()) if context else []}")
         
+        # Log the prompt for debugging
+        debug_logging = getattr(self.config, 'debug_logging', False)
+        if debug_logging:
+            logger.debug(f"Prompt length: {len(prompt)}")
+            logger.debug(f"Prompt first 200 chars: {prompt[:200]}")
+            logger.debug(f"Prompt last 200 chars: {prompt[-200:] if len(prompt) > 200 else prompt}")
+            
+            # Check for potential issues in the prompt
+            if '\\n' in prompt or '\\t' in prompt:
+                logger.warning(f"Found escape sequences in prompt that might affect response formatting")
+        
         # Initialize LLM client
         logger.info("Initializing LLM client")
         async with LLMClient(self.config) as llm_client:
@@ -165,9 +176,66 @@ class LLMOrchestrator:
             # Convert llm_output to string if it's not already
             if not isinstance(llm_output, str):
                 logger.warning(f"LLM output is not a string, but {type(llm_output).__name__}. Converting to string.")
+            # Log the structure of the dictionary before converting to string
+            if isinstance(llm_output, dict):
+                logger.info(f"LLM output dict keys: {list(llm_output.keys())}")
+                
+                # Extract from Ollama response format
+                if 'message' in llm_output and isinstance(llm_output['message'], dict):
+                    logger.info(f"LLM output message keys: {list(llm_output['message'].keys())}")
+                    if 'content' in llm_output['message']:
+                        logger.info(f"Using message.content directly instead of string conversion")
+                        llm_output = llm_output['message']['content']
+                    else:
+                        llm_output = str(llm_output)
+                
+                # Extract from LLMClient response format
+                elif 'generated_text' in llm_output:
+                    if llm_output['generated_text']:
+                        logger.info(f"Using generated_text directly instead of string conversion")
+                        llm_output = llm_output['generated_text']
+                    elif 'raw_response' in llm_output and isinstance(llm_output['raw_response'], dict):
+                        logger.info(f"Generated text is empty, trying raw_response")
+                        logger.info(f"Raw response keys: {list(llm_output['raw_response'].keys())}")
+                        if 'message' in llm_output['raw_response'] and 'content' in llm_output['raw_response']['message']:
+                            logger.info(f"Using raw_response.message.content")
+                            llm_output = llm_output['raw_response']['message']['content']
+                        else:
+                            llm_output = str(llm_output)
+                    else:
+                        llm_output = str(llm_output)
+                else:
+                    llm_output = str(llm_output)
+            else:
                 llm_output = str(llm_output)
                 
             logger.info(f"Response length: {len(llm_output)}")
+            
+            # Enhanced logging for debugging escape sequences
+            debug_logging = getattr(self.config, 'debug_logging', False)
+            if debug_logging:
+                # Log the first and last part of the response for debugging
+                logger.debug(f"Response first 200 chars: {llm_output[:200]}")
+                logger.debug(f"Response last 200 chars: {llm_output[-200:] if len(llm_output) > 200 else llm_output}")
+                
+                # Log any potential escape sequences in the response
+                escape_sequences = ['\\n', '\\t', '\\r', '\\"', "\\'"]
+                for seq in escape_sequences:
+                    if seq in llm_output:
+                        logger.warning(f"Found escape sequence '{seq}' in response")
+                        
+                # Check for code blocks and their content
+                import re
+                code_blocks = re.findall(r'```(?:\w*)?\n(.+?)(?:\n```|$)', llm_output, re.DOTALL)
+                logger.info(f"Found {len(code_blocks)} code blocks in response")
+                
+                # Log details about each code block
+                for i, block in enumerate(code_blocks):
+                    logger.debug(f"Code block {i+1} length: {len(block)}")
+                    # Check for escape sequences in code blocks
+                    for seq in escape_sequences:
+                        if seq in block:
+                            logger.warning(f"Found escape sequence '{seq}' in code block {i+1}")
             logger.debug(f"Response first 200 chars: {llm_output[:200]}...")
             logger.debug(f"Response last 200 chars: {llm_output[-200:] if len(llm_output) > 200 else llm_output}")
             

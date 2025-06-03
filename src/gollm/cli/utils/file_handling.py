@@ -10,8 +10,9 @@ import logging
 import os
 from pathlib import Path
 
-# Import code validator
+# Import validators
 from ...validation.code_validator import validate_and_extract_code
+from ...validation.output_validator import validate_saved_code
 
 logger = logging.getLogger('gollm.cli.file_handling')
 
@@ -60,9 +61,20 @@ async def save_generated_files(generated_code: str, base_path: Path, validation_
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
             # Save the validated content
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(validated_content)
             saved_files.append(str(file_path))
+            
+            # Validate that the saved file matches the expected content
+            is_valid, validation_issues, details = validate_saved_code(file_content, str(file_path))
+            if not is_valid:
+                logger.warning(f"Output validation failed for {file_path}: {', '.join(validation_issues)}")
+                if 'escape_sequences_found' in details and details['escape_sequences_found']:
+                    logger.warning(f"Found escape sequences in original content: {details['escape_sequences_found']}")
+                if 'diff_summary' in details and details['diff_summary']:
+                    logger.debug(f"Diff between original and saved content:\n{details['diff_summary']}")
+            else:
+                logger.info(f"Output validation passed for {file_path}")
     else:
         # Single file output - validate code first
         file_extension = base_path.suffix.lstrip('.')
@@ -82,9 +94,20 @@ async def save_generated_files(generated_code: str, base_path: Path, validation_
         
         # Save the validated content
         base_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(base_path, 'w', encoding='utf-8') as f:
+        with open(base_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(validated_content)
         saved_files.append(str(base_path))
+        
+        # Validate that the saved file matches the expected content
+        is_valid, validation_issues, details = validate_saved_code(generated_code, str(base_path))
+        if not is_valid:
+            logger.warning(f"Output validation failed for {base_path}: {', '.join(validation_issues)}")
+            if 'escape_sequences_found' in details and details['escape_sequences_found']:
+                logger.warning(f"Found escape sequences in original content: {details['escape_sequences_found']}")
+            if 'diff_summary' in details and details['diff_summary']:
+                logger.debug(f"Diff between original and saved content:\n{details['diff_summary']}")
+        else:
+            logger.info(f"Output validation passed for {base_path}")
         
     return saved_files
 

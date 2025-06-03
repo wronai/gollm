@@ -2,8 +2,10 @@
 
 import json
 import logging
+import re
 import time
-from typing import Dict, Any, List, Optional, Union
+import codecs
+from typing import Dict, Any, List, Optional, Union, Tuple
 
 logger = logging.getLogger('gollm.ollama.prompt')
 
@@ -62,6 +64,86 @@ class PromptLogger:
         # Log the formatted data
         logger.info(f"LLM Request: {json.dumps(log_data, indent=2, ensure_ascii=False)}")
     
+    def _detect_escape_sequences(self, text: str) -> Tuple[bool, Dict[str, int]]:
+        """Detect escape sequences in text.
+        
+        Args:
+            text: The text to analyze for escape sequences
+            
+        Returns:
+            Tuple containing:
+            - Boolean indicating if escape sequences were found
+            - Dictionary with counts of each escape sequence type
+        """
+        escape_sequences = {
+            '\\n': 0,  # newline
+            '\\t': 0,  # tab
+            '\\r': 0,  # carriage return
+            '\\"': 0,  # double quote
+            "\\'": 0,  # single quote
+            '\\\\': 0,  # backslash
+            '\\x': 0,  # hex escape
+            '\\u': 0,  # unicode escape
+        }
+        
+        has_escapes = False
+        
+        for seq in escape_sequences.keys():
+            count = text.count(seq)
+            if count > 0:
+                escape_sequences[seq] = count
+                has_escapes = True
+                
+        # Check for hex escapes (\x00-\xFF)
+        hex_escapes = re.findall(r'\\x[0-9a-fA-F]{2}', text)
+        if hex_escapes:
+            escape_sequences['\\x'] = len(hex_escapes)
+            has_escapes = True
+            
+        # Check for unicode escapes (\u0000-\uFFFF)
+        unicode_escapes = re.findall(r'\\u[0-9a-fA-F]{4}', text)
+        if unicode_escapes:
+            escape_sequences['\\u'] = len(unicode_escapes)
+            has_escapes = True
+            
+        return has_escapes, escape_sequences
+    
+    def _analyze_code_blocks(self, text: str) -> List[Dict[str, Any]]:
+        """Analyze code blocks in text for escape sequences.
+        
+        Args:
+            text: The text to analyze for code blocks
+            
+        Returns:
+            List of dictionaries with code block analysis
+        """
+        code_blocks = []
+        
+        # Find code blocks with language specifier
+        blocks = re.findall(r'```(?:\w*)?\n(.+?)(?:\n```|$)', text, re.DOTALL)
+        
+        for i, block in enumerate(blocks):
+            has_escapes, escape_counts = self._detect_escape_sequences(block)
+            
+            # Try to decode the block if it has escape sequences
+            decoded_block = None
+            if has_escapes:
+                try:
+                    decoded_block = codecs.decode(block, 'unicode_escape')
+                except Exception as e:
+                    logger.debug(f"Failed to decode code block {i+1} with unicode_escape: {str(e)}")
+            
+            code_blocks.append({
+                "block_index": i + 1,
+                "length": len(block),
+                "has_escape_sequences": has_escapes,
+                "escape_counts": escape_counts,
+                "first_100_chars": block[:100] + "..." if len(block) > 100 else block,
+                "decoded_length": len(decoded_block) if decoded_block else None
+            })
+            
+        return code_blocks
+    
     def log_response(self, 
                     response: Dict[str, Any],
                     duration: float) -> None:
@@ -73,6 +155,39 @@ class PromptLogger:
         """
         # Always log basic timing information
         logger.info(f"Received response in {duration:.2f}s")
+        
+        # Extract the response content for analysis
+        response_content = None
+        if "response" in response:
+            response_content = response["response"]
+        elif "text" in response:
+            response_content = response["text"]
+        elif "content" in response:
+            response_content = response["content"]
+        elif "message" in response and "content" in response["message"]:
+            response_content = response["message"]["content"]
+        elif "generated_text" in response:
+            response_content = response["generated_text"]
+            
+        # Analyze escape sequences in the response if content was extracted
+        escape_analysis = None
+        code_blocks_analysis = None
+        if response_content:
+            has_escapes, escape_counts = self._detect_escape_sequences(response_content)
+            if has_escapes:
+                logger.warning(f"Found escape sequences in response: {escape_counts}")
+                escape_analysis = {
+                    "has_escape_sequences": has_escapes,
+                    "escape_counts": escape_counts
+                }
+                
+            # Analyze code blocks
+            code_blocks_analysis = self._analyze_code_blocks(response_content)
+            if code_blocks_analysis:
+                logger.info(f"Found {len(code_blocks_analysis)} code blocks in response")
+                for block in code_blocks_analysis:
+                    if block["has_escape_sequences"]:
+                        logger.warning(f"Code block {block['block_index']} contains escape sequences: {block['escape_counts']}")
         
         if not any([self.show_response, self.show_metadata]):
             return
@@ -87,17 +202,19 @@ class PromptLogger:
         if self.show_metadata and "metadata" in response:
             log_data["metadata"] = response["metadata"]
             
+        # Add escape sequence analysis if available
+        if escape_analysis:
+            log_data["escape_analysis"] = escape_analysis
+            
+        # Add code blocks analysis if available and not too verbose
+        if code_blocks_analysis and len(code_blocks_analysis) <= 5:
+            log_data["code_blocks"] = code_blocks_analysis
+            
         # Add response content if enabled
         if self.show_response:
             # Extract the actual response content based on response structure
-            if "response" in response:
-                log_data["response"] = response["response"]
-            elif "text" in response:
-                log_data["response"] = response["text"]
-            elif "content" in response:
-                log_data["response"] = response["content"]
-            elif "message" in response and "content" in response["message"]:
-                log_data["response"] = response["message"]["content"]
+            if response_content:
+                log_data["response"] = response_content
             else:
                 # Include the full response if we can't extract the content
                 log_data["full_response"] = response
