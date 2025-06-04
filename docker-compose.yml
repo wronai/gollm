@@ -9,8 +9,9 @@ services:
       - "11435:11434"
     environment:
       - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_MODELS=/root/.ollama/models  # Explicitly set models directory
     volumes:
-      - ollama_data:/root/.ollama
+      - ollama_data:/root/.ollama  # This will persist models between container restarts
     # Simple health check that just checks if the container is running
     healthcheck:
       test: ["CMD", "echo", "ok"]
@@ -20,6 +21,13 @@ services:
       start_period: 10s
     networks:
       - gollm_network
+    # Don't automatically pull models on start
+    entrypoint: ["sh", "-c", "ollama serve &
+             if [ ! -f /root/.ollama/models/manifests/registry.ollama.ai/library/tinyllama/latest ]; then
+               echo 'Pulling tinyllama model...' && \
+               ollama pull tinyllama;
+             fi && \
+             tail -f /dev/null"]
 
   testenv:
     build:
@@ -34,15 +42,14 @@ services:
       - gollm-cache:/root/.cache/gollm
     environment:
       - OLLAMA_HOST=http://ollama:11434
+      - GOLLM_MODEL=tinyllama:latest
     networks:
       - gollm_network
     command: >
-      sh -c "echo 'Waiting for Ollama...' &&
+      sh -c "echo 'Waiting for Ollama to be ready...' &&
              until curl -s http://ollama:11434/api/tags >/dev/null; do
                echo 'Waiting for Ollama...' && sleep 1;
              done &&
-             echo 'Ollama is ready! Using tinyllama model...' &&
-             curl -X POST http://ollama:11434/api/pull -d '{"name": "tinyllama:latest"}' &&
              echo 'Running tests with tinyllama model (30s timeout)...' &&
              pytest tests/ -v --timeout=30 --cov=src/gollm"
 

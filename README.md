@@ -47,7 +47,230 @@ pip install gollm[llm]
 gollm generate "Napisz funkcję w Pythonie, która oblicza silnię"
 ```
 
-### Docker-based Development
+## 🐳 Docker-based Development & Testing
+
+goLLM provides a Docker-based development and testing environment to ensure consistent results across different systems. The environment includes:
+
+- Python 3.12 with all development dependencies
+- Ollama with a pre-configured tinyllama model for testing
+- Persistent storage for Ollama models between container restarts
+
+### Prerequisites
+
+- Docker Engine 20.10.0 or later
+- Docker Compose 2.0.0 or later
+- At least 2GB of free disk space for the Ollama model
+
+### Quick Start
+
+1. **Start the development environment**:
+   ```bash
+   # Build and start the containers
+   make docker-up
+   
+   # This will:
+   # 1. Build the test environment
+   # 2. Start Ollama service
+   # 3. Pull the tinyllama model (only on first run)
+   # 4. Run all tests
+   ```
+
+2. **Run specific tests**:
+   ```bash
+   # Run all tests
+   make docker-test
+   
+   # Run a specific test file
+   make docker-test TEST=tests/e2e/test_ollama.py
+   
+   # Run tests with coverage
+   make docker-test-cov
+   ```
+
+3. **Development workflow**:
+   ```bash
+   # Open a shell in the test environment
+   make docker-shell
+   
+   # Run linters and formatters
+   make docker-lint
+   make docker-format
+   
+   # View logs
+   make docker-logs
+   ```
+
+4. **Clean up**:
+   ```bash
+   # Stop and remove containers
+   make docker-down
+   
+   # Remove all containers, volumes, and images
+   make docker-clean
+   ```
+
+### Available Make Commands
+
+| Command | Description |
+|---------|-------------|
+| `make docker-up` | Start all services and run tests |
+| `make docker-down` | Stop and remove all containers |
+| `make docker-test` | Run all tests |
+| `make docker-test-cov` | Run tests with coverage report |
+| `make docker-lint` | Run linters |
+| `make docker-format` | Format code using black and isort |
+| `make docker-shell` | Open a shell in the test environment |
+| `make docker-logs` | View container logs |
+| `make docker-clean` | Remove all containers, volumes, and images |
+
+### Running Make Directly
+
+You can also run make commands directly in the container:
+
+```bash
+# Run a single make target
+docker-compose run --rm testenv make test
+
+# Or open an interactive shell and run multiple commands
+docker-compose run --rm testenv bash
+# Inside container:
+# $ make lint
+# $ make test
+# $ exit
+```
+
+### Environment Variables
+
+You can customize the environment using these variables:
+
+- `OLLAMA_HOST`: Ollama server URL (default: `http://ollama:11434`)
+- `GOLLM_MODEL`: LLM model to use (default: `tinyllama:latest`)
+- `GOLLM_TEST_TIMEOUT`: Test timeout in seconds (default: `30`)
+
+Example:
+```bash
+GOLLM_MODEL=tinyllama:latest make docker-test
+```
+
+### Persistent Storage
+
+- Ollama models are stored in a Docker volume named `gollm_ollama_data`
+- Python package cache is stored in `gollm_gollm-cache`
+- Source code is mounted from your host into the container
+
+### Local Development
+
+For local development, you can mount your local directory into the container:
+
+```bash
+docker-compose run --rm -v $(pwd):/app testenv bash
+```
+
+This will give you a shell where you can run any development commands, and your changes will be reflected in real-time.
+
+### Troubleshooting
+
+1. **Model not found**:
+   ```bash
+   # Manually pull the model
+   docker-compose exec ollama ollama pull tinyllama
+   ```
+
+2. **Port conflicts**:
+   - Edit `docker-compose.yml` to change the host port (11435 by default)
+
+3. **Out of disk space**:
+   ```bash
+   # Clean up unused containers and images
+   docker system prune -a
+   
+   # Remove the Ollama volume (warning: will delete downloaded models)
+   docker volume rm gollm_ollama_data
+   ```
+
+4. **View logs**:
+   ```bash
+   # View all logs
+   make docker-logs
+   
+   # View logs for a specific service
+   docker-compose logs -f ollama
+   ```
+
+### Advanced Usage
+
+#### Running Specific Tests
+
+```bash
+# Run a specific test file
+docker-compose run --rm testenv pytest tests/e2e/test_ollama.py -v
+
+# Run a specific test function
+docker-compose run --rm testenv pytest tests/e2e/test_ollama.py::test_ollama_code_generation -v
+
+# Run with coverage
+docker-compose run --rm testenv pytest --cov=src/gollm tests/
+```
+
+#### Debugging
+
+```bash
+# Start containers without running tests
+docker-compose up -d
+
+# Attach to the test environment
+docker-compose exec testenv bash
+
+# Run tests with debug output
+pytest -v --log-level=DEBUG
+```
+
+#### Custom Configuration
+
+Create a `.env` file to override default settings:
+
+```env
+# .env
+OLLAMA_HOST=http://ollama:11434
+GOLLM_MODEL=tinyllama:latest
+GOLLM_TEST_TIMEOUT=30
+```
+
+Then run:
+```bash
+docker-compose --env-file .env up
+```
+
+### Production Deployment
+
+For production use, consider:
+
+1. Using a more powerful model than tinyllama
+2. Setting appropriate resource limits in docker-compose.yml
+3. Configuring proper logging and monitoring
+4. Setting up CI/CD for automated testing
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `make docker-test`
+5. Submit a pull request
+
+### License
+
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+
+### Acknowledgments
+
+- [Ollama](https://ollama.ai/) for providing the LLM infrastructure
+- [pytest](https://docs.pytest.org/) for the testing framework
+- [Docker](https://www.docker.com/) for containerization
+
+---
+
+For more information, please visit our [documentation](https://gollm.readthedocs.io).
 
 For a consistent development and testing environment, you can use Docker:
 
