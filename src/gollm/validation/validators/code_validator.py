@@ -250,19 +250,20 @@ class CodeValidator:
         if not violations:
             return 100.0  # Perfect score for no violations
 
-        # Weight violations by severity
-        weights = {"error": 10.0, "warning": 5.0, "info": 2.0}
+        # Weight violations by severity - increased weights for more impact
+        weights = {"error": 20.0, "warning": 10.0, "info": 5.0}
         
-        # Calculate total penalty points
-        penalty = sum(weights.get(v.severity.lower(), 3.0) for v in violations)
+        # Calculate total penalty points with exponential increase for multiple violations
+        base_penalty = sum(weights.get(v.severity.lower(), 5.0) for v in violations)
         
-        # Cap penalty to avoid negative scores
-        max_penalty = 100.0
-        penalty = min(penalty, max_penalty)
+        # Apply exponential scaling for multiple violations
+        penalty = min(100.0, base_penalty * (1.2 ** (len(violations) - 1)))
         
         # Calculate score (100 is perfect, 0 is worst)
         score = max(0.0, 100.0 - penalty)
-        return round(score, 2)
+        
+        # Round to nearest integer for cleaner output
+        return round(score, 1)
         
     def _calculate_project_quality_score(self, results: Dict[str, Any]) -> float:
         """Calculates overall project quality score.
