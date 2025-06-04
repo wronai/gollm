@@ -23,11 +23,9 @@ from .llm import (
 
 # LLM Providers
 try:
-    from .llm.providers.openai import OpenAIClient
     from .llm.providers.openai import OpenAILlmProvider
     OPENAI_AVAILABLE = True
 except ImportError:
-    OpenAIClient = None
     OpenAILlmProvider = None
     OPENAI_AVAILABLE = False
 
