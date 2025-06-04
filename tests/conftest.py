@@ -2,19 +2,41 @@
 Pytest configuration and shared fixtures for goLLM tests
 """
 
+import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
+from typing import Generator
 
 import pytest
 
+# Default test configuration
+LLM_MODEL = os.getenv("GOLLM_MODEL", "tinyllama:latest")
+LLM_TEST_TIMEOUT = int(os.getenv("GOLLM_TEST_TIMEOUT", "30"))  # seconds
+
+
+def llm_test(timeout: int = LLM_TEST_TIMEOUT):
+    """Decorator to mark tests as LLM tests with a configurable timeout.
+    
+    Args:
+        timeout: Timeout in seconds for the test
+    """
+    def decorator(test_func):
+        test_func._llm_test = True
+        test_func._llm_timeout = timeout
+        return test_func
+    return decorator
+
 
 @pytest.fixture
-def temp_project():
-    """Create a temporary project directory for testing"""
+def temp_project() -> Generator[Path, None, None]:
+    """Create a temporary project directory for testing."""
     temp_dir = tempfile.mkdtemp()
-    yield Path(temp_dir)
-    shutil.rmtree(temp_dir)
+    try:
+        yield Path(temp_dir)
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @pytest.fixture(scope="session")
