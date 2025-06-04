@@ -228,27 +228,52 @@ class OllamaAdapter:
         logger.debug(f"Formatted prompt (first 200 chars): {formatted_prompt[:200]}...")
         return formatted_prompt
 
-    def _extract_code_from_response(self, response_text: str) -> str:
+    def _extract_code_from_response(self, response_text: Any) -> str:
         """Extracts Python code from Ollama's response, handling various formats.
 
         Args:
-            response_text: The raw response text from Ollama
+            response_text: The raw response from Ollama (can be str, dict, or JSON string)
 
         Returns:
             Extracted Python code as a string
         """
         import logging
         import re
+        import json
+        from typing import Any, Dict, Optional, Union
 
         logger = logging.getLogger(__name__)
 
+        def try_parse_json(text: Union[str, Dict, Any]) -> Optional[Dict[str, Any]]:
+            """Attempt to parse text as JSON if it's a string, otherwise return as is if it's a dict."""
+            if isinstance(text, dict):
+                return text
+            if not isinstance(text, str):
+                return None
+            try:
+                return json.loads(text)
+            except (json.JSONDecodeError, TypeError):
+                return None
+
+        # Handle JSON/dict input
+        json_data = try_parse_json(response_text)
+        if json_data:
+            # Try common response fields that might contain the actual text
+            for field in ['response', 'generated_text', 'text', 'content', 'message']:
+                if field in json_data and json_data[field]:
+                    response_text = json_data[field]
+                    logger.debug(f"Extracted text from JSON field: {field}")
+                    break
+            else:
+                # If no known fields, convert the whole dict to string
+                response_text = str(json_data)
+
+        # Ensure we have a string
         if not response_text or not isinstance(response_text, str):
             logger.warning("Received empty or invalid response text")
             return ""
 
-        logger.debug(
-            f"Extracting code from response. Response length: {len(response_text)} characters"
-        )
+        logger.debug(f"Processing response (length: {len(response_text)})")
         logger.debug(f"Response content (first 500 chars): {response_text[:500]}...")
 
         # Try to extract code from markdown code blocks first
