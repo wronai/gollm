@@ -1,6 +1,6 @@
 import math
 
-def factorial(n):
+def factorial(n: int) -> int:
     """
     Calculate the factorial of a number using recursion.
 
@@ -8,13 +8,13 @@ def factorial(n):
         n (int): The input number to calculate the factorial for.
 
     Returns:
-        int: The factorial of the input number.
+        int: The calculated factorial value.
 
     Raises:
         ValueError: If the input number is negative.
     """
     if n < 0:
-        raise ValueError("Factorial is not defined for negative numbers.")
+        raise ValueError("Factorial not defined for negative numbers")
     elif n == 0 or n == 1:
         return 1
     else:

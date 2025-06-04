@@ -199,6 +199,75 @@ gollm "I'm getting 'IndexError: list index out of range' in my Python code. How 
 ```
 
 ### Code Review
+
+## Practical Task Examples
+
+### Data Processing Task
+```bash
+gollm generate "Create a Python script that reads a CSV file containing sales data, calculates total sales per product, and generates a bar chart showing the top 10 best-selling products. The script should handle missing values and include error handling for file operations."
+```
+*Task:* Process sales data from a CSV file. Calculate total sales per product and visualize the top 10 products. Include error handling and data validation.
+
+### Web Scraping Task
+```bash
+gollm generate "Write a Python script using BeautifulSoup to scrape the latest news headlines from a news website. Extract the title, summary, and publication time, then save the results to a JSON file. Include error handling for network requests and HTML parsing."
+```
+*Task:* Scrape news headlines from a website. Extract key details and save them in JSON format. Handle potential errors during web requests and parsing.
+
+### API Development Task
+```bash
+gollm generate "Create a FastAPI endpoint that accepts a list of email addresses, validates them, and returns which ones are valid. Include rate limiting, input validation, and proper error responses. Add a simple frontend to test the API."
+```
+*Task:* Build an email validation API with FastAPI. Validate email addresses and return results. Include security measures and a test interface.
+
+### Data Analysis Task
+```bash
+gollm generate "Write a Python script that loads a dataset from a URL, performs exploratory data analysis (missing values, statistics, correlations), and generates a PDF report with visualizations using matplotlib and pandas-profiling."
+```
+*Task:* Analyze a dataset from a URL. Perform EDA and create a PDF report. Include visualizations and statistical summaries.
+
+### Automation Script
+```bash
+gollm generate "Create a Python script that monitors a directory for new image files, resizes them to a maximum width of 1200px while maintaining aspect ratio, and saves them in a new 'resized' directory. Include logging and proper error handling."
+```
+*Task:* Monitor a folder for new images. Automatically resize images while keeping their aspect ratio. Log all operations and handle errors gracefully.
+
+### Database Task
+```bash
+gollm generate "Write a Python script that connects to a PostgreSQL database, creates a 'users' table if it doesn't exist, and provides functions for CRUD operations. Include connection pooling and proper error handling."
+```
+*Task:* Implement database operations for a users table. Support create, read, update, and delete operations. Use connection pooling and handle database errors.
+
+### Testing Task
+```bash
+gollm generate "Create a set of pytest tests for a simple shopping cart class. Include test cases for adding/removing items, calculating totals, and edge cases like empty cart and negative quantities."
+```
+*Task:* Write comprehensive tests for a shopping cart. Cover all main functionalities and edge cases. Ensure tests are independent and maintainable.
+
+### Documentation Task
+```bash
+gollm generate "Generate a README.md file for a Python package with sections for installation, usage examples, API reference, and contribution guidelines. Include code examples with proper syntax highlighting."
+```
+*Task:* Create professional documentation for a Python package. Include all essential sections and clear examples. Format the content with proper markdown.
+
+
+
+
+### Security Task
+```bash
+gollm generate "Write a Python function that securely hashes passwords using bcrypt and includes functions to verify hashed passwords. Include input validation and proper error handling."
+```
+*Task:* Implement secure password hashing with bcrypt. Create functions for hashing and verification. Include input validation and error handling.
+
+
+
+### Task Automation
+```bash
+gollm generate "Create a Python script that renames all files in a directory to follow a specific pattern (e.g., 'image_001.jpg', 'image_002.jpg'). The script should handle different file types and include a dry-run option."
+```
+*Task:* Batch rename files in a directory. Support different file types and include a dry-run option. Handle errors and edge cases.
+
+### Code Review
 ```bash
 gollm "Review this Python code for potential issues and suggest improvements"
 ```

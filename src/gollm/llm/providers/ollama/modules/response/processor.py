@@ -84,6 +84,21 @@ async def process_llm_response(
     else:
         logger.info("Response does not contain code blocks, will use as-is")
     
+    # Save the raw response to a file for inspection
+    try:
+        import os
+        debug_dir = os.path.join(os.path.expanduser("~"), "gollm_debug")
+        os.makedirs(debug_dir, exist_ok=True)
+        debug_file = os.path.join(debug_dir, f"ollama_raw_response_{model.replace(':', '_')}.txt")
+        with open(debug_file, "w") as f:
+            f.write(f"MODEL: {model}\n")
+            f.write(f"PROMPT: {prompt[:500]}...\n\n")
+            f.write("RAW RESPONSE:\n")
+            f.write(generated_text)
+        logger.info(f"Saved raw response to {debug_file}")
+    except Exception as e:
+        logger.error(f"Failed to save raw response to file: {str(e)}")
+    
     # Store the original text before any processing
     original_text = generated_text
     
