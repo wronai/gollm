@@ -1,3 +1,7 @@
+poetry.lock
+test_*
+fixed_*
+*.bak
 codellama
 openai_example
 test_app
