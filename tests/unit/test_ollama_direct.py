@@ -3,7 +3,10 @@ import asyncio
 import json
 
 async def test_ollama_direct():
-    url = "http://rock:8081/api/generate"
+    # Use the Ollama service URL from environment variable or default to localhost
+    import os
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    url = f"{ollama_host}/api/generate"
     
     # Very simple and direct prompt
     prompt = """
@@ -14,8 +17,11 @@ async def test_ollama_direct():
     Just the code.
     """.strip()
     
+    # Use the model from environment variable or default to tinyllama
+    model = os.getenv('GOLLM_MODEL', 'tinyllama:latest')
+    
     payload = {
-        "model": "deepseek-coder:latest",
+        "model": model,
         "prompt": prompt,
         "stream": False,
         "options": {

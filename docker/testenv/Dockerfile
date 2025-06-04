@@ -15,8 +15,9 @@ WORKDIR /app
 COPY requirements.txt .
 COPY requirements-dev.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+# Install Python dependencies and setuptools
+RUN pip install --no-cache-dir setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
 # Copy the entire project
 COPY . .

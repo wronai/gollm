@@ -11,3 +11,4 @@ flake8>=6.0.0
 mypy>=1.0.0
 types-requests>=2.31.0
 types-pyyaml>=6.0.0
+python-dotenv>=1.0.0

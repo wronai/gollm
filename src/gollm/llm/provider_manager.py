@@ -36,8 +36,19 @@ class LLMProviderManager:
         """Initialize all configured providers."""
         providers_config = self.config.get("providers", {})
 
+        # Map of provider names to their module paths
+        provider_paths = {
+            "ollama": "gollm.llm.providers.ollama.provider.OllamaLLMProvider",
+            "openai": "gollm.llm.providers.openai.provider.OpenAILlmProvider"
+        }
+
         for provider_name, provider_config in providers_config.items():
             if not provider_config.get("enabled", False):
+                continue
+
+            # Skip if provider path is not known
+            if provider_name not in provider_paths:
+                logger.warning(f"Unknown provider: {provider_name}")
                 continue
 
             # Resolve environment variables in config
@@ -45,13 +56,9 @@ class LLMProviderManager:
 
             # Import provider class dynamically
             try:
-                module_name = f"gollm.llm.{provider_name}_adapter"
-                module = __import__(
-                    module_name, fromnames=[f"{provider_name.capitalize()}LLMProvider"]
-                )
-                provider_class = getattr(
-                    module, f"{provider_name.capitalize()}LLMProvider"
-                )
+                module_path, class_name = provider_paths[provider_name].rsplit(".", 1)
+                module = __import__(module_path, fromlist=[class_name])
+                provider_class = getattr(module, class_name)
 
                 self.providers[provider_name] = ProviderConfig(
                     name=provider_name,
@@ -60,9 +67,10 @@ class LLMProviderManager:
                     config=resolved_config,
                     provider_class=provider_class,
                 )
+                logger.info(f"Successfully initialized provider: {provider_name}")
 
             except (ImportError, AttributeError) as e:
-                logger.warning(f"Failed to initialize provider {provider_name}: {e}")
+                logger.error(f"Failed to initialize provider {provider_name}: {e}", exc_info=True)
                 continue
 
     def _resolve_env_vars(self, config: Dict[str, Any]) -> Dict[str, Any]:

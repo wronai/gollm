@@ -26,7 +26,7 @@ import re
 from typing import Tuple, Optional
 
 def validate_password(password: str) -> Tuple[bool, str]:
-    """
+    \"\"\"
     Validate a password against security requirements.
     
     Args:
@@ -34,7 +34,7 @@ def validate_password(password: str) -> Tuple[bool, str]:
         
     Returns:
         Tuple of (is_valid, message)
-    """
+    \"\"\"
     if not isinstance(password, str):
         return False, "Password must be a string"
         
@@ -53,7 +53,7 @@ def validate_password(password: str) -> Tuple[bool, str]:
     return True, "Password is valid"
 
 def hash_password(password: str, rounds: int = 12) -> Optional[bytes]:
-    """
+    \"\"\"
     Hash a password using bcrypt.
     
     Args:
@@ -62,7 +62,7 @@ def hash_password(password: str, rounds: int = 12) -> Optional[bytes]:
         
     Returns:
         Hashed password or None if hashing fails
-    """
+    \"\"\"
     try:
         # Validate password first
         is_valid, message = validate_password(password)
@@ -83,7 +83,7 @@ def hash_password(password: str, rounds: int = 12) -> Optional[bytes]:
         return None
 
 def verify_password(password: str, hashed_password: bytes) -> bool:
-    """
+    \"\"\"
     Verify a password against a hash.
     
     Args:
@@ -92,7 +92,7 @@ def verify_password(password: str, hashed_password: bytes) -> bool:
         
     Returns:
         True if the password matches, False otherwise
-    """
+    \"\"\"
     try:
         # Convert password to bytes
         password_bytes = password.encode('utf-8')

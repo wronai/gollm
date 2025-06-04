@@ -15,10 +15,27 @@ logger = logging.getLogger(__name__)
 
 async def test_provider_manager():
     """Test the provider manager with different configurations."""
-    # Load configuration from gollm.json
-    import json
-    with open('gollm.json') as f:
-        config = json.load(f)
+    # Create a test configuration
+    config = {
+        "llm_integration": {
+            "enabled": True,
+            "default_provider": "ollama",
+            "fallback_order": ["ollama"],
+            "timeout": 30,
+            "max_retries": 2,
+            "providers": {
+                "ollama": {
+                    "enabled": True,
+                    "priority": 1,
+                    "base_url": "http://localhost:11434",
+                    "model": "llama2",
+                    "temperature": 0.7,
+                    "max_tokens": 1000,
+                    "timeout": 60
+                }
+            }
+        }
+    }
     
     # Initialize provider manager
     manager = LLMProviderManager(config['llm_integration'])
@@ -26,19 +43,28 @@ async def test_provider_manager():
     # Test prompt
     prompt = "Write a Python function to calculate factorial"
     
-    # Get response from first available provider
-    response = await manager.get_response(prompt)
-    
-    # Print results
-    if response.get('success', False):
-        print("\n✅ Success!")
-        print(f"Model: {response['model_info']['model']}")
-        print("\nGenerated code:")
-        print(response['generated_code'])
-    else:
-        print("\n❌ Failed!")
-        print(f"Error: {response.get('error', 'Unknown error')}")
-        print(f"Tried providers: {response.get('provider_info', {}).get('tried_providers', [])}")
+    try:
+        # Get response from first available provider
+        response = await manager.get_response(prompt)
+        
+        # Print results
+        if response.get('success', False):
+            print("\n✅ Success!")
+            print(f"Model: {response.get('model_info', {}).get('model', 'unknown')}")
+            print("\nGenerated code:")
+            print(response.get('generated_code', 'No code generated'))
+            return True
+        else:
+            print("\n❌ Failed!")
+            print(f"Error: {response.get('error', 'Unknown error')}")
+            print(f"Tried providers: {response.get('provider_info', {}).get('tried_providers', [])}")
+            return False
+            
+    except Exception as e:
+        print(f"\n❌ Exception occurred: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 if __name__ == "__main__":
     # Load environment variables
