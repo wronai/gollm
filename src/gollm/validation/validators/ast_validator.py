@@ -50,11 +50,11 @@ class ASTValidator(ast.NodeVisitor):
 
         # Check function complexity
         complexity = self._calculate_complexity(node)
-        if complexity > self.config.validation_rules.max_complexity:
+        if complexity > self.config.validation_rules.max_cyclomatic_complexity:
             self.violations.append(
                 Violation(
                     type="function_too_complex",
-                    message=f"Function '{node.name}' has cyclomatic complexity of {complexity}, maximum allowed is {self.config.validation_rules.max_complexity}",
+                    message=f"Function '{node.name}' has cyclomatic complexity of {complexity}, maximum allowed is {self.config.validation_rules.max_cyclomatic_complexity}",
                     file_path=self.file_path,
                     line_number=node.lineno,
                     severity="warning",
