@@ -12,8 +12,8 @@ from typing import Generator
 import pytest
 
 # Default test configuration
-LLM_MODEL = os.getenv("GOLLM_MODEL", "tinyllama:latest")
-LLM_TEST_TIMEOUT = int(os.getenv("GOLLM_TEST_TIMEOUT", "30"))  # seconds
+LLM_MODEL = os.getenv("GOLLM_MODEL", "deepseek-coder:latest")
+LLM_TEST_TIMEOUT = int(os.getenv("GOLLM_TEST_TIMEOUT", "120"))  # seconds
 
 
 def llm_test(timeout: int = LLM_TEST_TIMEOUT):
