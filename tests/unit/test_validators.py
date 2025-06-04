@@ -80,7 +80,7 @@ def bad_function(a, b, c, d, e, f, g):  # Too many parameters
             # Check for specific violation types
             violation_types = [v.type for v in violations]
             assert "too_many_parameters" in violation_types
-            assert "forbidden_print" in violation_types
+            assert "print_statement" in violation_types
 
             # Quality score should be low
             assert result["quality_score"] < 80

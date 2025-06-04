@@ -242,23 +242,28 @@ class CodeValidator:
         """Calculates quality score based on violations.
 
         Args:
-            violations: List of violations
+            violations: List of violations to score
 
         Returns:
-            Quality score between 0 and 1
+            Quality score between 0 and 100 (higher is better)
         """
         if not violations:
-            return 1.0
+            return 100.0  # Perfect score for no violations
 
         # Weight violations by severity
-        weights = {"error": 1.0, "warning": 0.5, "info": 0.2}
-
-        weighted_sum = sum(weights.get(v.severity, 0.5) for v in violations)
-
-        # Calculate score (higher is better)
-        score = max(0, 1 - (weighted_sum / 10))
+        weights = {"error": 10.0, "warning": 5.0, "info": 2.0}
+        
+        # Calculate total penalty points
+        penalty = sum(weights.get(v.severity.lower(), 3.0) for v in violations)
+        
+        # Cap penalty to avoid negative scores
+        max_penalty = 100.0
+        penalty = min(penalty, max_penalty)
+        
+        # Calculate score (100 is perfect, 0 is worst)
+        score = max(0.0, 100.0 - penalty)
         return round(score, 2)
-
+        
     def _calculate_project_quality_score(self, results: Dict[str, Any]) -> float:
         """Calculates overall project quality score.
 
@@ -266,13 +271,13 @@ class CodeValidator:
             results: Dictionary with file validation results
 
         Returns:
-            Project quality score between 0 and 1
+            Project quality score between 0 and 100
         """
         if not results:
-            return 1.0
+            return 100.0
 
         file_scores = [
-            result.get("quality_score", 0)
+            result.get("quality_score", 0.0)
             for result in results.values()
             if isinstance(result, dict)
         ]

@@ -33,6 +33,28 @@ class ASTValidator(ast.NodeVisitor):
         prev_function = self.current_function
         self.current_function = node.name
 
+        # Initialize rules if not already done
+        if not hasattr(self, 'rules'):
+            from ..rules import ValidationRules
+            self.rules = ValidationRules(self.config.validation_rules)
+            
+        # Check naming convention
+        if self.config.validation_rules.enforce_naming_conventions:
+            naming_checker = getattr(self.rules, '_check_naming_convention', None)
+            if naming_checker and callable(naming_checker):
+                violations = naming_checker(node, {})
+                for violation in violations:
+                    self.violations.append(
+                        Violation(
+                            type=violation['type'],
+                            message=violation['message'],
+                            file_path=self.file_path,
+                            line_number=violation.get('line_number', node.lineno),
+                            severity=violation.get('severity', 'info'),
+                            suggested_fix=violation.get('suggested_fix')
+                        )
+                    )
+
         # Check function length
         if hasattr(node, "end_lineno") and hasattr(node, "lineno"):
             func_lines = node.end_lineno - node.lineno
@@ -48,23 +70,110 @@ class ASTValidator(ast.NodeVisitor):
                     )
                 )
 
-        # Check function complexity
-        complexity = self._calculate_complexity(node)
-        if complexity > self.config.validation_rules.max_cyclomatic_complexity:
-            self.violations.append(
-                Violation(
-                    type="function_too_complex",
-                    message=f"Function '{node.name}' has cyclomatic complexity of {complexity}, maximum allowed is {self.config.validation_rules.max_cyclomatic_complexity}",
-                    file_path=self.file_path,
-                    line_number=node.lineno,
-                    severity="warning",
-                    suggested_fix="Consider simplifying this function or breaking it into smaller parts",
+        # Check function complexity using the rules engine
+        complexity_checker = getattr(self.rules, '_check_complexity', None)
+        if complexity_checker and callable(complexity_checker):
+            violations = complexity_checker(node, {})
+            for violation in violations:
+                self.violations.append(
+                    Violation(
+                        type=violation['type'],
+                        message=violation['message'],
+                        file_path=self.file_path,
+                        line_number=violation.get('line_number', node.lineno),
+                        severity=violation.get('severity', 'warning'),
+                        suggested_fix=violation.get('suggested_fix')
+                    )
                 )
-            )
+            
+        # Check parameter count
+        param_checker = getattr(self.rules, '_check_parameter_count', None)
+        if param_checker and callable(param_checker):
+            violations = param_checker(node, {})
+            for violation in violations:
+                self.violations.append(
+                    Violation(
+                        type=violation['type'],
+                        message=violation['message'],
+                        file_path=self.file_path,
+                        line_number=violation.get('line_number', node.lineno),
+                        severity=violation.get('severity', 'warning'),
+                        suggested_fix=violation.get('suggested_fix')
+                    )
+                )
+                
+        # Check docstrings if required
+        if self.config.validation_rules.require_docstrings:
+            docstring_checker = getattr(self.rules, '_check_docstrings', None)
+            if docstring_checker and callable(docstring_checker):
+                violations = docstring_checker(node, {})
+                for violation in violations:
+                    self.violations.append(
+                        Violation(
+                            type=violation['type'],
+                            message=violation['message'],
+                            file_path=self.file_path,
+                            line_number=violation.get('line_number', node.lineno),
+                            severity=violation.get('severity', 'info'),
+                            suggested_fix=violation.get('suggested_fix')
+                        )
+                    )
 
         # Visit function body
         self.generic_visit(node)
         self.current_function = prev_function
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        """Validates class definitions.
+
+        Args:
+            node: AST node for class definition
+        """
+        # Check naming convention for class
+        if self.config.validation_rules.enforce_naming_conventions and hasattr(self, 'rules'):
+            naming_checker = getattr(self.rules, '_check_naming_convention', None)
+            if naming_checker and callable(naming_checker):
+                violations = naming_checker(node, {})
+                for violation in violations:
+                    self.violations.append(
+                        Violation(
+                            type=violation['type'],
+                            message=violation['message'],
+                            file_path=self.file_path,
+                            line_number=violation.get('line_number', node.lineno),
+                            severity=violation.get('severity', 'info'),
+                            suggested_fix=violation.get('suggested_fix')
+                        )
+                    )
+        self.generic_visit(node)
+
+    def visit_Name(self, node: ast.Name):
+        """Validates name nodes.
+
+        Args:
+            node: AST node for a name
+        """
+        # Check naming convention for variables
+        if (self.config.validation_rules.enforce_naming_conventions and 
+            hasattr(self, 'rules') and 
+            isinstance(node.ctx, ast.Store)):
+            
+            naming_checker = getattr(self.rules, '_check_naming_convention', None)
+            if naming_checker and callable(naming_checker):
+                violations = naming_checker(node, {})
+                for violation in violations:
+                    self.violations.append(
+                        Violation(
+                            type=violation['type'],
+                            message=violation['message'],
+                            file_path=self.file_path,
+                            line_number=violation.get('line_number', node.lineno),
+                            severity=violation.get('severity', 'info'),
+                            suggested_fix=violation.get('suggested_fix')
+                        )
+                    )
+        
+        self.generic_visit(node)
 
     def visit_Global(self, node: ast.Global):
         """Checks usage of global variables.
@@ -107,6 +216,46 @@ class ASTValidator(ast.NodeVisitor):
                     )
                 )
 
+        self.generic_visit(node)
+
+    def visit_Global(self, node):
+        """Checks for global variable declarations."""
+        if self.config.validation_rules.forbid_global_variables:
+            # Use the global variables checker from rules
+            global_checker = getattr(self.rules, '_check_global_variables', None)
+            if global_checker and callable(global_checker):
+                violations = global_checker(node, {})
+                for violation in violations:
+                    self.violations.append(
+                        Violation(
+                            type=violation['type'],
+                            message=violation['message'],
+                            file_path=self.file_path,
+                            line_number=violation.get('line_number', node.lineno),
+                            severity=violation.get('severity', 'warning'),
+                            suggested_fix=violation.get('suggested_fix')
+                        )
+                    )
+        self.generic_visit(node)
+        
+    def visit_Print(self, node):
+        """Checks for print statements."""
+        if self.config.validation_rules.forbid_print_statements:
+            # Use the print statement checker from rules
+            print_checker = getattr(self.rules, '_check_print_statements', None)
+            if print_checker and callable(print_checker):
+                violations = print_checker(node, {})
+                for violation in violations:
+                    self.violations.append(
+                        Violation(
+                            type=violation['type'],
+                            message=violation['message'],
+                            file_path=self.file_path,
+                            line_number=violation.get('line_number', node.lineno),
+                            severity=violation.get('severity', 'warning'),
+                            suggested_fix=violation.get('suggested_fix')
+                        )
+                    )
         self.generic_visit(node)
 
     def _calculate_complexity(self, node: ast.FunctionDef) -> int:
