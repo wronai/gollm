@@ -8,7 +8,7 @@ Provides integration with various LLM providers including:
 """
 
 # Base classes
-from .base import BaseLLMProvider, BaseLLMConfig
+from .base import BaseLLMProvider, BaseLLMConfig, BaseLLMAdapter
 
 # Legacy imports for backward compatibility
 from .context_builder import ContextBuilder
@@ -41,6 +41,7 @@ __all__ = [
     # Base classes
     "BaseLLMProvider",
     "BaseLLMConfig",
+    "BaseLLMAdapter",
     
     # Core components
     "LLMOrchestrator",

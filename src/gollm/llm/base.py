@@ -4,7 +4,9 @@ Base classes for LLM providers.
 This module defines the abstract base classes that all LLM providers must implement.
 """
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, AsyncGenerator, Union
+from typing import Any, Dict, List, Optional, AsyncGenerator, Union, Type, TypeVar, Generic
+
+T = TypeVar('T', bound='BaseLLMConfig')
 
 
 class BaseLLMProvider(ABC):
@@ -197,5 +199,58 @@ class BaseLLMConfig(ABC):
             
         Raises:
             ConfigurationError: If the configuration is invalid
+        """
+        pass
+
+
+class BaseLLMAdapter(Generic[T], ABC):
+    """Abstract base class for LLM adapters.
+    
+    Adapters are responsible for translating between the GoLLM interface
+    and specific LLM provider implementations.
+    """
+    
+    @property
+    @abstractmethod
+    def provider(self) -> str:
+        """Get the name of the provider this adapter is for.
+        
+        Returns:
+            str: The provider name (e.g., 'openai', 'ollama')
+        """
+        pass
+    
+    @property
+    @abstractmethod
+    def config_class(self) -> Type[T]:
+        """Get the configuration class for this adapter.
+        
+        Returns:
+            Type[BaseLLMConfig]: The configuration class
+        """
+        pass
+    
+    @abstractmethod
+    def get_provider(self, config: T) -> BaseLLMProvider:
+        """Get a provider instance configured with the given config.
+        
+        Args:
+            config: The configuration to use
+            
+        Returns:
+            BaseLLMProvider: A configured provider instance
+            
+        Raises:
+            ConfigurationError: If the configuration is invalid
+        """
+        pass
+    
+    @classmethod
+    @abstractmethod
+    def get_default_config(cls) -> T:
+        """Get the default configuration for this adapter.
+        
+        Returns:
+            BaseLLMConfig: A default configuration instance
         """
         pass
