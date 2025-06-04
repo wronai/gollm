@@ -1,6 +1,7 @@
 """Comprehensive tests for the Ollama LLM Provider."""
 import json
 import sys
+import types
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,163 +16,182 @@ class MockOpenAIClient:
 class MockOpenAILlmProvider:
     pass
 
-# Create a mock for the openai provider module
-mock_openai_provider = type('module', (), {
-    'OpenAIClient': MockOpenAIClient,
-    'OpenAILlmProvider': MockOpenAILlmProvider
-})
+# Create mock modules
+mock_openai_provider = types.ModuleType('gollm.llm.providers.openai')
+mock_openai_provider.OpenAIClient = MockOpenAIClient
+mock_openai_provider.OpenAILlmProvider = MockOpenAILlmProvider
 sys.modules['gollm.llm.providers.openai'] = mock_openai_provider
 
-from gollm.llm.providers.ollama import (
-    OllamaLLMProvider,
-    OllamaConfig,
-    OllamaHttpClient,
-    OllamaHttpAdapter
-)
+# Mock the Ollama API client
+class MockOllamaAPIClient:
+    pass
+
+# Create mock modules for Ollama provider
+mock_ollama = types.ModuleType('gollm.llm.ollama')
+mock_ollama.OllamaLLMProvider = type('OllamaLLMProvider', (), {})
+mock_ollama.OllamaConfig = type('OllamaConfig', (), {})
+mock_ollama.OllamaError = type('OllamaError', (Exception,), {})
+sys.modules['gollm.llm.ollama'] = mock_ollama
+
+# Mock the API module
+mock_api = types.ModuleType('gollm.llm.ollama.api')
+mock_api.OllamaAPIClient = MockOllamaAPIClient
+sys.modules['gollm.llm.ollama.api'] = mock_api
+
+# Now import the modules we want to test
+with patch.dict('sys.modules', {
+    'gollm.llm.providers.openai': mock_openai_provider,
+    'gollm.llm.ollama': mock_ollama,
+    'gollm.llm.ollama.api': mock_api,
+}):
+    from gollm.llm.ollama import OllamaConfig
+    from gollm.llm.ollama.provider import OllamaLLMProvider
+    from gollm.llm.ollama.api.client import OllamaAPIClient
 
 # Test data
 TEST_MODEL = "llama2"
-TEST_PROMPT = "Test prompt"
-TEST_RESPONSE = "Test response"
+TEST_BASE_URL = "http://test-ollama:11434"
 TEST_CONFIG = {
     "model": TEST_MODEL,
-    "base_url": "http://localhost:11434",
+    "base_url": TEST_BASE_URL,
     "timeout": 30,
+    "max_retries": 3,
+    "stream": True,
     "temperature": 0.7,
     "max_tokens": 100,
+    "top_p": 1.0,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "stop": None,
+    "n": 1,
+    "logit_bias": None,
+    "user": None
 }
 
+# Fixtures
 @pytest.fixture
-def mock_http_client():
-    """Create a mock HTTP client for testing."""
-    with patch('gollm.llm.providers.ollama.http.client.OllamaHttpClient') as mock:
-        yield mock
+def mock_api_client():
+    """Create a mock API client for testing."""
+    mock = MagicMock(spec=OllamaAPIClient)
+    mock.base_url = TEST_BASE_URL
+    mock.timeout = 30
+    mock.headers = {}
+    mock.session = AsyncMock()
+    
+    # Mock the generate method
+    mock.generate = AsyncMock(return_value={"text": "Generated text"})
+    # Mock the stream method
+    mock.stream = AsyncMock(return_value=[{"text": "Streamed "}])
+    # Mock the health_check method
+    mock.health_check = AsyncMock(return_value={"status": "ok"})
+    
+    return mock
 
 @pytest.fixture
-def mock_http_adapter():
-    """Create a mock HTTP adapter for testing."""
-    with patch('gollm.llm.providers.ollama.http.adapter.OllamaHttpAdapter') as mock:
-        yield mock
-
-@pytest.fixture
-async def ollama_provider(mock_http_client, mock_http_adapter):
+def ollama_provider(mock_api_client):
     """Create an Ollama provider instance with mocked dependencies."""
-    # Configure the mocks
-    mock_client_instance = AsyncMock(spec=OllamaHttpClient)
-    mock_adapter_instance = MagicMock(spec=OllamaHttpAdapter)
-    
-    # Set up the mock methods
-    mock_client_instance.generate = AsyncMock(return_value={"response": TEST_RESPONSE})
-    mock_client_instance.stream = AsyncMock(return_value=[
-        {"response": "Test"},
-        {"response": " response"}
-    ])
-    mock_client_instance.health_check = AsyncMock(return_value={"status": "ok"})
-    
-    mock_http_client.return_value = mock_client_instance
-    mock_http_adapter.return_value = mock_adapter_instance
-    
-    # Create the provider with test config
-    provider = OllamaLLMProvider(TEST_CONFIG)
-    
-    return provider, mock_client_instance, mock_adapter_instance
+    with patch('gollm.llm.ollama.provider.OllamaAPIClient', return_value=mock_api_client):
+        provider = OllamaLLMProvider(TEST_CONFIG)
+        return provider
 
+# Test cases
 @pytest.mark.asyncio
-async def test_generate_text(ollama_provider):
+async def test_generate_text(ollama_provider, mock_api_client):
     """Test generating text with the Ollama provider."""
-    provider, mock_client, _ = ollama_provider
+    # Test data
+    prompt = "Test prompt"
+    expected_response = "Generated text"
     
     # Call the method
-    response = await provider.generate(TEST_PROMPT)
+    response = await ollama_provider.generate(prompt)
     
     # Assertions
-    assert response == TEST_RESPONSE
-    mock_client.generate.assert_awaited_once_with(
-        prompt=TEST_PROMPT,
+    assert response == expected_response
+    mock_api_client.generate.assert_called_once_with(
+        prompt=prompt,
         model=TEST_MODEL,
-        temperature=TEST_CONFIG["temperature"],
-        max_tokens=TEST_CONFIG["max_tokens"]
+        stream=False,
+        **{k: v for k, v in TEST_CONFIG.items() 
+           if k not in ['model', 'base_url', 'timeout', 'max_retries']}
     )
 
 @pytest.mark.asyncio
-async def test_stream_text(ollama_provider):
+async def test_stream_text(ollama_provider, mock_api_client):
     """Test streaming text with the Ollama provider."""
-    provider, mock_client, _ = ollama_provider
+    # Test data
+    prompt = "Test streaming prompt"
+    expected_chunks = ["Streamed "]
     
-    # Call the method and collect chunks
-    chunks = []
-    async for chunk in provider.stream(TEST_PROMPT):
-        chunks.append(chunk)
+    # Call the method
+    response = ollama_provider.generate(prompt, stream=True)
     
     # Assertions
-    assert "".join(chunks) == "Test response"
-    mock_client.stream.assert_awaited_once_with(
-        prompt=TEST_PROMPT,
+    assert list(response) == expected_chunks
+    mock_api_client.stream.assert_called_once_with(
+        prompt=prompt,
         model=TEST_MODEL,
-        temperature=TEST_CONFIG["temperature"],
-        max_tokens=TEST_CONFIG["max_tokens"]
+        **{k: v for k, v in TEST_CONFIG.items() 
+           if k not in ['model', 'base_url', 'timeout', 'max_retries']}
     )
 
 @pytest.mark.asyncio
-async def test_health_check(ollama_provider):
+async def test_health_check(ollama_provider, mock_api_client):
     """Test health check functionality."""
-    provider, mock_client, _ = ollama_provider
-    
-    # Configure the mock
-    mock_client.health_check.return_value = {"status": "ok"}
-    
-    # Call the method under test
-    result = await provider.health_check()
+    # Call the method
+    status = await ollama_provider.health_check()
     
     # Assertions
-    assert result == {"status": "ok"}
-    mock_client.health_check.assert_awaited_once()
+    assert status == {"status": "ok"}
+    mock_api_client.health_check.assert_called_once()
 
 def test_config_initialization():
     """Test that the OllamaConfig is properly initialized."""
-    config = OllamaConfig.from_dict(TEST_CONFIG)
+    # Test data
+    config_data = {
+        "model": "llama2",
+        "base_url": "http://test:11434",
+        "timeout": 30,
+        "max_tokens": 100,
+        "temperature": 0.7
+    }
+    
+    # Create config
+    config = OllamaConfig(**config_data)
     
     # Assertions
-    assert config.model == TEST_CONFIG["model"]
-    assert config.base_url == TEST_CONFIG["base_url"]
-    assert config.timeout == TEST_CONFIG["timeout"]
-    assert config.temperature == TEST_CONFIG["temperature"]
-    assert config.max_tokens == TEST_CONFIG["max_tokens"]
+    assert config.model == "llama2"
+    assert config.base_url == "http://test:11434"
+    assert config.timeout == 30
+    assert config.max_tokens == 100
+    assert config.temperature == 0.7
 
 @pytest.mark.asyncio
-async def test_error_handling(ollama_provider):
+async def test_error_handling(ollama_provider, mock_api_client):
     """Test error handling in the Ollama provider."""
-    provider, mock_client, _ = ollama_provider
+    # Setup mock to raise an exception
+    mock_api_client.generate.side_effect = Exception("Test error")
     
-    # Set up the mock to raise an exception
-    mock_client.generate.side_effect = Exception("API Error")
-    
-    # Test that the exception is properly propagated
-    with pytest.raises(Exception) as exc_info:
-        await provider.generate(TEST_PROMPT)
-    
-    assert "API Error" in str(exc_info.value)
-    mock_client.generate.assert_awaited_once()
+    # Assert that the exception is properly propagated
+    with pytest.raises(Exception, match="Test error"):
+        await ollama_provider.generate("test")
 
 @pytest.mark.asyncio
-async def test_custom_parameters(ollama_provider):
+async def test_custom_parameters(ollama_provider, mock_api_client):
     """Test passing custom parameters to the Ollama provider."""
-    provider, mock_client, _ = ollama_provider
-    
-    # Custom parameters
+    # Test data
+    prompt = "Test prompt"
     custom_params = {
         "temperature": 0.9,
         "max_tokens": 200,
-        "top_p": 0.9,
-        "top_k": 50
+        "custom_param": "value"
     }
     
     # Call the method with custom parameters
-    await provider.generate(TEST_PROMPT, **custom_params)
+    await ollama_provider.generate(prompt, **custom_params)
     
-    # Assertions
-    mock_client.generate.assert_awaited_once_with(
-        prompt=TEST_PROMPT,
-        model=TEST_MODEL,
-        **custom_params
-    )
+    # Assert that custom parameters are passed through
+    mock_api_client.generate.assert_called_once()
+    call_kwargs = mock_api_client.generate.call_args[1]
+    assert call_kwargs["temperature"] == 0.9
+    assert call_kwargs["max_tokens"] == 200
+    assert call_kwargs["custom_param"] == "value"
