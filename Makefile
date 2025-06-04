@@ -1,24 +1,28 @@
 
-.PHONY: help install dev test test-e2e test-coverage test-health lint format clean build publish demo-interactive demo-script infra-setup infra-deploy check-env setup docs
+.PHONY: help install dev test test-e2e test-coverage test-health lint format clean build publish demo-interactive demo-script infra-setup infra-deploy check-env setup docs docker-test docker-shell docker-clean docker-build
 
 # Help target to show available commands
 help:
 	@echo "\nAvailable targets:"
-	@echo "  help        - Show this help message"
-	@echo "  install     - Install the package in development mode"
-	@echo "  dev         - Install development dependencies"
-	@echo "  setup       - Set up development environment"
-	@echo "  test        - Run tests"
-	@echo "  test-coverage - Run tests with coverage report"
-	@echo "  test-e2e    - Run end-to-end tests"
-	@echo "  test-health - Run health check script"
-	@echo "  lint        - Run linters"
-	@echo "  format      - Format code"
-	@echo "  clean       - Clean build artifacts"
-	@echo "  build       - Build package"
-	@echo "  publish     - Publish to PyPI"
-	@echo "  docs        - Build documentation"
-	@echo "  demo        - Run demo"
+	@echo "  help           - Show this help message"
+	@echo "  install        - Install the package in development mode"
+	@echo "  dev            - Install development dependencies"
+	@echo "  setup          - Set up development environment"
+	@echo "  test           - Run tests locally"
+	@echo "  test-coverage  - Run tests with coverage report"
+	@echo "  test-e2e       - Run end-to-end tests"
+	@echo "  test-health    - Run health check script"
+	@echo "  lint           - Run linters"
+	@echo "  format         - Format code"
+	@echo "  clean          - Clean build artifacts"
+	@echo "  build          - Build package"
+	@echo "  publish        - Publish to PyPI"
+	@echo "  docs           - Build documentation"
+	@echo "  demo           - Run demo"
+	@echo "  docker-build   - Build Docker containers"
+	@echo "  docker-test    - Run tests in Docker"
+	@echo "  docker-shell   - Open shell in test environment"
+	@echo "  docker-clean   - Remove Docker containers and volumes"
 
 # Installation
 install:
@@ -28,9 +32,9 @@ install:
 dev:
 	pip install -e .[dev]
 
-# Testowanie
+# Test locally (requires local Python environment)
 test:
-	pytest
+	pytest --timeout=60
 
 # Run end-to-end tests (requires Ollama service running)
 test-e2e: check-ollama
@@ -169,11 +173,35 @@ demo:
 	python -m gollm direct generate "Create a simple function"
 
 # Test quick installation
-test-install:
-	pip uninstall gollm -y || true
-	pip install -e .
-	gollm --help
-	echo "✅ Installation test passed"
+# Docker commands
+docker-build:
+	docker-compose build
+
+docker-test: docker-build
+	docker-compose up --exit-code-from testenv --remove-orphans testenv
+
+docker-shell:
+	docker-compose run --rm --service-ports dev /bin/bash
+
+docker-logs:
+	docker-compose logs -f
+
+docker-clean:
+	docker-compose down -v --remove-orphans
+	docker volume rm -f gollm_ollama_data gollm_gollm-cache 2>/dev/null || true
+	docker rmi -f gollm_testenv gollm_dev 2>/dev/null || true
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+
+# Show help
+docker-help:
+	@echo "Available Docker commands:"
+	@echo "  make docker-build     - Build the Docker containers"
+	@echo "  make docker-test      - Run tests in Docker"
+	@echo "  make docker-shell     - Open a shell in the dev container"
+	@echo "  make docker-logs      - View container logs"
+	@echo "  make docker-clean     - Clean up Docker resources"
 
 # Demo script target
 demo-script:

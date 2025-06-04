@@ -18,6 +18,8 @@ from gollm.config.config import (GollmConfig, LLMIntegration,
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import os
 import shutil
+from tests.conftest import llm_test
+
 
 # Test configuration
 TEST_CONFIG = GollmConfig(

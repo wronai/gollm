@@ -17,6 +17,28 @@ def temp_project():
     shutil.rmtree(temp_dir)
 
 
+@pytest.fixture(scope="session")
+def llm_model() -> str:
+    """Fixture to get the LLM model to use for tests."""
+    return LLM_MODEL
+
+@pytest.fixture(autouse=True)
+def llm_test_timeout(request):
+    """Automatically add timeout to LLM tests."""
+    # Skip if not an LLM test or no timeout needed
+    if not hasattr(request.node.function, '_llm_test'):
+        return
+    
+    timeout = getattr(request.node.function, '_llm_timeout', LLM_TEST_TIMEOUT)
+    start_time = time.time()
+    
+    def timeout_check():
+        if time.time() - start_time > timeout:
+            raise TimeoutError(f"Test exceeded timeout of {timeout} seconds")
+    
+    # Add a finalizer to check the timeout
+    request.addfinalizer(timeout_check)
+
 @pytest.fixture
 def sample_python_code():
     """Sample Python code for testing"""

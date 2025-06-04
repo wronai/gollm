@@ -2,6 +2,8 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tests.conftest import llm_test
+
 
 from gollm.llm.orchestrator import LLMRequest
 from gollm.main import GollmCore
@@ -27,6 +29,7 @@ class TestFastMode:
             }
             yield orchestrator_instance
 
+    @llm_test(timeout=30)
     def test_fast_mode_flag_propagation(self, mock_orchestrator):
         """Test that the fast mode flag is properly propagated to the orchestrator."""
         core = GollmCore(config_path=None)
@@ -48,6 +51,7 @@ class TestFastMode:
         assert call_args.fast_mode is True
         assert call_args.max_iterations == 1
 
+    @llm_test(timeout=30)
     def test_fast_mode_uses_single_iteration(self, mock_orchestrator):
         """Test that fast mode uses only a single iteration."""
         core = GollmCore(config_path=None)

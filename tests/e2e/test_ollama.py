@@ -3,6 +3,8 @@ import asyncio
 import logging
 import os
 import sys
+from tests.conftest import llm_test
+
 
 from gollm.llm.ollama_adapter import OllamaAdapter, OllamaConfig
 

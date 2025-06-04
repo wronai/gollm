@@ -3,6 +3,8 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tests.conftest import llm_test
+
 
 from gollm.llm.direct_api import DirectLLMClient
 

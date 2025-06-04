@@ -8,6 +8,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from tests.conftest import llm_test
+
 
 
 def run_command(cmd):
@@ -21,6 +23,7 @@ def run_command(cmd):
         return 1, "", str(e)
 
 
+@llm_test(timeout=30)
 def test_installation():
     """Test instalacji goLLM"""
     print("🔧 Testing goLLM installation...")
@@ -37,6 +40,7 @@ def test_installation():
     assert returncode == 0, f"goLLM CLI failed with: {stderr}"
 
 
+@llm_test(timeout=30)
 def test_validation():
     """Test walidacji kodu"""
     print("\n🔍 Testing code validation...")
@@ -70,6 +74,7 @@ def bad_function(a, b, c, d, e, f):  # Zbyt wiele parametrów
         os.unlink(test_file)
 
 
+@llm_test(timeout=30)
 def test_config_loading():
     """Test ładowania konfiguracji"""
     print("\n⚙️  Testing configuration loading...")
@@ -80,6 +85,7 @@ def test_config_loading():
     print("✅ Default configuration loads correctly")
 
 
+@llm_test(timeout=30)
 def test_todo_management():
     """Test zarządzania TODO"""
     print("\n📝 Testing TODO management...")

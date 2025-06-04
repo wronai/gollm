@@ -5,6 +5,8 @@ import os
 from typing import Any, Dict
 
 import pytest
+from tests.conftest import llm_test
+
 
 from gollm.llm.providers.ollama.factory import AdapterType
 from gollm.llm.providers.ollama.provider import OllamaLLMProvider

@@ -37,13 +37,45 @@ Pełna dokumentacja dostępna jest w języku angielskim:
 
 ## ⚡ Szybki start
 
+### Local Installation
+
 ```bash
-# Instalacja
+# Install with LLM support
 pip install gollm[llm]
 
-# Generowanie kodu
+# Generate code
 gollm generate "Napisz funkcję w Pythonie, która oblicza silnię"
 ```
+
+### Docker-based Development
+
+For a consistent development and testing environment, you can use Docker:
+
+1. **Initialize the test environment** (pulls Ollama and required models):
+   ```bash
+   ./scripts/init_test_env.sh
+   ```
+
+2. **Run all tests in Docker**:
+   ```bash
+   make docker-test
+   ```
+
+3. **Open a shell in the development container**:
+   ```bash
+   make docker-shell
+   ```
+
+4. **Clean up when done**:
+   ```bash
+   make docker-clean
+   ```
+
+This will set up a complete environment with:
+- Ollama service running locally
+- Required models pre-downloaded
+- All dependencies installed
+- Consistent testing environment
 
 ## ⚙️ Użycie z parametrami (Usage with Parameters)
 
@@ -143,6 +175,78 @@ Ten projekt jest dostępny na licencji Apache 2.0 - szczegóły w pliku [LICENSE
 - [Dokumentacja](https://gollm.readthedocs.io)
 - [Zgłaszanie błędów](https://github.com/wronai/gollm/issues)
 - [Dyskusje](https://github.com/wronai/gollm/discussions)
+
+## 🧪 Testing
+
+goLLM includes a comprehensive test suite to ensure code quality and functionality. Here are the available testing commands:
+
+### Basic Testing
+
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+
+# Run end-to-end tests (requires Ollama service)
+make test-e2e
+
+# Run health checks
+make test-health
+```
+
+### Advanced Testing Options
+
+```bash
+# Run all tests including slow ones
+make test-all
+
+# Run streaming tests (requires modular adapter)
+make test-streaming
+
+# Run tests in Docker container
+make docker-test
+
+# Open shell in test environment
+make docker-shell
+```
+
+### Infrastructure for Testing
+
+```bash
+# Start test infrastructure (Ollama service)
+make infra-start
+
+# Stop test infrastructure
+make infra-stop
+
+# Deploy test infrastructure using Ansible
+make infra-deploy
+```
+
+### Code Quality
+
+```bash
+# Run linters
+make lint
+
+# Format code
+make format
+
+# Run self-validation
+make gollm-check
+```
+
+### Cleanup
+
+```bash
+# Clean build artifacts
+make clean
+
+# Clean Docker resources
+make docker-clean
+```
 
 ## 🤖 Wsparcie dla modeli
 

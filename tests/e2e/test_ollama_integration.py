@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from tests.conftest import llm_test
+
 
 from gollm.llm.ollama_adapter import OllamaLLMProvider
 

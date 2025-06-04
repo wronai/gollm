@@ -1,30 +1,73 @@
 
+version: '3.8'
+
 services:
-  gollm-dev:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11435:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 35
+    networks:
+      - gollm_network
+
+  testenv:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: gollm-development
+      dockerfile: docker/testenv/Dockerfile
+    container_name: testenv
+    depends_on:
+      ollama:
+        condition: service_healthy
     volumes:
-      - .:/workspace
-      - gollm-cache:/workspace/.gollm/cache
-    working_dir: /workspace
+      - .:/app
+      - gollm-cache:/root/.cache/gollm
     environment:
-      - PYTHONPATH=/workspace/src
-      - goLLM_CONFIG=/workspace/gollm.json
-    command: tail -f /dev/null
-    
-  gollm-test:
+      - OLLAMA_HOST=http://ollama:11434
+    networks:
+      - gollm_network
+    command: >
+      sh -c "echo 'Waiting for Ollama...' &&
+             until curl -s http://ollama:11434/api/tags >/dev/null; do
+               echo 'Waiting for Ollama...' && sleep 1;
+             done &&
+             echo 'Ollama is ready! Pulling tinyllama model...' &&
+             curl -X POST http://ollama:11434/api/pull -d '{"name": "tinyllama:latest"}' &&
+             echo 'Running tests with 30s timeout...' &&
+             pytest tests/ -v --timeout=30 --cov=src/gollm"
+
+  dev:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: gollm-testing
+      dockerfile: docker/testenv/Dockerfile
+    container_name: dev
+    depends_on:
+      ollama:
+        condition: service_healthy
     volumes:
-      - .:/workspace
-    working_dir: /workspace
+      - .:/app
+      - gollm-cache:/root/.cache/gollm
     environment:
-      - PYTHONPATH=/workspace/src
-    command: pytest tests/ -v --cov=src/gollm
+      - OLLAMA_HOST=http://ollama:11434
+    networks:
+      - gollm_network
+    ports:
+      - "8000:8000"
+    stdin_open: true
+    tty: true
+
+networks:
+  gollm_network:
+    driver: bridge
 
 volumes:
+  ollama_data:
   gollm-cache:

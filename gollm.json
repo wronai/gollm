@@ -24,9 +24,11 @@
     "enabled": true,
     "api_provider": "ollama",
     "default_provider": "ollama",
-    "fallback_order": ["ollama"],
+    "fallback_order": [
+      "ollama"
+    ],
     "timeout": 30,
-    "max_retries": 3,
+    "max_retries": 6,
     "log_level": "DEBUG",
     "debug_logging": true,
     "log_file": "gollm_debug.log",
@@ -37,7 +39,7 @@
         "enabled": true,
         "priority": 1,
         "base_url": "http://192.168.188.212:11434",
-        "model": "mistral:latest",
+        "model": "deepseek-r1:8b",
         "api_type": "chat",
         "temperature": 0.1,
         "max_tokens": 100,
@@ -45,10 +47,15 @@
         "top_p": 0.9,
         "top_k": 40,
         "repeat_penalty": 1.1,
-        "stop": ["```", "\n\n", "\n#", "\n\n\n"],
+        "stop": [
+          "```",
+          "\n\n",
+          "\n#",
+          "\n\n\n"
+        ],
         "auto_fix_attempts": 1,
         "validate_code": true,
-        "max_iterations": 1
+        "max_iterations": 3
       }
     }
   },
