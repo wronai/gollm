@@ -48,8 +48,10 @@ def log_request(
     Returns:
         Dictionary containing request context for correlation with response
     """
+    # Generate a unique request ID using current time in nanoseconds
+    request_id = f"req_{int(time.time() * 1e9)}"
     context = {
-        'request_id': str(id(context)),
+        'request_id': request_id,
         'start_time': time.time(),
         'method': method,
         'url': url

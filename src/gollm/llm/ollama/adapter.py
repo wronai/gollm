@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Union, AsyncGenerator
+from typing import Any, Dict, List, Optional, Type, Union, AsyncGenerator
 
 import aiohttp
 
@@ -37,6 +37,50 @@ class OllamaAdapter(BaseLLMAdapter):
     This class provides methods for generating text, managing models,
     and handling API communication with proper error handling and logging.
     """
+    
+    @property
+    def provider(self) -> str:
+        """Get the name of the provider this adapter is for.
+        
+        Returns:
+            str: The provider name ('ollama')
+        """
+        return "ollama"
+        
+    @property
+    def config_class(self) -> Type['OllamaConfig']:
+        """Get the configuration class for this adapter.
+        
+        Returns:
+            Type[OllamaConfig]: The configuration class
+        """
+        return OllamaConfig
+        
+    @classmethod
+    def get_default_config(cls) -> 'OllamaConfig':
+        """Get the default configuration for this adapter.
+        
+        Returns:
+            OllamaConfig: A default configuration instance
+        """
+        return OllamaConfig()
+        
+    def get_provider(self, config: 'OllamaConfig') -> 'OllamaLLMProvider':
+        """Get a provider instance configured with the given config.
+        
+        Args:
+            config: The configuration to use
+            
+        Returns:
+            OllamaLLMProvider: A configured provider instance
+            
+        Raises:
+            ConfigurationError: If the configuration is invalid
+        """
+        if not isinstance(config, OllamaConfig):
+            config = OllamaConfig.from_dict(config)
+            
+        return OllamaLLMProvider(config)
     
     def __init__(self, config: Optional[Union[OllamaConfig, Dict[str, Any]]] = None):
         """Initialize the Ollama adapter.
@@ -202,11 +246,8 @@ class OllamaAdapter(BaseLLMAdapter):
         
         try:
             # Make the API request
-            response = await self.api_client.generate(
-                prompt=prompt,
-                model=model,
-                **params
-            )
+            # The prompt is already included in params, so we don't need to pass it again
+            response = await self.api_client.generate(**params)
             
             # Log successful response
             log_response(
@@ -289,11 +330,8 @@ class OllamaAdapter(BaseLLMAdapter):
         
         try:
             # Make the API request
-            response = await self.api_client.chat(
-                messages=messages,
-                model=model,
-                **params
-            )
+            # The messages are already included in params, so we don't need to pass them again
+            response = await self.api_client.chat(**params)
             
             # Log successful response
             log_response(
@@ -335,20 +373,31 @@ class OllamaAdapter(BaseLLMAdapter):
             ModelNotFoundError: If the specified model is not available
             ModelOperationError: If there's an error during generation
         """
+        logger.debug("[STREAM_GENERATE] Starting stream_generate")
+        logger.debug(f"[STREAM_GENERATE] Prompt: {prompt[:100]}...")
+        logger.debug(f"[STREAM_GENERATE] Model: {model or 'default'}")
+        logger.debug(f"[STREAM_GENERATE] Additional kwargs: {kwargs}")
+        
         await self.initialize()
         
         # Validate input
         is_valid, error = validate_prompt(prompt)
         if not is_valid:
-            raise ValidationError(f"Invalid prompt: {error}")
+            error_msg = f"Invalid prompt: {error}"
+            logger.error(f"[STREAM_GENERATE] {error_msg}")
+            raise ValidationError(error_msg)
             
         # Use configured model if none specified
         model = model or self.config.model
+        logger.debug(f"[STREAM_GENERATE] Using model: {model}")
         validate_model(model)
         
         # Ensure model is available
+        logger.debug("[STREAM_GENERATE] Ensuring model is available...")
         if not await self.ensure_model(model):
-            raise ModelNotFoundError(f"Model '{model}' not found and could not be pulled")
+            error_msg = f"Model '{model}' not found and could not be pulled"
+            logger.error(f"[STREAM_GENERATE] {error_msg}")
+            raise ModelNotFoundError(error_msg)
             
         # Prepare generation parameters
         params = {
@@ -364,6 +413,8 @@ class OllamaAdapter(BaseLLMAdapter):
             **kwargs
         }
         
+        logger.debug(f"[STREAM_GENERATE] Prepared params: {params}")
+        
         # Log the request
         request_context = log_request(
             logger=logger,
@@ -373,24 +424,69 @@ class OllamaAdapter(BaseLLMAdapter):
         )
         
         try:
-            # Make the streaming request
-            async for chunk in self.api_client.generate(
-                prompt=prompt,
-                model=model,
-                stream=True,
-                **{k: v for k, v in params.items() if k not in ('prompt', 'model')}
-            ):
-                yield chunk
+            # Prepare parameters for the API call
+            # Exclude prompt and model from params since they're passed separately
+            stream_params = {k: v for k, v in params.items() 
+                           if k not in ('prompt', 'model', 'stream')}
+            
+            logger.debug(f"[STREAM_GENERATE] Calling generate with stream=True")
+            logger.debug(f"[STREAM_GENERATE] Prompt: {prompt[:50]}...")
+            logger.debug(f"[STREAM_GENERATE] Model: {model}")
+            logger.debug(f"[STREAM_GENERATE] Stream params: {stream_params}")
+            
+            # Debug the API client and its generate method
+            logger.debug(f"[STREAM_GENERATE] API client: {self.api_client}")
+            logger.debug(f"[STREAM_GENERATE] API client type: {type(self.api_client).__name__}")
+            logger.debug(f"[STREAM_GENERATE] API client has generate: {hasattr(self.api_client, 'generate')}")
+            
+            if hasattr(self.api_client, 'generate'):
+                logger.debug(f"[STREAM_GENERATE] API client generate type: {type(self.api_client.generate).__name__}")
+                logger.debug(f"[STREAM_GENERATE] API client generate is coroutine: {asyncio.iscoroutinefunction(self.api_client.generate)}")
+            
+            # Call the API client's generate method with stream=True
+            try:
+                logger.debug("[STREAM_GENERATE] Starting async iteration over generate...")
+                chunk_count = 0
+                
+                # Call the API client's generate method and await the result
+                # This should return an async iterable
+                logger.debug("[STREAM_GENERATE] Calling api_client.generate...")
+                response = await self.api_client.generate(
+                    prompt=prompt,
+                    model=model,
+                    stream=True,
+                    **stream_params
+                )
+                
+                logger.debug(f"[STREAM_GENERATE] Response type: {type(response).__name__}")
+                logger.debug(f"[STREAM_GENERATE] Response is async iterable: {hasattr(response, '__aiter__')}")
+                
+                # Iterate over the response
+                async for chunk in response:
+                    chunk_count += 1
+                    logger.debug(f"[STREAM_GENERATE] Yielding chunk {chunk_count}: {chunk}")
+                    yield chunk
+                    
+                logger.debug(f"[STREAM_GENERATE] Completed streaming {chunk_count} chunks")
+                
+            except Exception as e:
+                logger.error(f"[STREAM_GENERATE] Error in generate iteration: {str(e)}", exc_info=True)
+                logger.error(f"[STREAM_GENERATE] Error type: {type(e).__name__}")
+                raise
                 
         except Exception as e:
             # Log the error
+            error_type = type(e).__name__
+            error_msg = str(e)
+            logger.error(f"[STREAM_GENERATE] Stream generation failed: {error_type} - {error_msg}", exc_info=True)
+            
             log_response(
                 logger=logger,
                 context=request_context,
                 status_code=getattr(e, 'status', 500),
                 error=e
             )
-            raise ModelOperationError(f"Stream generation failed: {str(e)}") from e
+            raise ModelOperationError(f"Stream generation failed: {error_msg}") from e
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform a health check of the Ollama service.

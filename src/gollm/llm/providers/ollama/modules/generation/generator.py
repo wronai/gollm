@@ -74,9 +74,7 @@ class OllamaGenerator:
         context["calculated_timeout"] = timeout
         logger.info(f"Using timeout: {timeout}s (base: {self.timeout}s, minimum: {min_timeout}s)")
         
-        return timeout
-
-        # Round to nearest second
+        # Round to nearest second and return
         return round(timeout)
 
     async def generate(self, prompt, context=None):
@@ -138,7 +136,7 @@ class OllamaGenerator:
         import logging
 
         logger = logging.getLogger("gollm.ollama.generator")
-        logger.info(f"===== OLLAMA GENERATOR CHAT REQUEST STARTED =====")
+        logger.info("===== OLLAMA GENERATOR CHAT REQUEST STARTED =====")
         logger.info(f"Context keys: {list(context.keys())}")
         logger.info(f"Using model: {context.get('model', self.model_name)}")
         logger.info(f"Max tokens: {context.get('max_tokens', self.token_limit)}")
@@ -195,12 +193,19 @@ class OllamaGenerator:
 
         logger.debug(f"Using timeout of {timeout}s for chat request")
 
+        # Create a new ClientSession if one wasn't provided
+        session = self.session or aiohttp.ClientSession()
+        session_created = self.session is None
+        
         try:
-            async with self.session.post(
+            # Use the session directly without async context manager
+            response = await session.post(
                 f"{self.base_url}/api/chat",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as response:
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            )
+            
+            try:
                 if response.status != 200:
                     error_text = await response.text()
                     logger.error(
@@ -211,6 +216,7 @@ class OllamaGenerator:
                         "details": error_text,
                         "generated_text": "",
                         "text": "",
+                        "success": False
                     }
 
                 result = await response.json()
@@ -234,51 +240,22 @@ class OllamaGenerator:
                     logger.info(
                         f"Extracted content from message.content (length: {len(generated_text)})"
                     )
-                    logger.debug(f"Content first 200 chars: {generated_text[:200]}...")
-                    logger.debug(
-                        f"Content last 200 chars: {generated_text[-200:] if len(generated_text) > 200 else generated_text}"
-                    )
-
-                    # Check for code blocks in the content
-                    import re
-
-                    code_blocks = re.findall(
-                        r"```(?:\w*)?\n(.+?)(?:\n```|$)", generated_text, re.DOTALL
-                    )
-                    logger.info(f"Found {len(code_blocks)} code blocks in content")
-                    for i, block in enumerate(code_blocks):
-                        logger.info(f"Code block {i+1} length: {len(block)}")
-                        logger.debug(
-                            f"Code block {i+1} first 100 chars: {block[:100]}..."
-                        )
-                        logger.debug(
-                            f"Code block {i+1} last 100 chars: {block[-100:] if len(block) > 100 else block}"
-                        )
-
                 # If not found, try to extract from response field (some Ollama versions)
                 elif "response" in result:
                     generated_text = result["response"]
                     logger.info(
                         f"Extracted content from response (length: {len(generated_text)})"
                     )
-                    logger.debug(f"Content first 200 chars: {generated_text[:200]}...")
-                    logger.debug(
-                        f"Content last 200 chars: {generated_text[-200:] if len(generated_text) > 200 else generated_text}"
-                    )
-
                 else:
                     logger.warning(
                         f"Could not find content in Ollama response. Keys: {list(result.keys())}"
                     )
                     # Try to extract from any field that might contain text
                     for key, value in result.items():
-                        if (
-                            isinstance(value, str) and len(value) > 50
-                        ):  # Likely to be content
+                        if isinstance(value, str) and len(value) > 50:
                             logger.info(
                                 f"Found potential content in key '{key}' (length: {len(value)})"
                             )
-                            logger.debug(f"Content first 200 chars: {value[:200]}...")
                             generated_text = value
                             break
 
@@ -293,26 +270,38 @@ class OllamaGenerator:
                     "finish_reason": result.get("done", True),
                     "success": True,
                 }
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout during chat generation after {timeout}s")
-            error_message = f"Request timed out after {timeout} seconds. The model may be overloaded or the request may be too complex."
+                
+            finally:
+                # Ensure response is closed
+                if not response.closed:
+                    await response.release()
+                    
+        except asyncio.TimeoutError as e:
+            logger.error(f"Request to Ollama API timed out after {timeout} seconds")
             return {
                 "error": "Timeout",
-                "details": error_message,
-                "generated_text": f"ERROR: {error_message}",
-                "text": f"ERROR: {error_message}",
-                "success": False,
-            }
-        except Exception as e:
-            logger.exception(f"Error during chat generation: {str(e)}")
-            error_message = f"Error during request: {str(e)}"
-            return {
-                "error": "Exception", 
-                "details": error_message, 
-                "generated_text": f"ERROR: {error_message}",
-                "text": f"ERROR: {error_message}",
+                "details": f"Request timed out after {timeout} seconds",
+                "generated_text": "",
+                "text": "",
                 "success": False
             }
+            
+        except Exception as e:
+            logger.exception("Unexpected error during Ollama API request")
+            return {
+                "error": "Exception",
+                "details": str(e),
+                "generated_text": "",
+                "text": "",
+                "success": False
+            }
+            
+        finally:
+            # Close the session if we created it
+            if session_created and not session.closed:
+                await session.close()
+                
+
 
     async def _generate_completion(
         self, prompt: str, context: Dict[str, Any]
@@ -359,84 +348,76 @@ class OllamaGenerator:
             f"Sending completion request to Ollama API: {json.dumps(payload, indent=2)}"
         )
 
-        # Make the API request
+        # Create a new ClientSession if one wasn't provided
+        session = self.session or aiohttp.ClientSession()
+        session_created = self.session is None
+        
         try:
-            async with self.session.post(
+            # Make the API request
+            response = await session.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as response:
+            )
+            
+            try:
                 if response.status != 200:
                     error_text = await response.text()
                     logger.error(
                         f"Ollama completion API error: {response.status} - {error_text}"
                     )
-                    return {}
+                    return {
+                        "error": f"API error: {response.status}",
+                        "details": error_text,
+                        "generated_text": "",
+                        "text": "",
+                        "success": False
+                    }
+                    
                 result = await response.json()
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout during completion generation after {timeout}s")
-            error_message = f"Request timed out after {timeout} seconds. The model may be overloaded or the request may be too complex."
+                logger.debug(f"Completion API raw response: {json.dumps(result, indent=2)}")
+                
+                # Extract the response text
+                response_text = result.get("response", "")
+                
+                return {
+                    "generated_text": response_text,
+                    "text": response_text,
+                    "model": result.get("model", self.model_name),
+                    "usage": {k: v for k, v in result.items() if k in ["prompt_eval_count", "eval_count"]},
+                    "finish_reason": result.get("done", True),
+                    "success": True,
+                }
+                
+            finally:
+                # Ensure response is closed
+                if not response.closed:
+                    await response.release()
+                    
+        except asyncio.TimeoutError as e:
+            logger.error(f"Request to Ollama API timed out after {timeout} seconds")
             return {
                 "error": "Timeout",
-                "details": error_message,
-                "generated_text": f"ERROR: {error_message}",
-                "text": f"ERROR: {error_message}",
-                "success": False,
+                "details": f"Request timed out after {timeout} seconds",
+                "generated_text": "",
+                "text": "",
+                "success": False
             }
+            
         except Exception as e:
-            logger.exception(f"Error during completion generation: {str(e)}")
-            error_message = f"Error during request: {str(e)}"
+            logger.exception("Unexpected error during Ollama API request")
             return {
                 "error": "Exception",
-                "details": error_message,
-                "generated_text": f"ERROR: {error_message}",
-                "text": f"ERROR: {error_message}",
-                "success": False,
+                "details": str(e),
+                "generated_text": "",
+                "text": "",
+                "success": False
             }
-
-        # Apply adaptive timeout if specified in context
-        if context.get("adaptive_timeout", False):
-            prompt_length = len(prompt)
-            if api_type == "chat" and context.get("messages"):
-                # For chat, calculate total content length of all messages
-                prompt_length = sum(
-                    len(msg.get("content", "")) for msg in context["messages"]
-                )
-            # Add 1 second per 500 characters with a minimum of base timeout
-            additional_time = int(prompt_length / 500)
-            timeout = max(self.timeout, self.timeout + additional_time)
-            logger.debug(
-                f"Using adaptive timeout of {timeout}s for request (prompt length: {prompt_length})"
-            )
-            context["timeout"] = (
-                timeout  # Pass the adjusted timeout to the generation methods
-            )
-
-        # Call the appropriate generation method based on API type
-        start_time = time.time()
-
-        if api_type == "chat":
-            result = await self._generate_chat(prompt, context)
-        else:
-            result = await self._generate_completion(prompt, context)
-
-        # Add metadata
-        end_time = time.time()
-        duration = end_time - start_time
-
-        if "metadata" not in result:
-            result["metadata"] = {}
-
-        result["metadata"].update(
-            {
-                "duration": duration,
-                "model": self.model_name,
-                "api_type": api_type,
-                "timestamp": end_time,
-            }
-        )
-
-        return result
+            
+        finally:
+            # Close the session if we created it
+            if session_created and not session.closed:
+                await session.close()
 
     async def generate_stream(
         self, prompt: str, context: Dict[str, Any] = None

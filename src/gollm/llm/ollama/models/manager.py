@@ -37,11 +37,11 @@ class ModelManager:
                 response = await self.api_client.get_models()
                 models = response.get('models', [])
                 self._available_models = {
-                    model['name'].split(':')[0]  # Remove tag/version if present
+                    model['name']  # Keep the full model name with tag
                     for model in models
                 }
                 self._model_details = {
-                    model['name'].split(':')[0]: model
+                    model['name']: model  # Keep the full model name with tag
                     for model in models
                 }
                 logger.info("Refreshed %d available models", len(self._available_models))
@@ -67,7 +67,7 @@ class ModelManager:
         """Check if a model exists on the Ollama server.
         
         Args:
-            model_name: Name of the model to check
+            model_name: Name of the model to check (with or without tag)
             refresh: Whether to force refresh the model list
             
         Returns:
@@ -76,10 +76,22 @@ class ModelManager:
         if refresh or self._available_models is None:
             await self.refresh_models()
             
-        # Check both with and without the 'latest' tag
+        if not self._available_models:
+            return False
+            
+        # First check exact match
+        if model_name in self._available_models:
+            return True
+            
+        # If no tag is specified, check with :latest
+        if ':' not in model_name:
+            return f"{model_name}:latest" in self._available_models
+            
+        # If tag is specified but not found, check base name
+        base_name = model_name.split(':')[0]
         return (
-            model_name in (self._available_models or set()) or
-            (':' not in model_name and f"{model_name}:latest" in (self._available_models or set()))
+            base_name in self._available_models or
+            f"{base_name}:latest" in self._available_models
         )
 
     async def get_model_info(self, model_name: str) -> Dict:
